@@ -1,0 +1,1 @@
+from .asyncpg import AsyncpgResource

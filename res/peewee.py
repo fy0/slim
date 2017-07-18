@@ -1,9 +1,8 @@
 import peewee
+from playhouse.shortcuts import model_to_dict
 from ..utils import pagination_calc_peewee
 from ..resource import Resource
 from ..retcode import RETCODE
-
-from playhouse.shortcuts import model_to_dict
 
 
 class BaseModel(peewee.Model):

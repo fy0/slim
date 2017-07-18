@@ -1,13 +1,10 @@
 import json
 import asyncio
-import asyncpg
-from ..resource import Resource
-from ..retcode import RETCODE
-from ..utils import pagination_calc, ResourceException
+from . import query
+from mapi.resource import Resource
+from mapi.retcode import RETCODE
+from mapi.utils import pagination_calc, ResourceException
 
-
-def _sql_escape(key: str):
-    return json.dumps(key)
 
 _valid_sql_operator = {
     '=': '=',
@@ -25,112 +22,6 @@ _valid_sql_operator = {
     'le': '<=',
     'lt': '<'
 }
-
-
-class QueryCompiler:
-    class SelectCompiler:
-        def __init__(self):
-            self.reset()
-
-        def reset(self):
-            self._query_expr = '*'
-            self._tables = []
-            self._wheres = []
-            self._tb_dict = {}
-            self._values = []
-            self._offset = None
-            self._limit = None
-            self._order_by = []
-            self._default_tbl = None
-
-        def _add_value(self, val, type_codec=None):
-            item = '$%d' % (len(self._values) + 1)
-            if type_codec: item += '::%s' % type_codec
-            self._values.append(val)
-            return item
-
-        def where1(self, column, op, value, type_codec=None, *, table=None):
-            table = table or self._default_tbl
-            self._wheres.append([table, column, op, value, type_codec])
-            return self
-
-        def where_many(self, args, *, table=None):
-            for column, op, value, type_codec in args:
-                self.where1(column, op, value, type_codec, table=table)
-            return self
-
-        def select_raw(self, val):
-            self._query_expr = val
-            return self
-
-        def select_count(self):
-            self._query_expr = 'count(1)'
-            return self
-
-        def set_default_table(self, tbl):
-            self._default_tbl = tbl
-            return self
-
-        def from_table(self, table: str, as_default: bool = False):
-            self._tables = [table]
-            if not self._default_tbl:
-                self._default_tbl = table
-            return self
-
-        def from_tables(self, tables: list, *, default_table=None):
-            self._tables = tables
-            if not self._default_tbl:
-                self._default_tbl = tables[0]
-            return self
-
-        def limit(self, val):
-            self._limit = val
-            return self
-
-        def offset(self, val):
-            self._offset = val
-            return self
-
-        def order_by(self, column, ordering_suffix='ASC', *, table=None):
-            table = table or self._default_tbl
-            self._order_by.append([table, column, ordering_suffix])
-            return self
-
-        def sql(self):
-            self._tb_dict = {}
-            sql = ['select', self._query_expr, ]
-
-            if self._tables:
-                sql.append('from')
-                for _, i in enumerate(self._tables):
-                    alias = 't%d' % (_ + 1)
-                    self._tb_dict[i] = alias
-                    sql.extend([_sql_escape(i), 'as', _sql_escape(alias), ','])
-                sql.pop()
-
-            if self._wheres:
-                sql.append('where')
-                for table, column, op, value, type_codec in self._wheres:
-                    # "t1" . "col1" == $1
-                    sql.extend(
-                        ['(', _sql_escape(self._tb_dict[table]), '.', _sql_escape(column), op, self._add_value(value, type_codec),
-                         ')', 'and'])
-                sql.pop()
-
-            if self._order_by:
-                sql.append('order by')
-                for table, column, ordering_suffix in self._order_by:
-                    # "t1" . "col1" [asc | desc]
-                    sql.extend([_sql_escape(self._tb_dict[table]), '.', _sql_escape(column), ordering_suffix, ','])
-                sql.pop()
-
-            if self._offset is not None:
-                sql.extend(['offset', self._add_value(self._offset)])
-
-            if self._limit is not None:
-                sql.extend(['limit', self._add_value(self._limit)])
-
-            return ' '.join(sql), self._values
 
 
 class AsyncpgResource(Resource):
@@ -160,19 +51,76 @@ class AsyncpgResource(Resource):
             self.fields = ret
             return ret
 
+    def _query_order(self, text):
+        orders = []
+        for i in text.split(','):
+            table = None
+            items = i.split('.', 2)
+
+            if len(items) == 1: continue
+            elif len(items) == 2: column, order = items
+            else: column, order, table = items
+
+            order = order.lower()
+            if column not in self.fields:
+                raise ResourceException('Column not found: %s' % column)
+            if order not in ('asc', 'desc'):
+                raise ResourceException('Invalid order column: %s' % order)
+            orders.append([column, order, table])
+        return orders
+
+    def _query_extra(self, text):
+        # 安全性上非常危险的接口
+        extra = json.loads(text)
+        new_extra = {
+            'groups': {}
+        }
+        for name, group in extra['groups']:
+            """
+            # name '_root' reserved
+            group = {
+                'table': '{table_name}',
+                'logic_op': '{and, or}',
+                'children': {...}
+            }            
+           """
+            new_group = {}
+            new_group['table'] = group['table']
+            if new_group['logic_op'].lower() not in ('and', 'or'):
+                raise ResourceException('Invalid logic operator: %s' % new_group['logic_op'])
+            new_group['logic_op'] = new_group['logic_op'].lower()
+            new_extra['groups'][name] = new_group
+        return new_extra
+
     def _query_convert(self, params):
         args = []
+        orders = []
+        extra = None
+
         for k, v in params.items():
+            group = None
+            # @ ...
+            info = k.rsplit('@', 1)
+            if len(info) == 2:
+                group = info[1].split('.')
+                k = info[0]
+            # xxx.{op}@ ...
             info = k.split('.', 1)
 
             if len(info) < 1:
                 raise ResourceException('Invalid request parameter')
 
             field_name = info[0]
+            if field_name == 'order':
+                orders = self._query_order(v)
+                continue
+            elif field_name == '_ext':
+                extra = self._query_extra(v)
+                continue
             op = '='
 
             if field_name not in self.fields:
-                raise ResourceException('Field name not found: %s' % field_name)
+                raise ResourceException('Column not found: %s' % field_name)
             field = self.fields[field_name]
             type_codec = field['typename']
 
@@ -191,13 +139,13 @@ class AsyncpgResource(Resource):
                     raise ResourceException('Invalid operator: %s' % op)
                 op = _valid_sql_operator[op]
 
-            args.append([field_name, op, v, type_codec])
-        return args
+            args.append([field_name, op, v, type_codec, group])
+        return args, orders, extra
 
     async def get(self, request):
-        sc = QueryCompiler.SelectCompiler()
-        args = self._query_convert(request.query)
-        sql = sc.select_raw('*').from_table(self.table_name).where_many(args).sql()
+        sc = query.SelectCompiler()
+        args, orders, extra = self._query_convert(request.query)
+        sql = sc.select_raw('*').from_table(self.table_name).where_many(args).set_ext(extra).order_by_many(orders).sql()
         ret = await self.conn.fetchrow(sql[0], *sql[1])
 
         if ret:
@@ -242,16 +190,17 @@ class AsyncpgResource(Resource):
         page = int(page)
         size = int(size or self.LIST_PAGE_SIZE)
 
-        sc = QueryCompiler.SelectCompiler()
-        args = self._query_convert(request.query)
-        sql = sc.select_count().from_table(self.table_name).where_many(args).sql()
+        sc = query.SelectCompiler()
+        args, orders, extra = self._query_convert(request.query)
+        sql = sc.select_count().from_table(self.table_name).where_many(args).set_ext(extra).order_by_many(orders).sql()
         count = await self.conn.fetchval(sql[0], *sql[1])
 
         pg = pagination_calc(count, size, page)
         get_values = lambda x: list(x.values())
 
         sc.reset()
-        sql = sc.select_raw('*').from_table(self.table_name).where_many(args).limit(size).offset(size * (page-1)).sql()
+        sql = sc.select_raw('*').from_table(self.table_name).where_many(args).set_ext(extra) \
+            .order_by_many(orders).limit(size).offset(size * (page-1)).sql()
         ret = map(get_values, await self.conn.fetch(sql[0], *sql[1]))
         pg["items"] = list(ret)
         self.finish(RETCODE.SUCCESS, pg)
