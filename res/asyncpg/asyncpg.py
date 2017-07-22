@@ -82,7 +82,7 @@ class AsyncpgResource(Resource):
                 'table': '{table_name}',
                 'logic_op': '{and, or}',
                 'children': {...}
-            }            
+            }
            """
             new_group = {}
             new_group['table'] = group['table']
@@ -154,7 +154,11 @@ class AsyncpgResource(Resource):
             self.finish(RETCODE.NOT_FOUND)
 
     async def set(self, request):
-        item = self._get_one(request)
+        uc = query.UpdateCompiler()
+        args, orders, extra = self._query_convert(request.query)
+        sql = uc.to_table(self.table_name).set_values()
+        sql = sc.select_raw('*').from_table(self.table_name).where_many(args).set_ext(extra).order_by_many(orders).sql()
+
         if item:
             data = await request.post()
             for k, v in data.items():

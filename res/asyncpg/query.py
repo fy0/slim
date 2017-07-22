@@ -59,6 +59,7 @@ class BaseCompiler:
         return self
 
     def _not_implemented(self):
+        if False: return True # for warning fix
         raise NotImplementedError()
 
     def sql(self) -> str:
@@ -68,6 +69,7 @@ class BaseCompiler:
 class SelectCompiler(BaseCompiler):
     def reset(self):
         super().reset()
+        self._query_count = False
         self._query_expr = '*'
         self._offset = None
         self._limit = None
@@ -77,8 +79,13 @@ class SelectCompiler(BaseCompiler):
         self._query_expr = val
         return self
 
-    def select_count(self):
-        self._query_expr = 'count(1)'
+    def select_count(self, val=None):
+        self._query_count = val or '*'
+        self.count()
+        return self
+
+    def count(self):
+        self._query_count = True
         return self
 
     def limit(self, val):
@@ -132,6 +139,9 @@ class SelectCompiler(BaseCompiler):
 
         if self._limit is not None:
             sql.extend(['limit', self._add_value(self._limit)])
+        if self._query_count:
+            sql.insert(0, 'select count(1) from (')
+            sql.extend([')', 'as', 'q1'])
 
         return ' '.join(sql), self._values
 
@@ -155,14 +165,35 @@ class UpdateCompiler(BaseCompiler):
         self._update_values.append([table, column, value, type_codec])
         return self
 
+    def sql(self):
+        self._tbl_dict = {}
+        sql = ['update', self._tables[0], 'as', _sql_escape('t1')]
+        self._tbl_dict[self._tables[0]] = 't1'
 
+        if self._update_values:
+            sql.append('set')
+            for table, column, value, type_codec in self._wheres:
+                # "t1" . "col1" = $1,
+                sql.extend(
+                    ['(', _sql_escape(self._tbl_dict[table]), '.', _sql_escape(column), '=', self._add_value(value, type_codec),
+                     ')', ','])
+            sql.pop()
 
-UpdateCompiler.to_table = SelectCompiler._from_table
-UpdateCompiler._from_tables = SelectCompiler._not_implemented
+        if self._wheres:
+            sql.append('where')
+            for table, column, op, value, type_codec, group in self._wheres:
+                # "t1" . "col1" == $1
+                sql.extend(
+                    ['(', _sql_escape(self._tbl_dict[table]), '.', _sql_escape(column), op, self._add_value(value, type_codec),
+                     ')', 'and'])
+            sql.pop()
+
+        return ' '.join(sql), self._values
+
+    to_table = BaseCompiler._from_table
+    _from_tables = BaseCompiler._not_implemented
 
 
 class InsertCompiler(BaseCompiler):
-    pass
-
-InsertCompiler.into_table = SelectCompiler._from_table
-InsertCompiler.into_tables = SelectCompiler._from_tables
+    into_table = BaseCompiler._from_table
+    into_tables = BaseCompiler._from_tables
