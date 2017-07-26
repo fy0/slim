@@ -1,5 +1,7 @@
 import json
 import asyncio
+
+from mapi.res.asyncpg.query import parse_query_by_json, QueryException
 from . import query
 from mapi.resource import Resource
 from mapi.retcode import RETCODE
@@ -25,6 +27,9 @@ _valid_sql_operator = {
 
 
 class AsyncpgResource(Resource):
+    surface = Resource.surface.copy()
+    surface['exlist'] = Resource._surface_list_tmpl('exlist')
+
     _field_query = '''SELECT a.attname as name, col_description(a.attrelid,a.attnum) as comment,pg_type.typname as typename, a.attnotnull as notnull
       FROM pg_class as c,pg_attribute as a inner join pg_type on pg_type.oid = a.atttypid 
       where c.relname = $1 and a.attrelid = c.oid and a.attnum>0;'''
@@ -66,11 +71,13 @@ class AsyncpgResource(Resource):
                 raise ResourceException('Column not found: %s' % column)
             if order not in ('asc', 'desc'):
                 raise ResourceException('Invalid order column: %s' % order)
+
+
             orders.append([column, order, table])
         return orders
 
     def _query_extra(self, text):
-        # 安全性上非常危险的接口
+        ''' 这部分思路有问题，过于繁琐，且不应该提供跨表查询能力
         extra = json.loads(text)
         new_extra = {
             'groups': {}
@@ -90,7 +97,9 @@ class AsyncpgResource(Resource):
                 raise ResourceException('Invalid logic operator: %s' % new_group['logic_op'])
             new_group['logic_op'] = new_group['logic_op'].lower()
             new_extra['groups'][name] = new_group
-        return new_extra
+        return new_extra'''
+        extra = json.loads(text)
+        pass
 
     def _query_convert(self, params):
         args = []
@@ -145,7 +154,7 @@ class AsyncpgResource(Resource):
     async def get(self, request):
         sc = query.SelectCompiler()
         args, orders, extra = self._query_convert(request.query)
-        sql = sc.select_raw('*').from_table(self.table_name).where_many(args).set_ext(extra).order_by_many(orders).sql()
+        sql = sc.select_raw('*').from_table(self.table_name).simple_where_many(args).set_ext(extra).order_by_many(orders).sql()
         ret = await self.conn.fetchrow(sql[0], *sql[1])
 
         if ret:
@@ -157,7 +166,7 @@ class AsyncpgResource(Resource):
         uc = query.UpdateCompiler()
         args, orders, extra = self._query_convert(request.query)
         sql = uc.to_table(self.table_name).set_values()
-        sql = sc.select_raw('*').from_table(self.table_name).where_many(args).set_ext(extra).order_by_many(orders).sql()
+        sql = sc.select_raw('*').from_table(self.table_name).simple_where_many(args).set_ext(extra).order_by_many(orders).sql()
 
         if item:
             data = await request.post()
@@ -196,26 +205,62 @@ class AsyncpgResource(Resource):
 
         sc = query.SelectCompiler()
         args, orders, extra = self._query_convert(request.query)
-        sql = sc.select_count().from_table(self.table_name).where_many(args).set_ext(extra).order_by_many(orders).sql()
+        sql = sc.select_count().from_table(self.table_name).simple_where_many(args).set_ext(extra).order_by_many(orders).sql()
         count = await self.conn.fetchval(sql[0], *sql[1])
 
         pg = pagination_calc(count, size, page)
         get_values = lambda x: list(x.values())
 
         sc.reset()
-        sql = sc.select_raw('*').from_table(self.table_name).where_many(args).set_ext(extra) \
+        sql = sc.select_raw('*').from_table(self.table_name).simple_where_many(args).set_ext(extra) \
             .order_by_many(orders).limit(size).offset(size * (page-1)).sql()
         ret = map(get_values, await self.conn.fetch(sql[0], *sql[1]))
         pg["items"] = list(ret)
         self.finish(RETCODE.SUCCESS, pg)
+
+    async def exlist(self, request):
+        page = request.match_info.get('page', '1')
+        size = request.match_info.get('size', None)
+        query_json = request.query.get('query', None)
+
+        if not page.isdigit():
+            return self.finish(RETCODE.INVALID_PARAMS)
+
+        if size and not size.isdigit():
+            return self.finish(RETCODE.INVALID_PARAMS)
+
+        if not query_json:
+            return self.finish(RETCODE.INVALID_PARAMS)
+
+        page = int(page)
+        size = int(size or self.LIST_PAGE_SIZE)
+
+        sc = query.SelectCompiler()
+        try:
+            info = parse_query_by_json(query_json)
+            sql = sc.select_count().from_tables(info['tables']).where(*info['wheres']).sql()
+            count = await self.conn.fetchval(sql[0], *sql[1])
+
+            pg = pagination_calc(count, size, page)
+            get_values = lambda x: list(x.values())
+
+            sc.reset()
+            sql = sc.select(*info['columns']).from_tables(info['tables']).where(*info['wheres']) \
+                .limit(size).offset(size * (page - 1)).sql()
+
+            ret = map(get_values, await self.conn.fetch(sql[0], *sql[1]))
+            pg["items"] = list(ret)
+            self.finish(RETCODE.SUCCESS, pg)
+        except QueryException as e:
+            self.finish(RETCODE.INVALID_PARAMS, e.args[0])
 
 
 """
 sc = QueryCompiler.SelectCompiler()
 print(sc.select_count().from_table('T596718ed293b327c5c00000b').sql())
 print(sc.select_raw('*').from_table('T596718ed293b327c5c00000b')
-      .where1('id', '=', 1)
-      .where1('c1', '!=', '123')
+      .simple_where_one('id', '=', 1)
+      .simple_where_one('c1', '!=', '123')
       .offset(1)
       .limit(10)
       .order_by('c2')
@@ -225,8 +270,8 @@ print(sc.select_raw('*').from_table('T596718ed293b327c5c00000b')
 async def main():
     sc = QueryCompiler.SelectCompiler()
     info = (sc.select_raw('*').from_table('T596718ed293b327c5c00000b')
-            .where1('id', '>', 1)
-            .where1('c1', '!=', '123')
+            .simple_where_one('id', '>', 1)
+            .simple_where_one('c1', '!=', '123')
             .offset(1)
             .limit(10)
             .order_by('c2')

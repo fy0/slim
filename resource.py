@@ -23,6 +23,19 @@ class Resource:
         'del': 'POST',
     }
 
+    @staticmethod
+    def _surface_list_tmpl(name):
+        return [
+            {
+                'method': 'GET',
+                'url': '/%s/{page}' % name
+            },
+            {
+                'method': 'GET',
+                'url': '/%s/{page}/{size}' % name
+            },
+        ]
+
     def __init__(self):
         self.ret_val = None
         self.permission = self.permission_type(self)
