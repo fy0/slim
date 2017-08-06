@@ -1,8 +1,41 @@
+import re
 import math
+import time
+
+_valid_sql_operator = {
+    '=': '=',
+    '==': '=',
+    '!=': '!=',
+    '<>': '<>',
+    '<': '<',
+    '<=': '<=',
+    '>': '>',
+    '>=': '>=',
+    'eq': '=',
+    'ne': '!=',
+    'ge': '>=',
+    'gt': '>',
+    'le': '<=',
+    'lt': '<'
+}
+
+RegexPatternType = type(re.compile(''))
+
+
+class _MetaClassForInit(type):
+    def __new__(mcs, *args, **kwargs):
+        new_class = super().__new__(mcs, *args, **kwargs)
+        new_class.init()
+        return new_class
 
 
 class ResourceException(Exception):
     pass
+
+
+def time_readable():
+    x = time.localtime(time.time())
+    return time.strftime('%Y-%m-%d %H:%M:%S',x)
 
 
 def pagination_calc(count_all, page_size, cur_page=1, nearby=2):

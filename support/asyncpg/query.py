@@ -98,12 +98,12 @@ class Column:
     __rmul__ = _qexpr('*', inv=True)
     __rdiv__ = __rtruediv__ = _qexpr('/', inv=True)
 
-    def __str__(self):
+    def __repr__(self):
         if self.func:
-            table = '%s(%s)' % (self.func, self.table)
+            table = '"%s(%s)"' % (self.func, self.table)
         else:
             table = self.table
-        return '%s.%s' % (table, self.column_name)
+        return '"%s.%s"' % (table, self.column_name)
 
 
 class BaseCompiler:
@@ -129,14 +129,14 @@ class BaseCompiler:
         self._wheres.extend(args)
         return self
 
-    def simple_where_one(self, column, op, value, type_codec=None, *, table=None, group=None):
+    def simple_where_one(self, column, op, value, type_codec=None, *, table=None):
         table = table or self._default_tbl
-        self._wheres_simple.append([table, column, op, value, type_codec, group])
+        self._wheres_simple.append([table, column, op, value, type_codec])
         return self
 
-    def simple_where_many(self, args, *, table=None):
-        for column, op, value, type_codec, group in args:
-            self.simple_where_one(column, op, value, type_codec, table=table, group=group)
+    def simple_where_many(self, args_lst, *, table=None):
+        for column, op, value, type_codec in args_lst:
+            self.simple_where_one(column, op, value, type_codec, table=table)
         return self
 
     def set_default_table(self, tbl):
@@ -155,18 +155,18 @@ class BaseCompiler:
             self._default_tbl = tables[0]
         return self
 
-    def set_ext(self, extra):
-        self._extra = extra
-        {
-            '_root': {
-
-            },
-        }
-        return self
-
     def _not_implemented(self):
         if False: return True # for warning fix
         raise NotImplementedError()
+
+    def analysis(self):
+        return {
+            'table1': {
+                'query': [],
+                'read': [],
+                'write': [],
+            },
+        }
 
     def sql(self) -> str:
         return ''
@@ -181,6 +181,11 @@ class SelectCompiler(BaseCompiler):
         self._offset = None
         self._limit = None
         self._order_by = []
+        self._for_update_skip_locked = False
+
+    def for_update_skip_locked(self):
+        self._for_update_skip_locked = True
+        return self
 
     def select(self, *columns: list):
         # ['table', 'column']
@@ -195,6 +200,11 @@ class SelectCompiler(BaseCompiler):
 
     def select_count(self, val=None):
         self._query_count = val or '*'
+        self.count()
+        return self
+
+    def select_ctid(self, val=None):
+        self._query_count = val or 'ctid'
         self.count()
         return self
 
@@ -216,8 +226,13 @@ class SelectCompiler(BaseCompiler):
         return self
 
     def order_by_many(self, orders):
-        for column, order, table in orders:
-            self.order_by(column, order, table=table)
+        for i in orders:
+            if len(i) == 2:
+                # column, order
+                self.order_by(i[0], i[1])
+            elif len(i) == 3:
+                # column, order, table
+                self.order_by(i[0], i[1], table=i[2])
         return self
 
     def create_view_sql(self, view_name):
@@ -320,7 +335,7 @@ class SelectCompiler(BaseCompiler):
 
         if self._wheres_simple:
             if self._wheres: sql.append('and')
-            for table, column, op, value, type_codec, group in self._wheres_simple:
+            for table, column, op, value, type_codec in self._wheres_simple:
                 # "t1" . "col1" == $1
                 sql.extend(
                     ['(', _sql_escape(self._tbl_dict[table]), '.', _sql_escape(column), op, self._add_value(value, type_codec),
@@ -333,6 +348,9 @@ class SelectCompiler(BaseCompiler):
                 # "t1" . "col1" [asc | desc]
                 sql.extend([_sql_escape(self._tbl_dict[table]), '.', _sql_escape(column), order, ','])
             sql.pop()
+
+        if self._for_update_skip_locked:
+            sql.append('FOR UPDATE SKIP LOCKED')
 
         if self._offset is not None:
             sql.extend(['offset', self._add_value(self._offset)])
@@ -350,42 +368,39 @@ class SelectCompiler(BaseCompiler):
     from_tables = BaseCompiler._from_tables
 
 
-#SelectCompiler.from_table = SelectCompiler._from_table
-#SelectCompiler.from_tables = SelectCompiler._from_tables
-
-
 class UpdateCompiler(BaseCompiler):
+    to_table = BaseCompiler._from_table
+    _from_tables = BaseCompiler._not_implemented
+
     def reset(self):
         super().reset()
         self._update_values = []
 
-    def set_values(self, args, *, table=None):
-        for column, value, type_codec in args:
-            self.set_value(column, value, type_codec, table=table)
+    def set_values(self, values):
+        for column, value in values.items():
+            self.set_value(column, value)
         return self
 
-    def set_value(self, column, value, type_codec=None, *, table=None):
-        table = table or self._default_tbl
-        self._update_values.append([table, column, value, type_codec])
+    def set_value(self, column, value, type_codec=None):
+        table = self._default_tbl
+        self._update_values.append([column, value, type_codec])
         return self
 
     def sql(self):
         self._tbl_dict = {}
-        sql = ['update', self._tables[0], 'as', _sql_escape('t1')]
+        sql = ['update', _sql_escape(self._tables[0]), 'as', _sql_escape('t1')]
         self._tbl_dict[self._tables[0]] = 't1'
 
         if self._update_values:
             sql.append('set')
-            for table, column, value, type_codec in self._wheres_simple:
-                # "t1" . "col1" = $1,
-                sql.extend(
-                    ['(', _sql_escape(self._tbl_dict[table]), '.', _sql_escape(column), '=', self._add_value(value, type_codec),
-                     ')', ','])
+            for column, value, type_codec in self._update_values:
+                # "col1" = $1,
+                sql.extend([_sql_escape(column), '=', self._add_value(value, type_codec), ','])
             sql.pop()
 
         if self._wheres_simple:
             sql.append('where')
-            for table, column, op, value, type_codec, group in self._wheres_simple:
+            for table, column, op, value, type_codec in self._wheres_simple:
                 # "t1" . "col1" == $1
                 sql.extend(
                     ['(', _sql_escape(self._tbl_dict[table]), '.', _sql_escape(column), op, self._add_value(value, type_codec),
@@ -394,20 +409,55 @@ class UpdateCompiler(BaseCompiler):
 
         return ' '.join(sql), self._values
 
-    to_table = BaseCompiler._from_table
-    _from_tables = BaseCompiler._not_implemented
-
 
 class InsertCompiler(BaseCompiler):
     into_table = BaseCompiler._from_table
-    into_tables = BaseCompiler._from_tables
+    _from_tables = BaseCompiler._not_implemented
+    simple_where_one = BaseCompiler._not_implemented
+    simple_where_many = BaseCompiler._not_implemented
+
+    def reset(self):
+        super().reset()
+        self._update_values = []
+
+    def set_values(self, values):
+        for column, value in values.items():
+            self.set_value(column, value)
+        return self
+
+    def set_value(self, column, value, type_codec=None):
+        table = self._default_tbl
+        self._update_values.append([column, value, type_codec])
+        return self
+
+    def sql(self):
+        self._tbl_dict = {}
+        sql = ['insert into', _sql_escape(self._tables[0]), 'as', _sql_escape('t1')]
+        self._tbl_dict[self._tables[0]] = 't1'
+
+        if self._update_values:
+            sql.append('(')
+            for column, value, type_codec in self._update_values:
+                sql.extend([_sql_escape(column), ','])
+            sql.pop()
+            sql.append(')')
+
+            sql.append('values')
+            sql.append('(')
+            for column, value, type_codec in self._update_values:
+                sql.extend([self._add_value(value, type_codec), ','])
+            sql.pop()
+            sql.append(')')
+
+        return ' '.join(sql), self._values
 
 
 _operator_map = {
     # '+': '__pos__',
     # '-': '__neg__',
-    '==': '__eq__',
+    '=': '__eq__',
     '!=': '__ne__',
+    '<>': '__ne__',
     '<': '__lt__',
     '<=': '__le__',
     '>': '__gt__',
@@ -495,14 +545,14 @@ def parse_query_by_json(data):
 
 '''
 a = parse_query_by_json({
-    'conditions': [
-        'and',
-        ['==', 't1', 'col1', 1],
+    'columns': [],
+    'conditions': ['and',
+        ['=', 't1', 'col1', 1],
         ['!=', 't1', 'col2', 't2', 'col2'],
         ['and',
-         ['==', 't1', 'col3', '33'],
-         ['!=', 't2', 'col4', '44'],
-         ]
+            ['==', 't1', 'col3', '33'],
+            ['!=', 't2', 'col4', '44'],
+        ]
     ],
     'tables': ['t1', 't2']
 })

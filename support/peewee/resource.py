@@ -1,8 +1,12 @@
+import json
+
 import peewee
+from playhouse.postgres_ext import BinaryJSONField
 from playhouse.shortcuts import model_to_dict
-from ..utils import pagination_calc_peewee
-from ..resource import Resource
-from ..retcode import RETCODE
+
+from ...retcode import RETCODE
+from ...utils import pagination_calc_peewee
+from ...base.resource import Resource
 
 
 class BaseModel(peewee.Model):
@@ -28,7 +32,7 @@ _peewee_method_map = {
 }
 
 
-class PVResource(Resource):
+class PeeweeResource(Resource):
     def __init__(self, model):
         super().__init__()
         self.model = model
@@ -80,9 +84,15 @@ class PVResource(Resource):
         item = self.model()
         if item:
             data = await request.post()
+            if not len(data):
+                return self.finish(RETCODE.INVALID_PARAMS)
             for k, v in data.items():
                 if k in self.fields:
-                    setattr(item, k, v)
+                    field = self.fields[k]
+                    if isinstance(field, BinaryJSONField):
+                        setattr(item, k, json.loads(v))
+                    else:
+                        setattr(item, k, v)
             item.save()
             self.finish(RETCODE.SUCCESS, item.to_dict())
         else:
