@@ -43,7 +43,7 @@ class Permission(metaclass=_MetaClassForInit):
     item_by_key = {}
 
     @classmethod
-    def init(cls):
+    def cls_init(cls):
         cls.item_by_key = {}
         for item in cls.items:
             if issubclass(type(item), PermissionItem):

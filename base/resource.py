@@ -1,12 +1,12 @@
 from aiohttp import web
 from ..retcode import RETCODE
-from ..utils import time_readable, ResourceException, _valid_sql_operator
+from ..utils import time_readable, ResourceException, _valid_sql_operator, _MetaClassForInit
 from .permission import Permission, FakePermission
 
 
 class Resource:
     LIST_PAGE_SIZE = 20  # list 单次取出的默认大小
-    LIST_ALLOW_CLIENT_DEFINE_SIZE = True
+    LIST_ACCEPT_SIZE_FROM_CLIENT = True
 
     surface = {
         'get': 'GET',
@@ -46,7 +46,7 @@ class Resource:
         page = int(page)
 
         size = request.match_info.get('size', None)
-        if self.LIST_ALLOW_CLIENT_DEFINE_SIZE:
+        if self.LIST_ACCEPT_SIZE_FROM_CLIENT:
             if size and not size.isdigit():
                 return self.finish(RETCODE.INVALID_PARAMS)
             size = int(size or self.LIST_PAGE_SIZE)

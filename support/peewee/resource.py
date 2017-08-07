@@ -100,6 +100,7 @@ class PeeweeResource(Resource):
 
     async def list(self, request):
         q = self._get_list(request)
+        print(id(self))
         page = request.match_info.get('page', "1")
 
         if not page.isdigit():
