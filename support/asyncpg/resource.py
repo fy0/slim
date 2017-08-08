@@ -68,7 +68,7 @@ class AsyncpgResource(QueryResource):
         ret = await self.conn.fetchrow(sql[0], *sql[1])
 
         if ret:
-            self.finish(RETCODE.SUCCESS, json.dumps(list(ret.values())))
+            self.finish(RETCODE.SUCCESS, list(ret.values()))
         else:
             self.finish(RETCODE.NOT_FOUND)
 

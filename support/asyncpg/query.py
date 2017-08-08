@@ -107,7 +107,8 @@ class Column:
 
 
 class BaseCompiler:
-    def __init__(self):
+    def __init__(self, pv_params=False):
+        self.pv_params = pv_params
         self.reset()
 
     def reset(self):
@@ -120,8 +121,11 @@ class BaseCompiler:
         self._extra = {}
 
     def _add_value(self, val, type_codec=None):
-        item = '$%d' % (len(self._values) + 1)
-        if type_codec: item += '::%s' % type_codec
+        if self.pv_params:
+            item = '%s'
+        else:
+            item = '$%d' % (len(self._values) + 1)
+            if type_codec: item += '::%s' % type_codec
         self._values.append(val)
         return item
 
@@ -419,6 +423,7 @@ class InsertCompiler(BaseCompiler):
     def reset(self):
         super().reset()
         self._update_values = []
+        self.is_returning = False
 
     def set_values(self, values):
         for column, value in values.items():
@@ -428,6 +433,10 @@ class InsertCompiler(BaseCompiler):
     def set_value(self, column, value, type_codec=None):
         table = self._default_tbl
         self._update_values.append([column, value, type_codec])
+        return self
+
+    def returning(self):
+        self.is_returning = True
         return self
 
     def sql(self):
@@ -448,6 +457,9 @@ class InsertCompiler(BaseCompiler):
                 sql.extend([self._add_value(value, type_codec), ','])
             sql.pop()
             sql.append(')')
+
+        if self.is_returning:
+            sql.append('returning *')
 
         return ' '.join(sql), self._values
 

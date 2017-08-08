@@ -100,10 +100,3 @@ def pagination_calc(count_all, page_size, cur_page=1, nearby=2):
             'count_all': count_all,
         }
     }
-
-
-def pagination_calc_peewee(count_all, query, page_size, cur_page=1, nearby=2):
-    pg = pagination_calc(count_all, page_size, cur_page, nearby)
-    pg['items'] = query.paginate(pg['cur_page'], page_size)
-    pg['page_numbers'] = list(pg['page_numbers'])
-    return pg

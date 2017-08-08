@@ -1,2 +1,3 @@
-from .resource import PeeweeResource, BaseModel
+#from .resource import PeeweeResource, BaseModel
 #from .permission import AsyncpgResource
+from .view import PeeweeMView

@@ -17,13 +17,14 @@ def view_bind(app, url, view_cls):
     def wrap(url, func):
         async def wfunc(request):
             view_instance = view_cls(request)
+            await view_instance._prepare()
             await view_instance.prepare()
 
             ascii_encodable_path = request.path.encode('ascii', 'backslashreplace').decode('ascii')
             print("[{}] {} {}".format(time_readable(), request._method, ascii_encodable_path))
 
             ret = await func(view_instance)
-            return ret if ret is not None else view_instance.ret_val
+            return ret if ret is not None else view_instance.response
 
         return wfunc
 
