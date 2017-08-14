@@ -501,7 +501,6 @@ def parse_query_by_json(data):
     :return: 
     """
     data = json.loads(data)
-    print(data, type(data))
 
     for i in ('tables', 'columns', 'conditions'):
         if i not in data:

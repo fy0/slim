@@ -1,5 +1,6 @@
 class RETCODE:
     SUCCESS = 0  # 成功
+    CHECK_FAILURE = -245  # 校验失败（文件上传等）
     PARAM_REQUIRED = -246  # 需要参数
     FAILED = -247  # 失败
     TOO_LONG = -248  # 过长（用户名或其他参数）

@@ -55,6 +55,10 @@ class BasicMView(metaclass=_MetaClassForInit):
         self._params_cache = None
         self._post_data_cache = None
 
+    @property
+    def is_finished(self):
+        return self.response
+
     async def _prepare(self):
         self.session = await get_session(self.request)
 
@@ -66,29 +70,43 @@ class BasicMView(metaclass=_MetaClassForInit):
         self.response = web.json_response(self.ret_val)
         for i in self._cookie_set or ():
             if i[0] == 'set':
-                self.response.set_cookie(i[1], i[2], secure=False) # secure not work
+                self.response.set_cookie(i[1], i[2], **i[3]) # secure not work
             else:
-                self.response.del_cookie(i[1], secure=False)
+                self.response.del_cookie(i[1])
 
-    def set_cookie(self, key, value, secure=False):
+    def del_cookie(self, key):
         if self._cookie_set is None:
             self._cookie_set = []
-        self._cookie_set.append(('set', key, value, secure,))
-
-    def del_cookie(self, key, secure=False):
-        if self._cookie_set is None:
-            self._cookie_set = []
-        self._cookie_set.append(('del', key, secure,))
+        self._cookie_set.append(('del', key))
 
     def params(self) -> dict:
         if self._params_cache is None:
             self._params_cache = dict(self.request.query)
         return self._params_cache
 
-    async def post_data(self):
+    async def post_data(self) -> dict:
         if self._post_data_cache is None:
             self._post_data_cache = dict(await self.request.post())
         return self._post_data_cache
+
+    def set_cookie(self, key, value, *, path='/', expires=None, domain=None, max_age=None, secure=None,
+                   httponly=None, version=None):
+        if self._cookie_set is None:
+            self._cookie_set = []
+        kwargs = {'path': path, 'expires': expires, 'domain': domain, 'max_age': max_age, 'secure': secure,
+                  'httponly': httponly, 'version': version}
+        self._cookie_set.append(('set', key, value, kwargs))
+
+    def get_cookie(self, name, default=None):
+        if self.request.cookies is not None and name in self.request.cookies:
+            return self.request.cookies.get(name)
+        return default
+
+    async def set_secure_cookie(self, name, value, *, max_age=30, version=None):
+        pass
+
+    def get_secure_cookie(self, name, value=None, max_age=31):
+        pass
 
 
 class BaseSQLFunctions:
@@ -136,13 +154,15 @@ class MView(BasicMView):
     def _get_list_page_and_size(self):
         page = self.request.match_info.get('page', '1')
         if not page.isdigit():
-            return self.finish(RETCODE.INVALID_PARAMS)
+            self.finish(RETCODE.INVALID_PARAMS)
+            return None, None
         page = int(page)
 
         size = self.request.match_info.get('size', None)
         if self.LIST_ACCEPT_SIZE_FROM_CLIENT:
             if size and not size.isdigit():
-                return self.finish(RETCODE.INVALID_PARAMS)
+                self.finish(RETCODE.INVALID_PARAMS)
+                return None, None
             size = int(size or self.LIST_PAGE_SIZE)
         else:
             size = self.LIST_PAGE_SIZE
@@ -194,27 +214,25 @@ class MView(BasicMView):
             # xxx.{op}
             info = key.split('.', 1)
 
-            if len(info) < 1:
-                raise ResourceException('Invalid request parameter')
-
             field_name = info[0]
             if field_name == 'order':
                 orders = self._query_order(value)
                 continue
             elif field_name == 'with_role':
                 if not value.isdigit():
-                    raise ResourceException('Invalid role id: %s' % value)
+                    if len(info) < 1:
+                        return self.finish(RETCODE.INVALID_PARAMS, 'Invalid role id: %s' % value)
                 ret['with_role'] = int(value)
                 continue
             op = '='
 
             if field_name not in self.fields:
-                raise ResourceException('Column not found: %s' % field_name)
+                return self.finish(RETCODE.INVALID_PARAMS, 'Column not found: %s' % field_name)
 
             if len(info) > 1:
                 op = info[1]
                 if op not in _valid_sql_operator:
-                    raise ResourceException('Invalid operator: %s' % op)
+                    return self.finish(RETCODE.INVALID_PARAMS, 'Invalid operator: %s' % op)
                 op = _valid_sql_operator[op]
 
             args.append([field_name, op, value])
@@ -223,6 +241,7 @@ class MView(BasicMView):
 
     async def get(self):
         info = self._query_convert(self.params())
+        if self.is_finished: return
         #fails, columns_for_read = self.permission.check_select(self, request, args, orders, ext)
         #if fails: return self.fields(RETCODE.PERMISSION_DENIED, json.dumps(fails))
         code, data = await self._sql.select_one(info)
@@ -230,6 +249,7 @@ class MView(BasicMView):
 
     async def set(self):
         info = self._query_convert(self.params())
+        if self.is_finished: return
         #fails, columns_for_read = self.permission.check_select(self, request, args, orders, ext)
         #if fails: return self.finish(RETCODE.PERMISSION_DENIED, fails)
         post_data = await self.post_data()
@@ -243,6 +263,8 @@ class MView(BasicMView):
 
     async def list(self):
         page, size = self._get_list_page_and_size()
+        if self.is_finished: return
+
         info = self._query_convert(self.params())
         #fails, columns_for_read = self.permission.check_select(self, request, args, orders, ext)
         #if fails: return self.fields(RETCODE.PERMISSION_DENIED, json.dumps(fails))

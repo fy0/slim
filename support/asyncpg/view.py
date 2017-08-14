@@ -120,6 +120,16 @@ class AsyncpgMView(MView):
     sql_cls = AsyncpgSQLFunctions
 
     @staticmethod
+    async def _fetch_fields_by_table_name(conn, table_name):
+        info = await conn.fetch(_field_query, table_name)
+        if not info:
+            raise ResourceException("Table not found: %s" % table_name)
+        ret = {}
+        for i in info:
+            ret[i['name']] = i
+        return ret
+
+    @staticmethod
     async def _fetch_fields(cls_or_self):
         if cls_or_self.table_name:
             info = await cls_or_self.conn.fetch(_field_query, cls_or_self.table_name)
