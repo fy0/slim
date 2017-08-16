@@ -16,7 +16,10 @@ _valid_sql_operator = {
     'ge': '>=',
     'gt': '>',
     'le': '<=',
-    'lt': '<'
+    'lt': '<',
+    'in': 'in',
+    'is': 'is',
+    'isnot': 'isnot',
 }
 
 RegexPatternType = type(re.compile(''))

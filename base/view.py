@@ -1,8 +1,12 @@
+import json
 import asyncio
+import logging
 from aiohttp import web
 from aiohttp_session import get_session
 from ..retcode import RETCODE
 from ..utils import time_readable, ResourceException, _valid_sql_operator, _MetaClassForInit, pagination_calc
+
+logger = logging.getLogger(__name__)
 
 
 class BasicMView(metaclass=_MetaClassForInit):
@@ -68,6 +72,7 @@ class BasicMView(metaclass=_MetaClassForInit):
     def finish(self, code, data=None):
         self.ret_val = {'code': code, 'data': data}  # for access in inhreads method
         self.response = web.json_response(self.ret_val)
+        logger.debug('request finish: %s' % self.ret_val)
         for i in self._cookie_set or ():
             if i[0] == 'set':
                 self.response.set_cookie(i[1], i[2], **i[3]) # secure not work
@@ -235,8 +240,22 @@ class MView(BasicMView):
                     return self.finish(RETCODE.INVALID_PARAMS, 'Invalid operator: %s' % op)
                 op = _valid_sql_operator[op]
 
+            if op in ('is', 'isnot'):
+                if value.lower() != 'null':
+                    return self.finish(RETCODE.INVALID_PARAMS, 'Invalid value: %s (must be null)' % value)
+                if op == 'isnot':
+                    op = 'is not'
+                value = None
+
+            if op == 'in':
+                try:
+                    value = json.loads(value)
+                except json.decoder.JSONDecodeError:
+                    return self.finish(RETCODE.INVALID_PARAMS, 'Invalid value: %s' % value)
+
             args.append([field_name, op, value])
 
+        logger.debug('params: %s' % ret)
         return ret
 
     async def get(self):
@@ -253,11 +272,13 @@ class MView(BasicMView):
         #fails, columns_for_read = self.permission.check_select(self, request, args, orders, ext)
         #if fails: return self.finish(RETCODE.PERMISSION_DENIED, fails)
         post_data = await self.post_data()
+        logger.debug('data: %s' % post_data)
         code, data = await self._sql.update(info, post_data)
         self.finish(code, data)
 
     async def new(self):
         post_data = await self.post_data()
+        logger.debug('data: %s' % post_data)
         code, data = await self._sql.insert(post_data)
         self.finish(code, data)
 
@@ -266,6 +287,7 @@ class MView(BasicMView):
         if self.is_finished: return
 
         info = self._query_convert(self.params())
+        if self.is_finished: return
         #fails, columns_for_read = self.permission.check_select(self, request, args, orders, ext)
         #if fails: return self.fields(RETCODE.PERMISSION_DENIED, json.dumps(fails))
 

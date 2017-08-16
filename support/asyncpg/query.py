@@ -1,4 +1,7 @@
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class QueryException(Exception):
@@ -60,6 +63,9 @@ class QueryExpression(BaseExpression):
     __rand__ = _expr('and', inv=True)
     __ror__ = _expr('or', inv=True)
 
+    in_ = _qexpr('in')
+    is_ = _qexpr('is')
+
 
 class ConditionExpression(BaseExpression):
     __and__ = _expr('and')
@@ -98,6 +104,9 @@ class Column:
     __rmul__ = _qexpr('*', inv=True)
     __rdiv__ = __rtruediv__ = _qexpr('/', inv=True)
 
+    in_ = _qexpr('in')
+    is_ = _qexpr('is')
+
     def __repr__(self):
         if self.func:
             table = '"%s(%s)"' % (self.func, self.table)
@@ -120,12 +129,19 @@ class BaseCompiler:
         self._default_tbl = None
         self._extra = {}
 
-    def _add_value(self, val, type_codec=None):
+    def _add_value(self, val, type_codec=None, *, op=None):
+        if op in ('is', 'is not'):
+            return 'null'
+
         if self.pv_params:
             item = '%s'
         else:
             item = '$%d' % (len(self._values) + 1)
-            if type_codec: item += '::%s' % type_codec
+            if type_codec:
+                item += '::%s' % type_codec
+            if op == 'in':
+                # expression = any($1::mytype[])
+                item = 'any(%s[])' % item
         self._values.append(val)
         return item
 
@@ -171,6 +187,11 @@ class BaseCompiler:
                 'write': [],
             },
         }
+
+    def _log_ret(self, *args):
+        ret = tuple(args)
+        logger.info(' '.join(map(str, ret)))
+        return ret
 
     def sql(self) -> str:
         return ''
@@ -252,7 +273,7 @@ class SelectCompiler(BaseCompiler):
             lst.pop()
             lst.append(')')
             columns_txt = ' '.join(lst)
-        return 'create view %s%s as %s' % (_sql_escape(view_name), columns_txt, sql[0]), sql[1]
+        return self._log_ret('create view %s%s as %s' % (_sql_escape(view_name), columns_txt, sql[0]), sql[1])
 
     def sql(self):
         self._tbl_dict = {}
@@ -341,8 +362,9 @@ class SelectCompiler(BaseCompiler):
             if self._wheres: sql.append('and')
             for table, column, op, value, type_codec in self._wheres_simple:
                 # "t1" . "col1" == $1
+                _op = '=' if op == 'in' else op
                 sql.extend(
-                    ['(', _sql_escape(self._tbl_dict[table]), '.', _sql_escape(column), op, self._add_value(value, type_codec),
+                    ['(', _sql_escape(self._tbl_dict[table]), '.', _sql_escape(column), _op, self._add_value(value, type_codec, op=op),
                      ')', 'and'])
             sql.pop()
 
@@ -366,7 +388,7 @@ class SelectCompiler(BaseCompiler):
             sql.insert(0, 'select count(1) from (')
             sql.extend([')', 'as', 'q1'])
 
-        return ' '.join(sql), self._values
+        return self._log_ret(' '.join(sql), self._values)
 
     from_table = BaseCompiler._from_table
     from_tables = BaseCompiler._from_tables
@@ -411,7 +433,7 @@ class UpdateCompiler(BaseCompiler):
                      ')', 'and'])
             sql.pop()
 
-        return ' '.join(sql), self._values
+        return self._log_ret(' '.join(sql), self._values)
 
 
 class InsertCompiler(BaseCompiler):
@@ -461,7 +483,7 @@ class InsertCompiler(BaseCompiler):
         if self.is_returning:
             sql.append('returning *')
 
-        return ' '.join(sql), self._values
+        return self._log_ret(' '.join(sql), self._values)
 
 
 _operator_map = {
@@ -480,6 +502,8 @@ _operator_map = {
     'gt': '__gt__',
     'le': '__le__',
     'lt': '__lt__',
+    'in': 'in_',
+    'is': 'is_',
 
     'and': '__and__',
     'or': '__or__',
@@ -570,3 +594,7 @@ a = parse_query_by_json({
 
 print(str(a))
 '''
+
+
+sc = SelectCompiler()
+sc.select().from_table("common_file").simple_where_one('state', 'is', 40).simple_where_one('state', '=', 40)

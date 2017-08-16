@@ -31,6 +31,8 @@ _peewee_method_map = {
     'gt': '__gt__',
     'le': '__le__',
     'lt': '__lt__',
+    'in': 'in_',
+    'is': 'is_',
 }
 
 

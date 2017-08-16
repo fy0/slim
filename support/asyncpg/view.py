@@ -22,7 +22,8 @@ class BaseModel(peewee.Model):
 
 class AsyncpgSQLFunctions(BaseSQLFunctions):
     def _get_args(self, args):
-        nargs = args
+        nargs = []
+        # 这里注意，args可能多次使用，不要修改其中内容
         for i in args:
             field = self.view.fields[i[0]]
             type_codec = field['typename']
@@ -31,12 +32,14 @@ class AsyncpgSQLFunctions(BaseSQLFunctions):
             # asyncpg/protocol/protocol.pyx
             if type_codec in ['int2', 'int4', 'int8']:
                 type_codec = 'int'
-                i[2] = int(i[2])
+                if i[1] == 'in': i[2] = list(map(int, i[2]))
+                else: i[2] = int(i[2])
             elif type_codec in ['float4', 'float8']:
                 type_codec = 'float'
-                i[2] = float(i[2])
+                if i[1] == 'in': i[2] = list(map(float, i[2]))
+                else: i[2] = int(i[2])
 
-            i.append(type_codec)
+            nargs.append([*i, type_codec])
         return nargs
 
     def _get_data(self, data):

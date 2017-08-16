@@ -1,6 +1,8 @@
+import logging
 from posixpath import join as urljoin
 from ..utils import time_readable
 
+logger = logging.getLogger(__name__)
 __all__ = ('Route',)
 
 
@@ -18,7 +20,7 @@ def view_bind(app, url, view_cls):
         async def wfunc(request):
             view_instance = view_cls(request)
             ascii_encodable_path = request.path.encode('ascii', 'backslashreplace').decode('ascii')
-            print("[{}] {} {}".format(time_readable(), request._method, ascii_encodable_path))
+            logger.info("{} {}".format(request._method, ascii_encodable_path))
 
             await view_instance._prepare()
             if view_instance.is_finished:
@@ -71,3 +73,4 @@ class Route(object):
     def bind(self, app):
         for url, cls in self.urls:
             view_bind(app, url, cls)
+
