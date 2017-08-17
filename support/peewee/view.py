@@ -1,11 +1,14 @@
 import json
 
 import asyncio
+
+import binascii
 import peewee
 from playhouse.postgres_ext import BinaryJSONField
 from playhouse.shortcuts import model_to_dict
 
 from mapi.retcode import RETCODE
+from mapi.utils import to_bin
 from ...base.view import MView, BaseSQLFunctions
 
 
@@ -31,8 +34,9 @@ _peewee_method_map = {
     'gt': '__gt__',
     'le': '__le__',
     'lt': '__lt__',
-    'in': 'in_',
-    'is': 'is_',
+    'in': '__lshift__',  # __lshift__ = _e(OP.IN)
+    'is': '__rshift__',  # __rshift__ = _e(OP.IS)
+    'isnot': '__rshift__'
 }
 
 
@@ -41,11 +45,23 @@ class PeeweeSQLFunctions(BaseSQLFunctions):
         pw_args = []
         for field_name, op, value in args:
             field = self.view.fields[field_name]
+
+            if isinstance(field, peewee.BlobField):
+                try:
+                    if op == 'in':
+                        value = list(map(to_bin, value))
+                    else:
+                        value = to_bin(value)
+                except binascii.Error:
+                    self.err = RETCODE.INVALID_PARAMS, 'Invalid query value for blob: Odd-length string'
+                    return
+
             pw_args.append(getattr(field, _peewee_method_map[op])(value))
         return pw_args
 
     async def select_one(self, si):
         pw_args = self._get_pw_args(si['args'])
+        if self.err: return self.err
         try:
             return RETCODE.SUCCESS, self.view.model.get(*pw_args).to_dict()
         except self.view.model.DoesNotExist:
@@ -53,18 +69,21 @@ class PeeweeSQLFunctions(BaseSQLFunctions):
 
     async def select_count(self, si):
         pw_args = self._get_pw_args(si['args'])
+        if self.err: return self.err
         q = self.view.model.select().where(*pw_args) if pw_args else self.view.model.select()
         return RETCODE.SUCCESS, q.count()
 
     async def select_list(self, si, size, offset, *, page=None):
         model = self.view.model
         pw_args = self._get_pw_args(si['args'])
+        if self.err: return self.err
         q = model.select().where(*pw_args) if pw_args else model.select()
         #.limit(size).offset(size * (page - 1)).sql()
         return RETCODE.SUCCESS, map(model.to_dict, q.paginate(page, size))
 
     async def update(self, si, data):
         pw_args = self._get_pw_args(si['args'])
+        if self.err: return self.err
 
         try:
             item = self.view.model.get(*pw_args)

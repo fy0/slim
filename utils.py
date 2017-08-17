@@ -1,6 +1,7 @@
 import re
 import math
 import time
+import binascii
 
 _valid_sql_operator = {
     '=': '=',
@@ -35,10 +36,13 @@ class _MetaClassForInit(type):
 class ResourceException(Exception):
     pass
 
+to_hex = lambda x: str(binascii.hexlify(x), 'utf-8')
+to_bin = lambda x: binascii.unhexlify(bytes(x, 'utf-8'))
+
 
 def time_readable():
     x = time.localtime(time.time())
-    return time.strftime('%Y-%m-%d %H:%M:%S',x)
+    return time.strftime('%Y-%m-%d %H:%M:%S', x)
 
 
 def pagination_calc(count_all, page_size, cur_page=1, nearby=2):
@@ -69,14 +73,14 @@ def pagination_calc(count_all, page_size, cur_page=1, nearby=2):
     next_page = cur_page + 1 if cur_page != page_count else None
 
     if page_count <= items_length:
-        items = range(1, page_count+1)
+        items = range(1, page_count + 1)
     elif cur_page <= nearby:
         # start of items
-        items = range(1, items_length+1)
+        items = range(1, items_length + 1)
         last_page = True
     elif cur_page >= page_count - nearby:
         # end of items
-        items = range(page_count - items_length+1, page_count+1)
+        items = range(page_count - items_length + 1, page_count + 1)
         first_page = True
     else:
         items = range(cur_page - nearby, cur_page + nearby + 1)

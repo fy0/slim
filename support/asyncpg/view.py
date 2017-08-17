@@ -1,13 +1,15 @@
 import json
 
 import asyncio
+
+import binascii
 import peewee
 from playhouse.postgres_ext import BinaryJSONField
 from playhouse.shortcuts import model_to_dict
 
 from mapi.retcode import RETCODE
 from mapi.support.asyncpg import query
-from mapi.utils import ResourceException
+from mapi.utils import ResourceException, to_bin
 from ...base.view import MView, BaseSQLFunctions
 
 _field_query = '''SELECT a.attname as name, col_description(a.attrelid,a.attnum) as comment,pg_type.typname as typename, a.attnotnull as notnull
@@ -25,19 +27,34 @@ class AsyncpgSQLFunctions(BaseSQLFunctions):
         nargs = []
         # 这里注意，args可能多次使用，不要修改其中内容
         for i in args:
+            i = i[:]
             field = self.view.fields[i[0]]
             type_codec = field['typename']
 
             # https://www.postgresql.org/docs/9.6/static/datatype.html
             # asyncpg/protocol/protocol.pyx
+            conv_func = None
             if type_codec in ['int2', 'int4', 'int8']:
                 type_codec = 'int'
-                if i[1] == 'in': i[2] = list(map(int, i[2]))
-                else: i[2] = int(i[2])
+                conv_func = int
             elif type_codec in ['float4', 'float8']:
                 type_codec = 'float'
-                if i[1] == 'in': i[2] = list(map(float, i[2]))
-                else: i[2] = int(i[2])
+                conv_func = float
+            elif type_codec == 'bytea':
+                type_codec = 'bytea'
+                conv_func = to_bin
+
+            if conv_func:
+                try:
+                    if i[1] == 'in':
+                        i[2] = list(map(conv_func, i[2]))
+                    else:
+                        i[2] = conv_func(i[2])
+                except binascii.Error:
+                    self.err = RETCODE.INVALID_PARAMS, 'Invalid query value for blob: Odd-length string'
+                    return
+                except ValueError as e:
+                    self.err = RETCODE.INVALID_PARAMS, ' '.join(map(str, e.args))
 
             nargs.append([*i, type_codec])
         return nargs
@@ -54,6 +71,9 @@ class AsyncpgSQLFunctions(BaseSQLFunctions):
             elif type_codec in ['float4', 'float8']:
                 type_codec = 'float'
                 v = float(v)
+            elif type_codec == 'bytea':
+                type_codec = 'bytea'
+                v = to_bin(v)
 
             ndata[k] = v
         return ndata
@@ -61,6 +81,7 @@ class AsyncpgSQLFunctions(BaseSQLFunctions):
     async def select_one(self, si):
         view = self.view
         nargs = self._get_args(si['args'])
+        if self.err: return self.err
 
         sc = query.SelectCompiler()
         sql = sc.select_raw('*').from_table(view.table_name).simple_where_many(nargs).order_by_many(si['orders']).sql()
@@ -74,6 +95,7 @@ class AsyncpgSQLFunctions(BaseSQLFunctions):
     async def select_count(self, si):
         view = self.view
         nargs = self._get_args(si['args'])
+        if self.err: return self.err
 
         sc = query.SelectCompiler()
         sql = sc.select_count().from_table(view.table_name).simple_where_many(nargs).order_by_many(si['orders']).sql()
@@ -83,6 +105,7 @@ class AsyncpgSQLFunctions(BaseSQLFunctions):
     async def select_list(self, si, size, offset, *, page=None):
         view = self.view
         nargs = self._get_args(si['args'])
+        if self.err: return self.err
 
         sc = query.SelectCompiler()
         get_values = lambda x: list(x.values())
@@ -96,6 +119,7 @@ class AsyncpgSQLFunctions(BaseSQLFunctions):
     async def update(self, si, data):
         view = self.view
         nargs = self._get_args(si['args'])
+        if self.err: return self.err
         ndata = self._get_data(data)
 
         uc = query.UpdateCompiler()

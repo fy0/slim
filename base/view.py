@@ -116,6 +116,7 @@ class BasicMView(metaclass=_MetaClassForInit):
 
 class BaseSQLFunctions:
     def __init__(self, view: BasicMView):
+        self.err = None
         self.view = view
         self.request = view.request
 
@@ -240,6 +241,7 @@ class MView(BasicMView):
                     return self.finish(RETCODE.INVALID_PARAMS, 'Invalid operator: %s' % op)
                 op = _valid_sql_operator[op]
 
+            # is 和 is 可以确保完成了初步值转换
             if op in ('is', 'isnot'):
                 if value.lower() != 'null':
                     return self.finish(RETCODE.INVALID_PARAMS, 'Invalid value: %s (must be null)' % value)
@@ -251,7 +253,7 @@ class MView(BasicMView):
                 try:
                     value = json.loads(value)
                 except json.decoder.JSONDecodeError:
-                    return self.finish(RETCODE.INVALID_PARAMS, 'Invalid value: %s' % value)
+                    return self.finish(RETCODE.INVALID_PARAMS, 'Invalid value: %s (must be json)' % value)
 
             args.append([field_name, op, value])
 
