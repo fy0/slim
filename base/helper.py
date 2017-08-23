@@ -1,6 +1,6 @@
 import logging
 from posixpath import join as urljoin
-from ..utils import time_readable
+
 
 logger = logging.getLogger(__name__)
 __all__ = ('Route',)

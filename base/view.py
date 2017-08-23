@@ -3,8 +3,11 @@ import asyncio
 import logging
 from aiohttp import web
 from aiohttp_session import get_session
+
+from .sqlfuncs import BaseSQLFunctions
+from .permission import Permissions, ability_all
 from ..retcode import RETCODE
-from ..utils import time_readable, ResourceException, _valid_sql_operator, _MetaClassForInit, pagination_calc
+from ..utils import _MetaClassForInit, pagination_calc
 
 logger = logging.getLogger(__name__)
 
@@ -46,9 +49,19 @@ class BasicMView(metaclass=_MetaClassForInit):
         cls.use('delete', 'POST')
 
     @classmethod
+    def permission_init(cls):
+        """ Override """
+        cls.permission.add(ability_all)
+
+    @classmethod
     def cls_init(cls):
         cls._interface = {}
         cls.interface()
+        if getattr(cls, 'permission', None):
+            cls.permission = cls.permission.copy()
+        else:
+            cls.permission = Permissions()
+        cls.permission_init()
 
     def __init__(self, request):
         self.request = request
@@ -58,6 +71,7 @@ class BasicMView(metaclass=_MetaClassForInit):
         self._cookie_set = None
         self._params_cache = None
         self._post_data_cache = None
+        self._current_user = None
 
     @property
     def is_finished(self):
@@ -68,6 +82,17 @@ class BasicMView(metaclass=_MetaClassForInit):
 
     async def prepare(self):
         pass
+
+    @property
+    def current_user(self):
+        if not self._current_user:
+            self._current_user = self.get_current_user()
+        return self._current_user
+
+    def get_current_user(self):
+        """Override to determine the current user from, e.g., a cookie.
+        """
+        return None
 
     def finish(self, code, data=None):
         self.ret_val = {'code': code, 'data': data}  # for access in inhreads method
@@ -114,36 +139,6 @@ class BasicMView(metaclass=_MetaClassForInit):
         pass
 
 
-class BaseSQLFunctions:
-    def __init__(self, view: BasicMView):
-        self.err = None
-        self.view = view
-        self.request = view.request
-
-    async def select_one(self, select_info):
-        raise NotImplementedError()
-        # code, item
-
-    async def select_count(self, select_info):
-        raise NotImplementedError()
-        # code, count: int
-
-    async def select_list(self, select_info, size, offset, *, page=None):
-        raise NotImplementedError()
-        # code, items: iterable
-
-    async def update(self, select_info, data):
-        raise NotImplementedError()
-        # code, item
-
-    async def insert(self, data):
-        raise NotImplementedError()
-        # code, item
-
-    def done(self, code, data=None):
-        return code, data
-
-
 class MView(BasicMView):
     LIST_PAGE_SIZE = 20  # list 单次取出的默认大小
     LIST_ACCEPT_SIZE_FROM_CLIENT = False
@@ -186,82 +181,8 @@ class MView(BasicMView):
         super().__init__(request)
         self._sql = self.sql_cls(self)
 
-    def _query_order(self, text):
-        """
-        :param text: order=id.desc, xxx.asc
-        :return: 
-        """
-        orders = []
-        for i in text.split(','):
-            items = i.split('.', 2)
-
-            if len(items) == 1: continue
-            elif len(items) == 2: column, order = items
-            else: raise ResourceException("Invalid order format")
-
-            order = order.lower()
-            if column not in self.fields:
-                raise ResourceException('Column not found: %s' % column)
-            if order not in ('asc', 'desc'):
-                raise ResourceException('Invalid column order: %s' % order)
-
-            orders.append([column, order])
-        return orders
-
-    def _query_convert(self, params):
-        args = []
-        orders = []
-        ret = {
-            'args': args,
-            'orders': orders,
-        }
-
-        for key, value in params.items():
-            # xxx.{op}
-            info = key.split('.', 1)
-
-            field_name = info[0]
-            if field_name == 'order':
-                orders = self._query_order(value)
-                continue
-            elif field_name == 'with_role':
-                if not value.isdigit():
-                    if len(info) < 1:
-                        return self.finish(RETCODE.INVALID_PARAMS, 'Invalid role id: %s' % value)
-                ret['with_role'] = int(value)
-                continue
-            op = '='
-
-            if field_name not in self.fields:
-                return self.finish(RETCODE.INVALID_PARAMS, 'Column not found: %s' % field_name)
-
-            if len(info) > 1:
-                op = info[1]
-                if op not in _valid_sql_operator:
-                    return self.finish(RETCODE.INVALID_PARAMS, 'Invalid operator: %s' % op)
-                op = _valid_sql_operator[op]
-
-            # is 和 is 可以确保完成了初步值转换
-            if op in ('is', 'isnot'):
-                if value.lower() != 'null':
-                    return self.finish(RETCODE.INVALID_PARAMS, 'Invalid value: %s (must be null)' % value)
-                if op == 'isnot':
-                    op = 'is not'
-                value = None
-
-            if op == 'in':
-                try:
-                    value = json.loads(value)
-                except json.decoder.JSONDecodeError:
-                    return self.finish(RETCODE.INVALID_PARAMS, 'Invalid value: %s (must be json)' % value)
-
-            args.append([field_name, op, value])
-
-        logger.debug('params: %s' % ret)
-        return ret
-
     async def get(self):
-        info = self._query_convert(self.params())
+        info = self._sql.query_convert(self.params())
         if self.is_finished: return
         #fails, columns_for_read = self.permission.check_select(self, request, args, orders, ext)
         #if fails: return self.fields(RETCODE.PERMISSION_DENIED, json.dumps(fails))
@@ -269,7 +190,7 @@ class MView(BasicMView):
         self.finish(code, data)
 
     async def set(self):
-        info = self._query_convert(self.params())
+        info = self._sql.query_convert(self.params())
         if self.is_finished: return
         #fails, columns_for_read = self.permission.check_select(self, request, args, orders, ext)
         #if fails: return self.finish(RETCODE.PERMISSION_DENIED, fails)
@@ -288,7 +209,7 @@ class MView(BasicMView):
         page, size = self._get_list_page_and_size()
         if self.is_finished: return
 
-        info = self._query_convert(self.params())
+        info = self._sql.query_convert(self.params())
         if self.is_finished: return
         #fails, columns_for_read = self.permission.check_select(self, request, args, orders, ext)
         #if fails: return self.fields(RETCODE.PERMISSION_DENIED, json.dumps(fails))
