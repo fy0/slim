@@ -214,18 +214,9 @@ class MView(BasicMView):
         #fails, columns_for_read = self.permission.check_select(self, request, args, orders, ext)
         #if fails: return self.fields(RETCODE.PERMISSION_DENIED, json.dumps(fails))
 
-        code, data = await self._sql.select_count(info)
-        if code == RETCODE.SUCCESS:
-            count = data
-        else:
-            return self.finish(code, data)
+        code, data = await self._sql.select_pagination_list(info, size, page)
 
-        pg = pagination_calc(count, size, page)
-        offset = size * (page - 1)
-
-        code, data = await self._sql.select_list(info, size, offset, page=page)
         if code == RETCODE.SUCCESS:
-            pg["items"] = list(data)
-            self.finish(RETCODE.SUCCESS, pg)
+            self.finish(RETCODE.SUCCESS, data)
         else:
             self.finish(code, data)

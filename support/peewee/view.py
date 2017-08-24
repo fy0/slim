@@ -8,7 +8,7 @@ from playhouse.postgres_ext import BinaryJSONField
 from playhouse.shortcuts import model_to_dict
 
 from mapi.retcode import RETCODE
-from mapi.utils import to_bin
+from mapi.utils import to_bin, pagination_calc
 from ...base.view import MView, BaseSQLFunctions
 
 
@@ -67,18 +67,16 @@ class PeeweeSQLFunctions(BaseSQLFunctions):
         except self.view.model.DoesNotExist:
             return RETCODE.NOT_FOUND, None
 
-    async def select_count(self, si):
-        pw_args = self._get_pw_args(si['args'])
-        if self.err: return self.err
-        q = self.view.model.select().where(*pw_args) if pw_args else self.view.model.select()
-        return RETCODE.SUCCESS, q.count()
-
-    async def select_list(self, si, size, offset, *, page=None):
+    async def select_pagination_list(self, info, size, page):
         model = self.view.model
-        pw_args = self._get_pw_args(si['args'])
+        nargs = self._get_pw_args(info['args'])
         if self.err: return self.err
-        q = model.select().where(*pw_args) if pw_args else model.select()
-        #.limit(size).offset(size * (page - 1)).sql()
+        q = self.view.model.select().where(*nargs) if nargs else self.view.model.select()
+
+        count = q.count()
+        pg = pagination_calc(count, size, page)
+        offset = size * (page - 1)
+
         return RETCODE.SUCCESS, map(model.to_dict, q.paginate(page, size))
 
     async def update(self, si, data):

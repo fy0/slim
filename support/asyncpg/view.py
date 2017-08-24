@@ -9,7 +9,7 @@ from playhouse.shortcuts import model_to_dict
 
 from mapi.retcode import RETCODE
 from mapi.support.asyncpg import query
-from mapi.utils import ResourceException, to_bin
+from mapi.utils import ResourceException, to_bin, pagination_calc
 from ...base.view import MView, BaseSQLFunctions
 
 _field_query = '''SELECT a.attname as name, col_description(a.attrelid,a.attnum) as comment,pg_type.typname as typename, a.attnotnull as notnull
@@ -87,34 +87,38 @@ class AsyncpgSQLFunctions(BaseSQLFunctions):
         sql = sc.select_raw('*').from_table(view.table_name).simple_where_many(nargs).order_by_many(si['orders']).sql()
         ret = await view.conn.fetchrow(sql[0], *sql[1])
 
+        ability = view.permission.request_role(view.current_user, si['role'])
+        available_columns = ability.filter_record_columns_by_action(view.current_user, ret)
+
+        if not available_columns:
+            return RETCODE.NOT_FOUND, None
+
         if ret:
             return RETCODE.SUCCESS, dict(ret)
         else:
             return RETCODE.NOT_FOUND, None
 
-    async def select_count(self, si):
+    async def select_pagination_list(self, info, size, page):
         view = self.view
-        nargs = self._get_args(si['args'])
+        nargs = self._get_args(info['args'])
         if self.err: return self.err
 
         sc = query.SelectCompiler()
         sql = sc.select_count().from_table(view.table_name).simple_where_many(nargs).order_by_many(si['orders']).sql()
         count = (await view.conn.fetchrow(sql[0], *sql[1]))['count']
-        return RETCODE.SUCCESS, count
 
-    async def select_list(self, si, size, offset, *, page=None):
-        view = self.view
-        nargs = self._get_args(si['args'])
-        if self.err: return self.err
+        pg = pagination_calc(count, size, page)
+        offset = size * (page - 1)
 
-        sc = query.SelectCompiler()
+        sc.reset()
         get_values = lambda x: list(x.values())
 
         sql = sc.select_raw('*').from_table(view.table_name).simple_where_many(nargs) \
-            .order_by_many(si['orders']).limit(size).offset(offset).sql()
+            .order_by_many(info['orders']).limit(size).offset(offset).sql()
         ret = map(get_values, await view.conn.fetch(sql[0], *sql[1]))
 
-        return RETCODE.SUCCESS, list(ret)
+        pg["items"] = list(ret)
+        return RETCODE.SUCCESS, pg
 
     async def update(self, si, data):
         view = self.view

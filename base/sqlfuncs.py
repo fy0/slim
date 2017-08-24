@@ -42,6 +42,7 @@ class BaseSQLFunctions:
         ret = {
             'args': args,
             'orders': orders,
+            'role': None,
         }
         view = self.view
 
@@ -56,8 +57,8 @@ class BaseSQLFunctions:
             elif field_name == 'with_role':
                 if not value.isdigit():
                     if len(info) < 1:
-                        return view.finish(RETCODE.INVALID_PARAMS, 'Invalid role id: %s' % value)
-                ret['with_role'] = int(value)
+                        return view.finish(RETCODE.INVALID_PARAMS, 'Invalid role: %s' % value)
+                ret['role'] = int(value)
                 continue
             op = '='
 
@@ -89,21 +90,21 @@ class BaseSQLFunctions:
         logger.debug('params: %s' % ret)
 
         # TODO: 权限检查在列存在检查之后有暴露列的风险
-        role = view.permission.request_role(view.current_user, None).can(A.QUERY)
+        columns = []
+        for field_name, op, value in args:
+            columns.append((view.table_name, field_name))
+        role = view.permission.request_role(view.current_user, None)
+        if role.cannot(A.QUERY, *columns):
+            return view.finish(RETCODE.PERMISSION_DENIED)
 
         return ret
+
+    async def select_pagination_list(self, info, size, page):
+        raise NotImplementedError()
 
     async def select_one(self, select_info):
         raise NotImplementedError()
         # code, item
-
-    async def select_count(self, select_info):
-        raise NotImplementedError()
-        # code, count: int
-
-    async def select_list(self, select_info, size, offset, *, page=None):
-        raise NotImplementedError()
-        # code, items: iterable
 
     async def update(self, select_info, data):
         raise NotImplementedError()
@@ -112,6 +113,9 @@ class BaseSQLFunctions:
     async def insert(self, data):
         raise NotImplementedError()
         # code, item
+
+    async def record_to_dict(self):
+        pass
 
     def done(self, code, data=None):
         return code, data
