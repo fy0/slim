@@ -5,7 +5,7 @@ from aiohttp import web
 from aiohttp_session import get_session
 
 from .sqlfuncs import BaseSQLFunctions
-from .permission import Permissions, ability_all
+from .permission import Permissions, Ability
 from ..retcode import RETCODE
 from ..utils import _MetaClassForInit, pagination_calc
 
@@ -51,7 +51,7 @@ class BasicMView(metaclass=_MetaClassForInit):
     @classmethod
     def permission_init(cls):
         """ Override """
-        cls.permission.add(ability_all)
+        cls.permission.add(Ability(None, {'*': '*'}))
 
     @classmethod
     def cls_init(cls):
@@ -145,7 +145,6 @@ class MView(BasicMView):
 
     fields = {}
     table_name = ''
-    sql_cls = BaseSQLFunctions
 
     @staticmethod
     async def _fetch_fields(cls_or_self):
@@ -179,7 +178,7 @@ class MView(BasicMView):
 
     def __init__(self, request):
         super().__init__(request)
-        self._sql = self.sql_cls(self)
+        self._sql = BaseSQLFunctions(self)
 
     async def get(self):
         info = self._sql.query_convert(self.params())

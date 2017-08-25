@@ -51,16 +51,16 @@ def rule1_func2(ability, user, action, record: AbilityRecord):
 def rule1_func3(ability, user, action, record: AbilityRecord):
     return False
 
-ab.add_rule([A.CREATE, A.READ], AbilityTable('rule_test1'), func=rule1_func1)
-ab.add_rule([A.WRITE], AbilityTable('rule_test1'), func=rule1_func2)
-ab.add_rule([A.DELETE], AbilityTable('rule_test1'), func=rule1_func3)
+ab.add_record_rule([A.CREATE, A.READ], AbilityTable('rule_test1'), func=rule1_func1)
+ab.add_record_rule([A.WRITE], AbilityTable('rule_test1'), func=rule1_func2)
+ab.add_record_rule([A.DELETE], AbilityTable('rule_test1'), func=rule1_func3)
 
 
 def rule2_func1(ability, user, action, record: AbilityRecord):
     return True
 
-ab.add_rule([A.CREATE, A.READ], AbilityColumn('rule_test2', 'a'), func=rule2_func1)
-ab.add_rule([A.CREATE, A.READ], AbilityColumn('rule_test2', 'b'), func=rule2_func1)
+ab.add_record_rule([A.CREATE, A.READ], AbilityColumn('rule_test2', 'a'), func=rule2_func1)
+ab.add_record_rule([A.CREATE, A.READ], AbilityColumn('rule_test2', 'b'), func=rule2_func1)
 
 
 def test_no_wildcard():

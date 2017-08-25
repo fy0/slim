@@ -89,13 +89,25 @@ class Ability:
             self.data = {}
         if data: self.data.update(data)
         self.rules = []
+        self.record_rules = []
 
-    def add_rule(self, actions, subject_cls: (AbilityTable, AbilityColumn), *, func=None):
+    def add_rule(self, actions, table, *extra_conditions, func=None):
+        self.rules.append([table, actions, extra_conditions, func])
+
+    def get_additional_args(self, user, action, table):
+        additional_args = []
+        for rtable, ractions, extra_conditions, func in self.rules:
+            if table == rtable and action in ractions:
+                if func:
+                    additional_args.extend(func(self, user, action, table))
+                additional_args.extend(extra_conditions)
+        return additional_args
+
+    def add_record_rule(self, actions, subject_cls: (AbilityTable, AbilityColumn), *, func=None):
         # subject_cls value:
         # table: 'table_name'
         # column: ('table_name', 'column_name')
-        for i in actions:
-            self.rules.append([subject_cls, actions, func])
+        self.record_rules.append([subject_cls, actions, func])
 
         """def func(ability, user, action, record: AbilityRecord):
             pass
@@ -218,7 +230,7 @@ class Ability:
         available = self.filter_columns_by_action(record.table, record.keys(), action)
 
         rules = {'table': [], 'column': []}
-        for rule in self.rules:
+        for rule in self.record_rules:
             obj_type, exists = self.is_rule_match_record(rule, action, record)
             if exists:
                 rules[obj_type].append(rule)
@@ -255,6 +267,8 @@ class Permissions:
         self.role_to_ability[ability.role] = ability
 
     def request_role(self, user: BaseUser, role) -> Ability:
+        if user is None:
+            return self.role_to_ability.get(role)
         if role in user.roles:
             return self.role_to_ability.get(role)
 
@@ -262,5 +276,3 @@ class Permissions:
         instance = Permissions()
         instance.key_to_roles = self.role_to_ability.copy()
         return instance
-
-ability_all = Ability(None, {'*': '*'})

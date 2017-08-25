@@ -94,7 +94,7 @@ class BaseSQLFunctions:
         for field_name, op, value in args:
             columns.append((view.table_name, field_name))
         role = view.permission.request_role(view.current_user, None)
-        if role.cannot(A.QUERY, *columns):
+        if all(role.cannot(view.current_user, A.QUERY, *columns)):
             return view.finish(RETCODE.PERMISSION_DENIED)
 
         return ret

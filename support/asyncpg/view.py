@@ -4,12 +4,14 @@ import asyncio
 
 import binascii
 import peewee
+from asyncpg import Record
 from playhouse.postgres_ext import BinaryJSONField
 from playhouse.shortcuts import model_to_dict
 
+from mapi.base.permission import A, AbilityRecord
 from mapi.retcode import RETCODE
 from mapi.support.asyncpg import query
-from mapi.utils import ResourceException, to_bin, pagination_calc
+from mapi.utils import ResourceException, to_bin, pagination_calc, dict_filter
 from ...base.view import MView, BaseSQLFunctions
 
 _field_query = '''SELECT a.attname as name, col_description(a.attrelid,a.attnum) as comment,pg_type.typname as typename, a.attnotnull as notnull
@@ -17,9 +19,19 @@ _field_query = '''SELECT a.attname as name, col_description(a.attrelid,a.attnum)
   where c.relname = $1 and a.attrelid = c.oid and a.attnum>0;'''
 
 
-class BaseModel(peewee.Model):
-    def to_dict(self):
-        return model_to_dict(self)
+class AsyncpgAbilityRecord(AbilityRecord):
+    def __init__(self, table_name, val: Record):
+        self.table = table_name
+        self.val = val  # 只是为了补全
+
+    def keys(self):
+        return self.val.keys()
+
+    def get(self, key):
+        return self.val['key']
+
+    def has(self, key):
+        return key in self.val
 
 
 class AsyncpgSQLFunctions(BaseSQLFunctions):
@@ -78,20 +90,23 @@ class AsyncpgSQLFunctions(BaseSQLFunctions):
             ndata[k] = v
         return ndata
 
-    async def select_one(self, si):
+    async def select_one(self, info):
         view = self.view
-        nargs = self._get_args(si['args'])
+        ability = view.permission.request_role(view.current_user, info['role'])
+        addition_args = ability.get_additional_args(view.current_user, A.READ, view.table_name)
+
+        nargs = self._get_args(info['args'] + addition_args)
         if self.err: return self.err
 
         sc = query.SelectCompiler()
-        sql = sc.select_raw('*').from_table(view.table_name).simple_where_many(nargs).order_by_many(si['orders']).sql()
+        sql = sc.select_raw('*').from_table(view.table_name).simple_where_many(nargs).order_by_many(info['orders']).sql()
         ret = await view.conn.fetchrow(sql[0], *sql[1])
+        if not ret: return RETCODE.NOT_FOUND, None
 
-        ability = view.permission.request_role(view.current_user, si['role'])
-        available_columns = ability.filter_record_columns_by_action(view.current_user, ret)
-
+        available_columns = ability.filter_record_columns_by_action(view.current_user, A.READ, AsyncpgAbilityRecord(view.table_name, ret))
         if not available_columns:
             return RETCODE.NOT_FOUND, None
+        ret = {k: v for k, v in ret.items() if k in ret}
 
         if ret:
             return RETCODE.SUCCESS, dict(ret)
@@ -100,11 +115,14 @@ class AsyncpgSQLFunctions(BaseSQLFunctions):
 
     async def select_pagination_list(self, info, size, page):
         view = self.view
-        nargs = self._get_args(info['args'])
+        ability = view.permission.request_role(view.current_user, info['role'])
+        addition_args = ability.get_additional_args(view.current_user, A.READ, view.table_name)
+
+        nargs = self._get_args(info['args'] + addition_args)
         if self.err: return self.err
 
         sc = query.SelectCompiler()
-        sql = sc.select_count().from_table(view.table_name).simple_where_many(nargs).order_by_many(si['orders']).sql()
+        sql = sc.select_count().from_table(view.table_name).simple_where_many(nargs).order_by_many(info['orders']).sql()
         count = (await view.conn.fetchrow(sql[0], *sql[1]))['count']
 
         pg = pagination_calc(count, size, page)
@@ -120,11 +138,18 @@ class AsyncpgSQLFunctions(BaseSQLFunctions):
         pg["items"] = list(ret)
         return RETCODE.SUCCESS, pg
 
-    async def update(self, si, data):
+    async def update(self, info, data):
         view = self.view
-        nargs = self._get_args(si['args'])
+        ability = view.permission.request_role(view.current_user, info['role'])
+        addition_args = ability.get_additional_args(view.current_user, A.WRITE, view.table_name)
+
+        nargs = self._get_args(info['args'] + addition_args)
         if self.err: return self.err
-        ndata = self._get_data(data)
+
+        columns = ability.filter_columns_by_action(view.table_name, data.keys(), A.WRITE)
+        if not columns:
+            return RETCODE.PERMISSION_DENIED, None
+        ndata = self._get_data(dict_filter(data, columns))
 
         uc = query.UpdateCompiler()
         sql = uc.to_table(view.table_name).simple_where_many(nargs).set_values(ndata).sql()
@@ -139,6 +164,10 @@ class AsyncpgSQLFunctions(BaseSQLFunctions):
     async def insert(self, data):
         view = self.view
         ndata = self._get_data(data)
+        ability = view.permission.request_role(view.current_user, ndata.get('role'))
+        if any(ability.cannot(view.current_user, A.CREATE, view.table_name)):
+            return RETCODE.PERMISSION_DENIED, None
+
         ic = query.InsertCompiler()
         sql = ic.into_table(view.table_name).set_values(ndata).returning().sql()
         ret = await view.conn.fetchrow(sql[0], *sql[1])
@@ -148,7 +177,10 @@ class AsyncpgSQLFunctions(BaseSQLFunctions):
 class AsyncpgMView(MView):
     conn = None
     table_name = None
-    sql_cls = AsyncpgSQLFunctions
+
+    def __init__(self, request):
+        super().__init__(request)
+        self._sql = AsyncpgSQLFunctions(self)
 
     @staticmethod
     async def _fetch_fields_by_table_name(conn, table_name):

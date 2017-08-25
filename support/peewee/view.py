@@ -7,6 +7,7 @@ import peewee
 from playhouse.postgres_ext import BinaryJSONField
 from playhouse.shortcuts import model_to_dict
 
+from mapi.base.permission import AbilityRecord
 from mapi.retcode import RETCODE
 from mapi.utils import to_bin, pagination_calc
 from ...base.view import MView, BaseSQLFunctions
@@ -15,6 +16,22 @@ from ...base.view import MView, BaseSQLFunctions
 class BaseModel(peewee.Model):
     def to_dict(self):
         return model_to_dict(self)
+
+
+class PeeweeAbilityRecord(AbilityRecord):
+    def __init__(self, table_name, val: peewee.Model):
+        self.table = table_name
+        self.val = val  # 只是为了补全才继承的
+
+    def keys(self):
+        return self.val._meta.fields.keys()
+
+    def get(self, key):
+        return getattr(self.val, key)
+
+    def has(self, key):
+        return hasattr(self.val, key)
+
 
 
 _peewee_method_map = {
@@ -46,12 +63,14 @@ class PeeweeSQLFunctions(BaseSQLFunctions):
         for field_name, op, value in args:
             field = self.view.fields[field_name]
 
+            print(field_name, op, value, field)
             if isinstance(field, peewee.BlobField):
                 try:
                     if op == 'in':
                         value = list(map(to_bin, value))
                     else:
                         value = to_bin(value)
+                        print(value)
                 except binascii.Error:
                     self.err = RETCODE.INVALID_PARAMS, 'Invalid query value for blob: Odd-length string'
                     return
@@ -63,6 +82,7 @@ class PeeweeSQLFunctions(BaseSQLFunctions):
         pw_args = self._get_pw_args(si['args'])
         if self.err: return self.err
         try:
+            a = self.view.model.get(*pw_args)
             return RETCODE.SUCCESS, self.view.model.get(*pw_args).to_dict()
         except self.view.model.DoesNotExist:
             return RETCODE.NOT_FOUND, None
@@ -77,7 +97,8 @@ class PeeweeSQLFunctions(BaseSQLFunctions):
         pg = pagination_calc(count, size, page)
         offset = size * (page - 1)
 
-        return RETCODE.SUCCESS, map(model.to_dict, q.paginate(page, size))
+        pg["items"] = list(map(model.to_dict, q.paginate(page, size)))
+        return RETCODE.SUCCESS, pg
 
     async def update(self, si, data):
         pw_args = self._get_pw_args(si['args'])
@@ -128,7 +149,10 @@ class PeeweeSQLFunctions(BaseSQLFunctions):
 
 class PeeweeMView(MView):
     model = None
-    sql_cls = PeeweeSQLFunctions
+
+    def __init__(self, request):
+        super().__init__(request)
+        self._sql = PeeweeSQLFunctions(self)
 
     @staticmethod
     async def _fetch_fields(cls_or_self):

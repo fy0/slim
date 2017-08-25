@@ -26,6 +26,10 @@ _valid_sql_operator = {
 RegexPatternType = type(re.compile(''))
 
 
+def dict_filter(obj, keys):
+    return {k: v for k, v in obj.items() if k in keys}
+
+
 class _MetaClassForInit(type):
     def __new__(mcs, *args, **kwargs):
         new_class = super().__new__(mcs, *args, **kwargs)
