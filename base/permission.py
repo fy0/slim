@@ -58,6 +58,8 @@ class AbilityRecord:
     def has(self, key):
         raise NotImplementedError()
 
+    def to_dict(self, available_columns=None):
+        raise NotImplementedError()
 
 class AbilityRule:
     def __init__(self, subject_cls, func):

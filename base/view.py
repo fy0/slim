@@ -5,9 +5,9 @@ from aiohttp import web
 from aiohttp_session import get_session
 
 from .sqlfuncs import BaseSQLFunctions
-from .permission import Permissions, Ability
+from .permission import Permissions, Ability, A
 from ..retcode import RETCODE
-from ..utils import _MetaClassForInit, pagination_calc
+from ..utils import _MetaClassForInit, pagination_calc, ResourceException, _valid_sql_operator
 
 logger = logging.getLogger(__name__)
 
@@ -133,9 +133,11 @@ class BasicMView(metaclass=_MetaClassForInit):
         return default
 
     async def set_secure_cookie(self, name, value, *, max_age=30, version=None):
+        # TODO: fix it
         pass
 
     def get_secure_cookie(self, name, value=None, max_age=31):
+        # TODO: fix it
         pass
 
 
@@ -146,13 +148,129 @@ class MView(BasicMView):
     fields = {}
     table_name = ''
 
-    @staticmethod
-    async def _fetch_fields(cls_or_self):
-        #raise NotImplementedError()
-        pass
+    @classmethod
+    def cls_init(cls):
+        super().cls_init()
+        async def func():
+            return await cls._fetch_fields(cls)
+        asyncio.get_event_loop().run_until_complete(func())
+
+    def __init__(self, request):
+        super().__init__(request)
+        self._sql = BaseSQLFunctions(self)
+
+    async def _prepare(self):
+        await super()._prepare()
+        value = self.request.headers.get('role')
+        role = int(value) if value and value.isdigit() else value
+        self.ability = self.permission.request_role(self.current_user, role)
+        if not self.ability:
+            self.finish(RETCODE.INVALID_ROLE)
+
+    def _query_order(self, text):
+        """
+        :param text: order=id.desc, xxx.asc
+        :return: 
+        """
+        orders = []
+        for i in text.split(','):
+            items = i.split('.', 2)
+
+            if len(items) == 1: continue
+            elif len(items) == 2: column, order = items
+            else: raise ResourceException("Invalid order format")
+
+            order = order.lower()
+            if column not in self.fields:
+                raise ResourceException('Column not found: %s' % column)
+            if order not in ('asc', 'desc'):
+                raise ResourceException('Invalid column order: %s' % order)
+
+            orders.append([column, order])
+        return orders
+
+    def _query_convert(self, params):
+        args = []
+        orders = []
+        ret = {
+            'args': args,
+            'orders': orders,
+            'format': 'dict',
+        }
+
+        for key, value in params.items():
+            # xxx.{op}
+            info = key.split('.', 1)
+
+            field_name = info[0]
+            if field_name == 'order':
+                orders = self._query_order(value)
+                continue
+            elif field_name == '_data_format':
+                ret['format'] = value
+                continue
+            op = '='
+
+            if field_name not in self.fields:
+                return self.finish(RETCODE.INVALID_PARAMS, 'Column not found: %s' % field_name)
+
+            if len(info) > 1:
+                op = info[1]
+                if op not in _valid_sql_operator:
+                    return self.finish(RETCODE.INVALID_PARAMS, 'Invalid operator: %s' % op)
+                op = _valid_sql_operator[op]
+
+            # is 和 is not 可以确保完成了初步值转换
+            if op in ('is', 'isnot'):
+                if value.lower() != 'null':
+                    return self.finish(RETCODE.INVALID_PARAMS, 'Invalid value: %s (must be null)' % value)
+                if op == 'isnot':
+                    op = 'is not'
+                value = None
+
+            if op == 'in':
+                try:
+                    value = json.loads(value)
+                except json.decoder.JSONDecodeError:
+                    return self.finish(RETCODE.INVALID_PARAMS, 'Invalid value: %s (must be json)' % value)
+
+            args.append([field_name, op, value])
+
+        logger.debug('params: %s' % ret)
+
+        # TODO: 权限检查在列存在检查之后有暴露列的风险
+        # 查询权限检查
+        columns = []
+        for field_name, op, value in args:
+            columns.append((self.table_name, field_name))
+        if columns and all(self.ability.cannot(self.current_user, A.QUERY, *columns)):
+            return self.finish(RETCODE.PERMISSION_DENIED)
+
+        # 角色读取限制参数附加
+        addition_args = self.ability.get_additional_args(self.current_user, A.READ, self.table_name)
+        ret['args'] += addition_args
+
+        return ret
+
+    def _filter_record_by_ability(self, record):
+        available_columns = self.ability.filter_record_columns_by_action(self.current_user, A.READ, record)
+        if not available_columns: return
+        return record.to_dict(available_columns)
+
+    async def get(self):
+        info = self._query_convert(self.params())
+        if self.is_finished: return
+        code, data = await self._sql.select_one(info)
+
+        if code == RETCODE.SUCCESS:
+            data = self._filter_record_by_ability(data)
+            if not data:
+                return self.finish(RETCODE.NOT_FOUND)
+        self.finish(code, data)
 
     def _get_list_page_and_size(self):
         page = self.request.match_info.get('page', '1')
+
         if not page.isdigit():
             self.finish(RETCODE.INVALID_PARAMS)
             return None, None
@@ -169,53 +287,58 @@ class MView(BasicMView):
 
         return page, size
 
-    @classmethod
-    def cls_init(cls):
-        super().cls_init()
-        async def func():
-            return await cls._fetch_fields(cls)
-        asyncio.get_event_loop().run_until_complete(func())
-
-    def __init__(self, request):
-        super().__init__(request)
-        self._sql = BaseSQLFunctions(self)
-
-    async def get(self):
-        info = self._sql.query_convert(self.params())
+    async def list(self):
+        page, size = self._get_list_page_and_size()
         if self.is_finished: return
-        #fails, columns_for_read = self.permission.check_select(self, request, args, orders, ext)
-        #if fails: return self.fields(RETCODE.PERMISSION_DENIED, json.dumps(fails))
-        code, data = await self._sql.select_one(info)
-        self.finish(code, data)
+        info = self._query_convert(self.params())
+        if self.is_finished: return
+
+        code, data = await self._sql.select_pagination_list(info, size, page)
+
+        if code == RETCODE.SUCCESS:
+            lst = []
+            get_values = lambda x: list(x.values())
+            for i in data['items']:
+                item = self._filter_record_by_ability(i)
+                if info['format'] == 'array':
+                    item = get_values(item)
+                lst.append(item)
+            data['items'] = lst
+            self.finish(RETCODE.SUCCESS, data)
+        else:
+            self.finish(code, data)
+
+    def _data_convert(self, data, action=A.WRITE):
+        # 写入/插入权限检查
+        columns = []
+        for k, v in data.items():
+            columns.append((self.table_name, k))
+
+        if all(self.ability.cannot(self.current_user, action, *columns)):
+            return self.finish(RETCODE.PERMISSION_DENIED)
+
+        return data
 
     async def set(self):
-        info = self._sql.query_convert(self.params())
+        info = self._query_convert(self.params())
         if self.is_finished: return
-        #fails, columns_for_read = self.permission.check_select(self, request, args, orders, ext)
-        #if fails: return self.finish(RETCODE.PERMISSION_DENIED, fails)
-        post_data = await self.post_data()
+        post_data = self._data_convert(await self.post_data())
+        if self.is_finished: return
+
         logger.debug('data: %s' % post_data)
         code, data = await self._sql.update(info, post_data)
         self.finish(code, data)
 
     async def new(self):
-        post_data = await self.post_data()
+        post_data = self._data_convert(await self.post_data(), action=A.CREATE)
+        if self.is_finished: return
         logger.debug('data: %s' % post_data)
         code, data = await self._sql.insert(post_data)
+        if code == RETCODE.SUCCESS:
+            data = self._filter_record_by_ability(data)
         self.finish(code, data)
 
-    async def list(self):
-        page, size = self._get_list_page_and_size()
-        if self.is_finished: return
-
-        info = self._sql.query_convert(self.params())
-        if self.is_finished: return
-        #fails, columns_for_read = self.permission.check_select(self, request, args, orders, ext)
-        #if fails: return self.fields(RETCODE.PERMISSION_DENIED, json.dumps(fails))
-
-        code, data = await self._sql.select_pagination_list(info, size, page)
-
-        if code == RETCODE.SUCCESS:
-            self.finish(RETCODE.SUCCESS, data)
-        else:
-            self.finish(code, data)
+    @staticmethod
+    async def _fetch_fields(cls_or_self):
+        #raise NotImplementedError()
+        pass

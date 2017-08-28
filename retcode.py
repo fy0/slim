@@ -12,5 +12,5 @@ class RETCODE:
     NOT_FOUND = -252  # 未找到
     UNKNOWN = -253  # 未知错误
     NOT_USER = -254  # 未登录
-    ROLE_REQUEST_FAILED = -246  # 权限申请失败
+    INVALID_ROLE = -246  # 权限申请失败
     PERMISSION_DENIED = -255  # 无权访问

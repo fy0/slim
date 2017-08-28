@@ -1,15 +1,13 @@
 import json
-
 import asyncio
-
 import binascii
 import peewee
 from playhouse.postgres_ext import BinaryJSONField
 from playhouse.shortcuts import model_to_dict
 
-from mapi.base.permission import AbilityRecord
-from mapi.retcode import RETCODE
-from mapi.utils import to_bin, pagination_calc
+from ...base.permission import AbilityRecord
+from ...retcode import RETCODE
+from ...utils import to_bin, pagination_calc, dict_filter
 from ...base.view import MView, BaseSQLFunctions
 
 
@@ -31,6 +29,11 @@ class PeeweeAbilityRecord(AbilityRecord):
 
     def has(self, key):
         return hasattr(self.val, key)
+
+    def to_dict(self, available_columns=None):
+        if available_columns:
+            return dict_filter(model_to_dict(self.val), available_columns)
+        return model_to_dict(self.val)
 
 
 
@@ -58,19 +61,17 @@ _peewee_method_map = {
 
 
 class PeeweeSQLFunctions(BaseSQLFunctions):
-    def _get_pw_args(self, args):
+    def _get_args(self, args):
         pw_args = []
         for field_name, op, value in args:
             field = self.view.fields[field_name]
 
-            print(field_name, op, value, field)
             if isinstance(field, peewee.BlobField):
                 try:
                     if op == 'in':
                         value = list(map(to_bin, value))
                     else:
                         value = to_bin(value)
-                        print(value)
                 except binascii.Error:
                     self.err = RETCODE.INVALID_PARAMS, 'Invalid query value for blob: Odd-length string'
                     return
@@ -78,18 +79,17 @@ class PeeweeSQLFunctions(BaseSQLFunctions):
             pw_args.append(getattr(field, _peewee_method_map[op])(value))
         return pw_args
 
-    async def select_one(self, si):
-        pw_args = self._get_pw_args(si['args'])
+    async def select_one(self, info):
+        nargs = self._get_args(info['args'])
         if self.err: return self.err
         try:
-            a = self.view.model.get(*pw_args)
-            return RETCODE.SUCCESS, self.view.model.get(*pw_args).to_dict()
+            item = self.view.model.get(*nargs)
+            return RETCODE.SUCCESS, PeeweeAbilityRecord(self.view.table_name, item)
         except self.view.model.DoesNotExist:
             return RETCODE.NOT_FOUND, None
 
     async def select_pagination_list(self, info, size, page):
-        model = self.view.model
-        nargs = self._get_pw_args(info['args'])
+        nargs = self._get_args(info['args'])
         if self.err: return self.err
         q = self.view.model.select().where(*nargs) if nargs else self.view.model.select()
 
@@ -97,11 +97,12 @@ class PeeweeSQLFunctions(BaseSQLFunctions):
         pg = pagination_calc(count, size, page)
         offset = size * (page - 1)
 
-        pg["items"] = list(map(model.to_dict, q.paginate(page, size)))
+        func = lambda item: PeeweeAbilityRecord(self.view.table_name, item)
+        pg["items"] = list(map(func, q.paginate(page, size)))
         return RETCODE.SUCCESS, pg
 
-    async def update(self, si, data):
-        pw_args = self._get_pw_args(si['args'])
+    async def update(self, info, data):
+        pw_args = self._get_args(info['args'])
         if self.err: return self.err
 
         try:
