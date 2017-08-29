@@ -1,5 +1,7 @@
 import logging
 from posixpath import join as urljoin
+from aiohttp_session import setup as session_setup
+from aiohttp_session.cookie_storage import EncryptedCookieStorage
 
 
 logger = logging.getLogger(__name__)
@@ -74,3 +76,6 @@ class Route(object):
         for url, cls in self.urls:
             view_bind(app, url, cls)
 
+
+def session_bind(app, secret):
+    return session_setup(app, EncryptedCookieStorage(secret, cookie_name="s"))
