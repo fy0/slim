@@ -1,9 +1,11 @@
 import json
+import time
 import asyncio
 import logging
 from aiohttp import web
 from aiohttp_session import get_session
 
+from .helper import create_signed_value, decode_signed_value
 from .sqlfuncs import BaseSQLFunctions
 from .permission import Permissions, Ability, A
 from ..retcode import RETCODE
@@ -132,13 +134,27 @@ class BasicMView(metaclass=_MetaClassForInit):
             return self.request.cookies.get(name)
         return default
 
-    async def set_secure_cookie(self, name, value, *, max_age=30, version=None):
-        # TODO: fix it
-        pass
+    def get_app_info(self):
+        return self.request.app._info_for_mapi
 
-    def get_secure_cookie(self, name, value=None, max_age=31):
-        # TODO: fix it
-        pass
+    def set_secure_cookie(self, name, value, *, max_age=30):
+        #  一般来说是 UTC
+        # https://stackoverflow.com/questions/16554887/does-pythons-time-time-return-a-timestamp-in-utc
+        timestamp = int(time.time())
+        # version, utctime, name, value
+        to_sign = [1, timestamp, name, value]
+        secret = self.get_app_info()['cookies_secret']
+        self.set_cookie(name, create_signed_value(secret, to_sign), max_age=max_age)
+
+    def get_secure_cookie(self, name, default=None, max_age_days=31):
+        secret = self.get_app_info()['cookies_secret']
+        value = self.get_cookie(name)
+        if value:
+            data = decode_signed_value(secret, value)
+            # TODO: max_age_days 过期计算
+            if data and data[2] == name:
+                return data[3]
+        return default
 
 
 class MView(BasicMView):

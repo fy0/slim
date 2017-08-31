@@ -1,7 +1,9 @@
+import base64
+import hashlib
+import json
 import logging
 from posixpath import join as urljoin
-from aiohttp_session import setup as session_setup
-from aiohttp_session.cookie_storage import EncryptedCookieStorage
+import asyncio
 
 
 logger = logging.getLogger(__name__)
@@ -77,5 +79,39 @@ class Route(object):
             view_bind(app, url, cls)
 
 
-def session_bind(app, secret):
-    return session_setup(app, EncryptedCookieStorage(secret, cookie_name="s"))
+try:
+    import msgpack
+
+    def _value_encode(obj):
+        return msgpack.dumps(obj)
+
+    def _value_decode(data: bytes):
+        return msgpack.loads(data, encoding='utf-8')
+
+except ImportError:
+    def _value_encode(obj):
+        return bytes(json.dumps(obj), 'utf-8')
+
+    def _value_decode(data: bytes):
+        return json.loads(str(data, 'utf-8'))
+
+
+def _create_signature(secret, s):
+    # hash = hashlib.blake2s(_signature_encode(s), key=secret[:32]) py3.6+
+    hash = hashlib.sha256(secret)
+    hash.update(_value_encode(s))
+    return hash.hexdigest()
+
+
+def create_signed_value(secret, s: [list, tuple]):
+    sign = _create_signature(secret, s)
+    return str(base64.b64encode(_value_encode(s + [sign])), 'utf-8')
+
+
+def decode_signed_value(secret, s):
+    s = _value_decode(base64.b64decode(bytes(s, 'utf-8')))
+    data = s[:-1]
+    sign = _create_signature(secret, data)
+    if sign != s[-1]:
+        return None
+    return data

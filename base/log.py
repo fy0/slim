@@ -11,11 +11,13 @@ DEBUG = 10
 NOTSET = 0
 """
 
+logger = None
 is_enable = False
 
 
 def enable():
-    global is_enable
+    global logger, is_enable
+
     if not is_enable:
         default_handler = logging.StreamHandler()
         default_handler.setFormatter(logging.Formatter(
@@ -28,4 +30,3 @@ def enable():
 
         is_enable = True
 
-enable()
