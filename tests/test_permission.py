@@ -3,7 +3,7 @@
 import re
 import os
 import sys
-from mapi.base.permission import A, Ability, AbilityColumn, AbilityTable, AbilityRecord
+from slim.base.permission import A, Ability, AbilityColumn, AbilityTable, AbilityRecord
 
 
 ab = Ability('normal', {

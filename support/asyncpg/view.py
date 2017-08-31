@@ -1,17 +1,10 @@
-import json
-
-import asyncio
-
 import binascii
-import peewee
 from asyncpg import Record
-from playhouse.postgres_ext import BinaryJSONField
-from playhouse.shortcuts import model_to_dict
 
-from mapi.base.permission import A, AbilityRecord
-from mapi.retcode import RETCODE
-from mapi.support.asyncpg import query
-from mapi.utils import ResourceException, to_bin, pagination_calc, dict_filter
+from ...base.permission import A, AbilityRecord
+from ...retcode import RETCODE
+from ...support.asyncpg import query
+from ...utils import ResourceException, to_bin, pagination_calc, dict_filter
 from ...base.view import MView, BaseSQLFunctions
 
 _field_query = '''SELECT a.attname as name, col_description(a.attrelid,a.attnum) as comment,pg_type.typname as typename, a.attnotnull as notnull

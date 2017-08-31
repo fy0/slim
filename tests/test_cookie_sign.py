@@ -5,10 +5,10 @@ from http.cookiejar import CookieJar
 from requests.cookies import morsel_to_cookie, merge_cookies
 from requests.utils import dict_from_cookiejar
 
-from mapi import app_init
-from mapi.base.helper import create_signed_value, decode_signed_value, _value_decode, _value_encode, Route
-from mapi.base.view import BasicMView
-from mapi.retcode import RETCODE
+from slim import app_init
+from slim.base.helper import create_signed_value, decode_signed_value, _value_decode, _value_encode, Route
+from slim.base.view import BasicMView
+from slim.retcode import RETCODE
 
 secret = b'asdasd' * 5
 

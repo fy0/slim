@@ -99,7 +99,7 @@ class BasicMView(metaclass=_MetaClassForInit):
     def finish(self, code, data=None):
         self.ret_val = {'code': code, 'data': data}  # for access in inhreads method
         self.response = web.json_response(self.ret_val)
-        logger.debug('request finish: %s' % self.ret_val)
+        logger.debug('finish: %s' % self.ret_val)
         for i in self._cookie_set or ():
             if i[0] == 'set':
                 self.response.set_cookie(i[1], i[2], **i[3]) # secure not work
