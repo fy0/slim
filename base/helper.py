@@ -3,7 +3,6 @@ import hashlib
 import json
 import logging
 from posixpath import join as urljoin
-import asyncio
 
 
 logger = logging.getLogger(__name__)
@@ -89,6 +88,7 @@ try:
         return msgpack.loads(data, encoding='utf-8')
 
 except ImportError:
+
     def _value_encode(obj):
         return bytes(json.dumps(obj), 'utf-8')
 

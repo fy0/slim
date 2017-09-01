@@ -5,7 +5,7 @@ from ...base.permission import A, AbilityRecord
 from ...retcode import RETCODE
 from ...support.asyncpg import query
 from ...utils import ResourceException, to_bin, pagination_calc, dict_filter
-from ...base.view import MView, BaseSQLFunctions
+from ...base.view import View, BaseSQLFunctions
 
 _field_query = '''SELECT a.attname as name, col_description(a.attrelid,a.attnum) as comment,pg_type.typname as typename, a.attnotnull as notnull
   FROM pg_class as c,pg_attribute as a inner join pg_type on pg_type.oid = a.atttypid 
@@ -150,7 +150,7 @@ class AsyncpgSQLFunctions(BaseSQLFunctions):
         return RETCODE.SUCCESS, AsyncpgAbilityRecord(self.view.table_name, ret)
 
 
-class AsyncpgMView(MView):
+class AsyncpgView(View):
     conn = None
     table_name = None
 

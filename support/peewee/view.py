@@ -8,7 +8,7 @@ from playhouse.shortcuts import model_to_dict
 from ...base.permission import AbilityRecord
 from ...retcode import RETCODE
 from ...utils import to_bin, pagination_calc, dict_filter
-from ...base.view import MView, BaseSQLFunctions
+from ...base.view import View, BaseSQLFunctions
 
 
 class BaseModel(peewee.Model):
@@ -148,7 +148,7 @@ class PeeweeSQLFunctions(BaseSQLFunctions):
                 return RETCODE.FAILED, None
 
 
-class PeeweeMView(MView):
+class PeeweeView(View):
     model = None
 
     def __init__(self, request):

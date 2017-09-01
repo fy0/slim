@@ -1,1 +1,1 @@
-from .view import AsyncpgMView
+from .view import AsyncpgView

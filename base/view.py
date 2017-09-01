@@ -3,18 +3,18 @@ import time
 import asyncio
 import logging
 from aiohttp import web
-from aiohttp_session import get_session
 
+from slim.base.app import SlimApplicationOptions
 from .helper import create_signed_value, decode_signed_value
 from .sqlfuncs import BaseSQLFunctions
 from .permission import Permissions, Ability, A
 from ..retcode import RETCODE
-from ..utils import _MetaClassForInit, pagination_calc, ResourceException, _valid_sql_operator
+from ..utils import _MetaClassForInit, ResourceException, _valid_sql_operator
 
 logger = logging.getLogger(__name__)
 
 
-class BasicMView(metaclass=_MetaClassForInit):
+class BasicView(metaclass=_MetaClassForInit):
     """
     应在 cls_init 时完成全部接口的扫描与wrap函数创建
     并在wrapper函数中进行实例化，传入 request 对象
@@ -80,7 +80,8 @@ class BasicMView(metaclass=_MetaClassForInit):
         return self.response
 
     async def _prepare(self):
-        self.session = await get_session(self.request)
+        session_cls = self.slim_options.session_cls
+        self.session = await session_cls.get_session(self)
 
     async def prepare(self):
         pass
@@ -134,8 +135,9 @@ class BasicMView(metaclass=_MetaClassForInit):
             return self.request.cookies.get(name)
         return default
 
-    def get_app_info(self):
-        return self.request.app._info_for_mapi
+    @property
+    def slim_options(self) -> SlimApplicationOptions:
+        return self.request.app._slim_options
 
     def set_secure_cookie(self, name, value, *, max_age=30):
         #  一般来说是 UTC
@@ -143,11 +145,11 @@ class BasicMView(metaclass=_MetaClassForInit):
         timestamp = int(time.time())
         # version, utctime, name, value
         to_sign = [1, timestamp, name, value]
-        secret = self.get_app_info()['cookies_secret']
+        secret = self.slim_options.cookies_secret
         self.set_cookie(name, create_signed_value(secret, to_sign), max_age=max_age)
 
     def get_secure_cookie(self, name, default=None, max_age_days=31):
-        secret = self.get_app_info()['cookies_secret']
+        secret = self.slim_options.cookies_secret
         value = self.get_cookie(name)
         if value:
             data = decode_signed_value(secret, value)
@@ -157,7 +159,7 @@ class BasicMView(metaclass=_MetaClassForInit):
         return default
 
 
-class MView(BasicMView):
+class View(BasicView):
     LIST_PAGE_SIZE = 20  # list 单次取出的默认大小
     LIST_ACCEPT_SIZE_FROM_CLIENT = False
 
