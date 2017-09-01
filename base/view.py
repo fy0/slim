@@ -2,9 +2,11 @@ import json
 import time
 import asyncio
 import logging
+from typing import Tuple, Union, Mapping
+
 from aiohttp import web
 
-from slim.base.app import SlimApplicationOptions
+from .app import SlimApplicationOptions
 from .helper import create_signed_value, decode_signed_value
 from .sqlfuncs import BaseSQLFunctions
 from .permission import Permissions, Ability, A
@@ -65,7 +67,7 @@ class BasicView(metaclass=_MetaClassForInit):
             cls.permission = Permissions()
         cls.permission_init()
 
-    def __init__(self, request):
+    def __init__(self, request: web.web_request.Request):
         self.request = request
         self.ret_val = None
         self.response = None
@@ -209,10 +211,9 @@ class View(BasicView):
 
     def _query_convert(self, params):
         args = []
-        orders = []
         ret = {
             'args': args,
-            'orders': orders,
+            'orders': [],
             'format': 'dict',
         }
 
@@ -222,7 +223,7 @@ class View(BasicView):
 
             field_name = info[0]
             if field_name == 'order':
-                orders = self._query_order(value)
+                ret['orders'] = self._query_order(value)
                 continue
             elif field_name == '_data_format':
                 ret['format'] = value
@@ -286,7 +287,7 @@ class View(BasicView):
                 return self.finish(RETCODE.NOT_FOUND)
         self.finish(code, data)
 
-    def _get_list_page_and_size(self):
+    def _get_list_page_and_size(self) -> Tuple[Union[int, None], Union[int, None]]:
         page = self.request.match_info.get('page', '1')
 
         if not page.isdigit():
@@ -326,7 +327,7 @@ class View(BasicView):
         else:
             self.finish(code, data)
 
-    def _data_convert(self, data, action=A.WRITE):
+    def _data_convert(self, data: Mapping[str, object], action=A.WRITE):
         # 写入/插入权限检查
         columns = []
         for k, v in data.items():
@@ -358,5 +359,5 @@ class View(BasicView):
 
     @staticmethod
     async def _fetch_fields(cls_or_self):
-        #raise NotImplementedError()
+        # raise NotImplementedError()
         pass

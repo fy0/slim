@@ -1,4 +1,3 @@
-import asyncio
 from aiohttp import web
 from .session import SimpleSession
 from . import log
@@ -10,8 +9,10 @@ class SlimApplicationOptions:
         self.session_cls = SimpleSession
 
 
-def app_init(default=None, *, cookies_secret: bytes, enable_log=True, route=None, session_cls=SimpleSession) -> web.Application:
+def app_init(default=None, *, cookies_secret: bytes, enable_log=True, route=None, session_cls=SimpleSession)\
+        -> web.Application:
     if isinstance(default, dict):
+        # noinspection PyArgumentList
         app = web.Application(**default)
     elif isinstance(default, web.Application):
         app = default
@@ -28,8 +29,8 @@ def app_init(default=None, *, cookies_secret: bytes, enable_log=True, route=None
 
     if route:
         # 推后至启动时进行
-        def on_available(app):
-            route.bind(app)
+        def on_available(the_app):
+            route.bind(the_app)
         app.on_loop_available.append(on_available)
 
     return app

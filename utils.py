@@ -30,6 +30,7 @@ def dict_filter(obj, keys):
     return {k: v for k, v in obj.items() if k in keys}
 
 
+# noinspection PyUnresolvedReferences
 class _MetaClassForInit(type):
     def __new__(mcs, *args, **kwargs):
         new_class = super().__new__(mcs, *args, **kwargs)
@@ -51,13 +52,14 @@ def time_readable():
 
 def pagination_calc(count_all, page_size, cur_page=1, nearby=2):
     """
+    :param nearby: 
     :param count_all: count of all items
-    :param query: a peewee query object
     :param page_size: size of one page
     :param cur_page: current page number, accept string digit
     :return: num of pages, an iterator
     """
     if type(cur_page) == str:
+        # noinspection PyUnresolvedReferences
         cur_page = int(cur_page) if cur_page.isdigit() else 1
     elif type(cur_page) == int:
         if cur_page <= 0:

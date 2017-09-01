@@ -1,9 +1,4 @@
-import json
 import logging
-
-from .permission import A
-from ..retcode import RETCODE
-from ..utils import ResourceException, _valid_sql_operator
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +24,6 @@ class BaseSQLFunctions:
         raise NotImplementedError()
         # code, item
 
-    async def record_to_dict(self):
-        pass
-
+    # noinspection PyMethodMayBeStatic
     def done(self, code, data=None):
         return code, data

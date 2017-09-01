@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import hmac
 import json
 import logging
 from posixpath import join as urljoin
@@ -19,7 +20,8 @@ def view_bind(app, url, view_cls):
     """
     url = url or view_cls.__class__.__name__.lower()
 
-    def wrap(url, func):
+    def wrap(func):
+        # noinspection PyProtectedMember
         async def wfunc(request):
             view_instance = view_cls(request)
             ascii_encodable_path = request.path.encode('ascii', 'backslashreplace').decode('ascii')
@@ -37,10 +39,10 @@ def view_bind(app, url, view_cls):
 
         return wfunc
 
-    def add_route(key, item, request_handler):
+    def add_route(route_key, item, req_handler):
         cut_uri = lambda x: x[1:] if x and x[0] == '/' else x
         if type(item) == str:
-            app.router.add_route(item, urljoin('/api', cut_uri(url), cut_uri(key)), wrap(url, request_handler))
+            app.router.add_route(item, urljoin('/api', cut_uri(url), cut_uri(route_key)), wrap(req_handler))
         elif type(item) == dict:
             methods = item['method']
             if type(methods) == str:
@@ -50,21 +52,22 @@ def view_bind(app, url, view_cls):
 
             for i in methods:
                 if 'url' in item:
-                    app.router.add_route(i, urljoin('/api', cut_uri(url), cut_uri(item['url'])), wrap(url, request_handler))
+                    app.router.add_route(i, urljoin('/api', cut_uri(url), cut_uri(item['url'])), wrap(req_handler))
                 else:
-                    app.router.add_route(i, urljoin('/api', cut_uri(url), cut_uri(key)), wrap(url, request_handler))
+                    app.router.add_route(i, urljoin('/api', cut_uri(url), cut_uri(route_key)), wrap(req_handler))
         elif type(item) in (list, set, tuple):
             for i in item:
-                add_route(key, i, request_handler)
+                add_route(route_key, i, req_handler)
         else:
             raise BaseException('Invalid type of route config description: %s', type(item))
 
+    # noinspection PyProtectedMember
     for key, http_method in view_cls._interface.items():
         request_handler = getattr(view_cls, key, None)
         if request_handler: add_route(key, http_method, request_handler)
 
 
-class Route(object):
+class Route:
     urls = []
 
     def __call__(self, url):
@@ -79,6 +82,7 @@ class Route(object):
 
 
 try:
+    # noinspection PyUnresolvedReferences
     import msgpack
 
     def _value_encode(obj):
@@ -96,11 +100,11 @@ except ImportError:
         return json.loads(str(data, 'utf-8'))
 
 
-def _create_signature(secret, s):
+def _create_signature(secret: bytes, s):
     # hash = hashlib.blake2s(_signature_encode(s), key=secret[:32]) py3.6+
-    hash = hashlib.sha256(secret)
-    hash.update(_value_encode(s))
-    return hash.hexdigest()
+    m = hmac.new(secret, digestmod=hashlib.sha256)
+    m.update(_value_encode(s))
+    return m.hexdigest()
 
 
 def create_signed_value(secret, s: [list, tuple]):

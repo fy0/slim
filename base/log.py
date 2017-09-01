@@ -29,4 +29,3 @@ def enable():
         logger.addHandler(default_handler)
 
         is_enable = True
-

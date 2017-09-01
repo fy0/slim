@@ -1,5 +1,4 @@
 import json
-import asyncio
 import binascii
 import peewee
 from playhouse.postgres_ext import BinaryJSONField
@@ -11,17 +10,14 @@ from ...utils import to_bin, pagination_calc, dict_filter
 from ...base.view import View, BaseSQLFunctions
 
 
-class BaseModel(peewee.Model):
-    def to_dict(self):
-        return model_to_dict(self)
-
-
 class PeeweeAbilityRecord(AbilityRecord):
+    # noinspection PyMissingConstructor
     def __init__(self, table_name, val: peewee.Model):
         self.table = table_name
         self.val = val  # 只是为了补全才继承的
 
     def keys(self):
+        # noinspection PyProtectedMember
         return self.val._meta.fields.keys()
 
     def get(self, key):
@@ -34,7 +30,6 @@ class PeeweeAbilityRecord(AbilityRecord):
         if available_columns:
             return dict_filter(model_to_dict(self.val), available_columns)
         return model_to_dict(self.val)
-
 
 
 _peewee_method_map = {
@@ -60,6 +55,7 @@ _peewee_method_map = {
 }
 
 
+# noinspection PyProtectedMember,PyArgumentList
 class PeeweeSQLFunctions(BaseSQLFunctions):
     def _get_args(self, args):
         pw_args = []
@@ -95,7 +91,7 @@ class PeeweeSQLFunctions(BaseSQLFunctions):
 
         count = q.count()
         pg = pagination_calc(count, size, page)
-        offset = size * (page - 1)
+        # offset = size * (page - 1)
 
         func = lambda item: PeeweeAbilityRecord(self.view.table_name, item)
         pg["items"] = list(map(func, q.paginate(page, size)))
@@ -106,9 +102,10 @@ class PeeweeSQLFunctions(BaseSQLFunctions):
         if self.err: return self.err
 
         try:
+            # noinspection PyArgumentList
             item = self.view.model.get(*pw_args)
             db = self.view.model._meta.database
-            with db.atomic() as transaction:
+            with db.atomic():
                 ok = False
                 try:
                     for k, v in data.items():
@@ -139,7 +136,7 @@ class PeeweeSQLFunctions(BaseSQLFunctions):
                 else:
                     kwargs[k] = v
 
-        with db.atomic() as transaction:
+        with db.atomic():
             try:
                 item = self.view.model.create(**kwargs)
                 return RETCODE.SUCCESS, item.to_dict()
@@ -155,6 +152,7 @@ class PeeweeView(View):
         super().__init__(request)
         self._sql = PeeweeSQLFunctions(self)
 
+    # noinspection PyProtectedMember
     @staticmethod
     async def _fetch_fields(cls_or_self):
         if cls_or_self.model:

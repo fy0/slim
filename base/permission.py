@@ -1,4 +1,5 @@
 import logging
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 
@@ -58,12 +59,8 @@ class AbilityRecord:
     def has(self, key):
         raise NotImplementedError()
 
-    def to_dict(self, available_columns=None):
+    def to_dict(self, available_columns=None) -> Dict:
         raise NotImplementedError()
-
-class AbilityRule:
-    def __init__(self, subject_cls, func):
-        self.func = func
 
 
 class Ability:
@@ -274,7 +271,7 @@ class Permissions:
         if role in user.roles:
             return self.role_to_ability.get(role)
 
-    def copy(self):
+    def copy(self) -> 'Permissions':
         instance = Permissions()
         instance.key_to_roles = self.role_to_ability.copy()
         return instance

@@ -7,12 +7,15 @@ from ...support.asyncpg import query
 from ...utils import ResourceException, to_bin, pagination_calc, dict_filter
 from ...base.view import View, BaseSQLFunctions
 
-_field_query = '''SELECT a.attname as name, col_description(a.attrelid,a.attnum) as comment,pg_type.typname as typename, a.attnotnull as notnull
+# noinspection SqlDialectInspection,SqlNoDataSourceInspection
+_field_query = '''SELECT a.attname as name, col_description(a.attrelid,a.attnum) as comment,
+  pg_type.typname as typename, a.attnotnull as notnull
   FROM pg_class as c,pg_attribute as a inner join pg_type on pg_type.oid = a.atttypid 
   where c.relname = $1 and a.attrelid = c.oid and a.attnum>0;'''
 
 
 class AsyncpgAbilityRecord(AbilityRecord):
+    # noinspection PyMissingConstructor
     def __init__(self, table_name, val: Record):
         self.table = table_name
         self.val = val  # 只是为了补全
@@ -76,13 +79,13 @@ class AsyncpgSQLFunctions(BaseSQLFunctions):
             type_codec = field['typename']
 
             if type_codec in ['int2', 'int4', 'int8']:
-                type_codec = 'int'
+                # type_codec = 'int'
                 v = int(v)
             elif type_codec in ['float4', 'float8']:
-                type_codec = 'float'
+                # type_codec = 'float'
                 v = float(v)
             elif type_codec == 'bytea':
-                type_codec = 'bytea'
+                # type_codec = 'bytea'
                 v = to_bin(v)
 
             ndata[k] = v
@@ -94,7 +97,8 @@ class AsyncpgSQLFunctions(BaseSQLFunctions):
         if self.err: return self.err
 
         sc = query.SelectCompiler()
-        sql = sc.select_raw('*').from_table(view.table_name).simple_where_many(nargs).order_by_many(info['orders']).sql()
+        sql = sc.select_raw('*').from_table(view.table_name).simple_where_many(nargs)\
+            .order_by_many(info['orders']).sql()
         ret = await view.conn.fetchrow(sql[0], *sql[1])
         if not ret: return RETCODE.NOT_FOUND, None
 
@@ -108,7 +112,8 @@ class AsyncpgSQLFunctions(BaseSQLFunctions):
         if self.err: return self.err
 
         sc = query.SelectCompiler()
-        sql = sc.select_count().from_table(self.view.table_name).simple_where_many(nargs).order_by_many(info['orders']).sql()
+        sql = sc.select_count().from_table(self.view.table_name).simple_where_many(nargs)\
+            .order_by_many(info['orders']).sql()
         count = (await self.view.conn.fetchrow(sql[0], *sql[1]))['count']
 
         pg = pagination_calc(count, size, page)
@@ -134,7 +139,7 @@ class AsyncpgSQLFunctions(BaseSQLFunctions):
 
         uc = query.UpdateCompiler()
         sql = uc.to_table(view.table_name).simple_where_many(nargs).set_values(ndata).sql()
-        ret = await view.conn.execute(sql[0], *sql[1]) # ret == "UPDATE X"
+        ret = await view.conn.execute(sql[0], *sql[1])  # ret == "UPDATE X"
 
         if ret and ret.startswith("UPDATE "):
             num = int(ret[len("UPDATE "):])
