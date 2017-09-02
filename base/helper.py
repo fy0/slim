@@ -7,7 +7,7 @@ from posixpath import join as urljoin
 
 
 logger = logging.getLogger(__name__)
-__all__ = ('Route',)
+# __all__ = ('Route',)
 
 
 def view_bind(app, url, view_cls):

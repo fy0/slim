@@ -9,13 +9,13 @@ class SlimApplicationOptions:
         self.session_cls = SimpleSession
 
 
-def app_init(default=None, *, cookies_secret: bytes, enable_log=True, route=None, session_cls=SimpleSession)\
+def app_init(cookies_secret: bytes, *, aiohttp_app_instance=None, enable_log=True, route=None, session_cls=SimpleSession)\
         -> web.Application:
-    if isinstance(default, dict):
+    if isinstance(aiohttp_app_instance, dict):
         # noinspection PyArgumentList
-        app = web.Application(**default)
-    elif isinstance(default, web.Application):
-        app = default
+        app = web.Application(**aiohttp_app_instance)
+    elif isinstance(aiohttp_app_instance, web.Application):
+        app = aiohttp_app_instance
     else:
         app = web.Application()
 

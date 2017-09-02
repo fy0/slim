@@ -16,7 +16,7 @@ def long_desc():
 
 
 setup(name='slim',
-      version='0.0.3',
+      version='0.0.4',
       license='BSD',
       description=description(),
       long_description=long_desc(),

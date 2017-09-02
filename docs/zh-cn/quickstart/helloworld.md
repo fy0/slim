@@ -23,19 +23,16 @@ db.create_tables([Topic], safe=True)
 
 app.py
 ```python
-from aiohttp import web
-from mapi.support.peewee import PeeweeMView
-from mapi.base.helper import Route, session_bind
+from slim.support.peewee import PeeweeView
+from slim.base.helper import Route
 
 route = Route()
 
 @route('topic')
-class TopicView(PeeweeMView):
+class TopicView(PeeweeView):
     model = Topic
 
-app = web.Application()
-route.bind(app)
-session_bind(app, b'secret__'*4)
+app = app_init(b'cookies secret', enable_log=True, route=route)
 web.run_app(app, host='0.0.0.0', port=9999)
 ```
 
