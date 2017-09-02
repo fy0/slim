@@ -1,8 +1,9 @@
-try:
-    from setuptools import setup
-except ImportError:
-    from distutils.core import setup
+"""
+setup.py for slim
+https://github.com/fy0/slim
+"""
 
+from setuptools import setup, find_packages
 
 def description():
     return """github: https://github.com/fy0/slim"""
@@ -15,25 +16,28 @@ def long_desc():
         return description()
 
 
-setup(name='slim',
+setup(
+    name='slim',
     version='0.0.4',
-    license='zlib',
+
     description=description(),
     long_description=long_desc(),
+    url="https://github.com/fy0/slim",
+
     author='fy',
     author_email='fy0748@gmail.com',
-    install_requires=['aiohttp'],
-    url="https://github.com/fy0/slim",
-    packages=['slim', 'slim.base', 'slim.support', 'slim.support.peewee', 'slim.support.asyncpg'],
+    license='zlib',
+
     classifiers=[
-        'Topic :: Internet :: WWW/HTTP :: Dynamic Content',
+        'Development Status :: 3 - Alpha',
+    
+        'Intended Audience :: Developers',
+        'Topic :: Internet :: WWW/HTTP',
         'Topic :: Internet :: WWW/HTTP :: HTTP Servers',
-        'Topic :: Software Development :: Libraries :: Python Modules'
+        'Topic :: Software Development :: Libraries :: Python Modules',
 
         'Framework :: AsyncIO',
-        'Framework :: Pytest',
 
-        'Intended Audience :: Developers',
         'License :: OSI Approved :: zlib/libpng License',
         'Operating System :: OS Independent',
 
@@ -42,4 +46,17 @@ setup(name='slim',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
     ],
+
+    keywords='slim web framework model aiohttp asyncpg peewee',
+    packages=find_packages(exclude=['tests']),
+
+    install_requires=['aiohttp'],
+    python_requires='>=3.5',
+
+    extras_require={
+        'full': ['peewee', 'asyncpg'],
+        'peewee': ['peewee'],
+        'asyncpg': ['asyncpg']
+    },
+
 )
