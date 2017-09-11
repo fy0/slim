@@ -113,3 +113,8 @@ def pagination_calc(count_all, page_size, cur_page=1, nearby=2):
             'count_all': count_all,
         }
     }
+
+
+def async_run(func):
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(func())
