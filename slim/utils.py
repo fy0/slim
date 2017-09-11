@@ -52,7 +52,7 @@ def time_readable():
 
 def pagination_calc(count_all, page_size, cur_page=1, nearby=2):
     """
-    :param nearby: 
+    :param nearby:
     :param count_all: count of all items
     :param page_size: size of one page
     :param cur_page: current page number, accept string digit

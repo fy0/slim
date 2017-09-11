@@ -50,11 +50,11 @@ setup(
     keywords='slim web framework model aiohttp asyncpg peewee',
     packages=find_packages(exclude=['tests']),
 
-    install_requires=['aiohttp'],
-    python_requires='>=3.5',
+    install_requires=['aiohttp', 'click'],
+    python_requires='>=3.5', 
 
     extras_require={
-        'full': ['peewee', 'asyncpg'],
+        'full': ['peewee', 'asyncpg', 'msgpack'],
         'peewee': ['peewee'],
         'asyncpg': ['asyncpg']
     },
