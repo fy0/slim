@@ -4,7 +4,8 @@ from asyncpg import Record
 from ...base.permission import A, AbilityRecord
 from ...retcode import RETCODE
 from ...support.asyncpg import query
-from ...utils import ResourceException, to_bin, pagination_calc, dict_filter
+from ...utils import to_bin, pagination_calc, dict_filter
+from ...exception import ResourceException
 from ...base.view import View, BaseSQLFunctions
 
 # noinspection SqlDialectInspection,SqlNoDataSourceInspection

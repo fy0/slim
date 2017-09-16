@@ -1,22 +1,24 @@
-import json
-import time
 import asyncio
+import json
 import logging
+import time
 from typing import Tuple, Union, Mapping
 
 from aiohttp import web
 
 from .app import SlimApplicationOptions
 from .helper import create_signed_value, decode_signed_value
-from .sqlfuncs import BaseSQLFunctions
 from .permission import Permissions, Ability, A
+from .sqlfuncs import BaseSQLFunctions
 from ..retcode import RETCODE
-from ..utils import _MetaClassForInit, ResourceException, _valid_sql_operator
+from ..utils import MetaClassForInit
+from ..utils.others import valid_sql_operator
+from ..exception import ResourceException
 
 logger = logging.getLogger(__name__)
 
 
-class BasicView(metaclass=_MetaClassForInit):
+class BasicView(metaclass=MetaClassForInit):
     """
     应在 cls_init 时完成全部接口的扫描与wrap函数创建
     并在wrapper函数中进行实例化，传入 request 对象
@@ -235,9 +237,9 @@ class View(BasicView):
 
             if len(info) > 1:
                 op = info[1]
-                if op not in _valid_sql_operator:
+                if op not in valid_sql_operator:
                     return self.finish(RETCODE.INVALID_PARAMS, 'Invalid operator: %s' % op)
-                op = _valid_sql_operator[op]
+                op = valid_sql_operator[op]
 
             # is 和 is not 可以确保完成了初步值转换
             if op in ('is', 'isnot'):
