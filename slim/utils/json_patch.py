@@ -12,7 +12,7 @@ class JEncoder(JSONEncoder):
         return super().default(o)
 
 
-def apply_patch():
+def apply():
     json._default_encoder = JEncoder(
         skipkeys=False,
         ensure_ascii=True,

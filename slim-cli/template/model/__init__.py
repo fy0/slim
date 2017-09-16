@@ -1,7 +1,7 @@
 from slim.utils import async_run
 import config
 
-# asyncpg ≈‰÷√
+# asyncpg ÈÖçÁΩÆ
 
 import asyncpg
 
@@ -9,7 +9,7 @@ asyncpg_conn = None
 
 
 def asyncpg_init(db_uri):
-    async def asyncpg_init(db_uri):
+    async def create_conn(db_uri):
         global asyncpg_conn
         asyncpg_conn = await asyncpg.connect(db_uri)
 
@@ -18,7 +18,7 @@ def asyncpg_init(db_uri):
 
 asyncpg_init(config.DATABASE_URI)
 
-# peewee ≈‰÷√
+# peewee ÈÖçÁΩÆ
 
 import peewee
 from playhouse.db_url import connect
