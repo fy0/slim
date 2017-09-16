@@ -1,4 +1,7 @@
-class RETCODE:
+from .utils.state_obj import StateObject
+
+
+class RETCODE(StateObject):
     SUCCESS = 0  # 成功
     TIMEOUT = -244  # 超时
     CHECK_FAILURE = -245  # 校验失败（文件上传等）

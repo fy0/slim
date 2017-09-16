@@ -7,7 +7,7 @@ from playhouse.shortcuts import model_to_dict
 from ...base.permission import AbilityRecord
 from ...retcode import RETCODE
 from ...utils import to_bin, pagination_calc, dict_filter
-from ...base.view import View, BaseSQLFunctions
+from ...base.view import AbstractSQLView, AbstractSQLFunctions
 
 
 class PeeweeAbilityRecord(AbilityRecord):
@@ -56,7 +56,7 @@ _peewee_method_map = {
 
 
 # noinspection PyProtectedMember,PyArgumentList
-class PeeweeSQLFunctions(BaseSQLFunctions):
+class PeeweeSQLFunctions(AbstractSQLFunctions):
     def _get_args(self, args):
         pw_args = []
         for field_name, op, value in args:
@@ -145,7 +145,7 @@ class PeeweeSQLFunctions(BaseSQLFunctions):
                 return RETCODE.FAILED, None
 
 
-class PeeweeView(View):
+class PeeweeAbstractSQLView(AbstractSQLView):
     model = None
 
     def __init__(self, request):

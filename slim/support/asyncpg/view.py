@@ -6,7 +6,7 @@ from ...retcode import RETCODE
 from ...support.asyncpg import query
 from ...utils import to_bin, pagination_calc, dict_filter
 from ...exception import ResourceException
-from ...base.view import View, BaseSQLFunctions
+from ...base.view import AbstractSQLView, AbstractSQLFunctions
 
 # noinspection SqlDialectInspection,SqlNoDataSourceInspection
 _field_query = '''SELECT a.attname as name, col_description(a.attrelid,a.attnum) as comment,
@@ -36,7 +36,7 @@ class AsyncpgAbilityRecord(AbilityRecord):
         return dict(self.val)
 
 
-class AsyncpgSQLFunctions(BaseSQLFunctions):
+class AsyncpgSQLFunctions(AbstractSQLFunctions):
     def _get_args(self, args):
         nargs = []
         # 这里注意，args可能多次使用，不要修改其中内容
@@ -156,7 +156,7 @@ class AsyncpgSQLFunctions(BaseSQLFunctions):
         return RETCODE.SUCCESS, AsyncpgAbilityRecord(self.view.table_name, ret)
 
 
-class AsyncpgView(View):
+class AsyncpgAbstractSQLView(AbstractSQLView):
     conn = None
     table_name = None
 

@@ -3,6 +3,7 @@ from aiohttp import web
 
 from view import route
 import model.models
+import view.views
 import config
 
 app = app_init(config.COOKIE_SECRET, enable_log=config.DEBUG, route=route)

@@ -9,7 +9,7 @@ from aiohttp import web
 from .app import SlimApplicationOptions
 from .helper import create_signed_value, decode_signed_value
 from .permission import Permissions, Ability, A
-from .sqlfuncs import BaseSQLFunctions
+from .sqlfuncs import AbstractSQLFunctions
 from ..retcode import RETCODE
 from ..utils import MetaClassForInit
 from ..utils.others import valid_sql_operator
@@ -163,7 +163,7 @@ class BasicView(metaclass=MetaClassForInit):
         return default
 
 
-class View(BasicView):
+class AbstractSQLView(BasicView):
     LIST_PAGE_SIZE = 20  # list 单次取出的默认大小
     LIST_ACCEPT_SIZE_FROM_CLIENT = False
 
@@ -179,7 +179,7 @@ class View(BasicView):
 
     def __init__(self, request):
         super().__init__(request)
-        self._sql = BaseSQLFunctions(self)
+        self._sql = AbstractSQLFunctions(self)
 
     async def _prepare(self):
         await super()._prepare()

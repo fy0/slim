@@ -3,7 +3,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-class BaseSQLFunctions:
+class AbstractSQLFunctions:
     def __init__(self, view):
         self.err = None
         self.view = view
