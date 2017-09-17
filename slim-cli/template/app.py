@@ -3,8 +3,8 @@ from slim.utils import json_patch
 from aiohttp import web
 
 from view import route
-import model.models
-import view.views
+import model._models
+import view._views
 import config
 
 json_patch.apply()
