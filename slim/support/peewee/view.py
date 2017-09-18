@@ -145,7 +145,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
                 return RETCODE.FAILED, None
 
 
-class PeeweeAbstractSQLView(AbstractSQLView):
+class PeeweeView(AbstractSQLView):
     model = None
 
     def __init__(self, request):

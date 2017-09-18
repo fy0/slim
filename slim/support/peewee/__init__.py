@@ -1,1 +1,1 @@
-from .view import PeeweeAbstractSQLView
+from .view import PeeweeView

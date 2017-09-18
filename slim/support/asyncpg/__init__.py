@@ -1,1 +1,1 @@
-from .view import AsyncpgAbstractSQLView
+from .view import AsyncpgView

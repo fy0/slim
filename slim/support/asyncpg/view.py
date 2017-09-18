@@ -156,7 +156,7 @@ class AsyncpgSQLFunctions(AbstractSQLFunctions):
         return RETCODE.SUCCESS, AsyncpgAbilityRecord(self.view.table_name, ret)
 
 
-class AsyncpgAbstractSQLView(AbstractSQLView):
+class AsyncpgView(AbstractSQLView):
     conn = None
     table_name = None
 

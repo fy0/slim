@@ -48,7 +48,12 @@ setup(
     ],
 
     keywords='slim web framework model aiohttp asyncpg peewee',
-    packages=find_packages(exclude=['tests']),
+    packages=find_packages(exclude=['tests']) + ['slim-cli', 'slim-cli.template', 'slim-cli.template.view', 'slim-cli.template.model'],
+    package_dir={
+        'slim-cli.template': 'slim-cli/template',
+    },
+    include_package_data=True,
+    platforms='any',
 
     install_requires=['aiohttp', 'click'],
     python_requires='>=3.5', 
