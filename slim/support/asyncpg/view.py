@@ -160,6 +160,14 @@ class AsyncpgView(AbstractSQLView):
     conn = None
     table_name = None
 
+    @classmethod
+    def cls_init(cls):
+        # py3.6: __init_subclass__
+        if not (cls.__name__ == 'AsyncpgView' and AbstractSQLView in cls.__bases__):
+            assert cls.conn, "%s.conn must be specified." % cls.__name__
+            assert cls.table_name, "%s.conn must be specified." % cls.__name__
+        super().cls_init()
+
     def __init__(self, request):
         super().__init__(request)
         self._sql = AsyncpgSQLFunctions(self)

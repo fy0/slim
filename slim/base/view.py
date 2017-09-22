@@ -173,6 +173,7 @@ class AbstractSQLView(BasicView):
     @classmethod
     def cls_init(cls):
         super().cls_init()
+
         async def func():
             return await cls._fetch_fields(cls)
         asyncio.get_event_loop().run_until_complete(func())

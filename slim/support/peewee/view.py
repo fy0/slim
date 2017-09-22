@@ -148,6 +148,13 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
 class PeeweeView(AbstractSQLView):
     model = None
 
+    @classmethod
+    def cls_init(cls):
+        # py3.6: __init_subclass__
+        if not (cls.__name__ == 'PeeweeView' and AbstractSQLView in cls.__bases__):
+            assert cls.model, "%s.model must be specified." % cls.__name__
+        super().cls_init()
+
     def __init__(self, request):
         super().__init__(request)
         self._sql = PeeweeSQLFunctions(self)

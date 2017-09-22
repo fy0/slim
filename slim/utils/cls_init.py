@@ -4,4 +4,3 @@ class MetaClassForInit(type):
         new_class = super().__new__(mcs, *args, **kwargs)
         new_class.cls_init()
         return new_class
-
