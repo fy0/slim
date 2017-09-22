@@ -7,6 +7,7 @@ from .binhex import to_bin, to_hex
 from .cls_init import MetaClassForInit
 from .pagination import pagination_calc
 from .state_obj import StateObject
+from .myobjectid import ObjectID
 
 RegexPatternType = type(re.compile(''))
 

@@ -1,6 +1,7 @@
 import json
 import binascii
 import peewee
+# noinspection PyPackageRequirements
 from playhouse.postgres_ext import BinaryJSONField
 from playhouse.shortcuts import model_to_dict
 

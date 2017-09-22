@@ -1,6 +1,6 @@
 from collections import OrderedDict
 from .cls_init import MetaClassForInit
-#from slim.utils.cls_init import MetaClassForInit
+# from slim.utils.cls_init import MetaClassForInit
 
 
 class StateObject(metaclass=MetaClassForInit):
@@ -27,7 +27,7 @@ class StateObject(metaclass=MetaClassForInit):
         if cls._items is None:
             cls._items = []
             for k, v in zip(cls.keys(), cls.values()):
-                cls._items.append((k,v),)
+                cls._items.append((k, v),)
         return cls._items
 
     @classmethod
@@ -50,10 +50,10 @@ if __name__ == '__main__':
     class MyState(StateObject):
         DEL = 0
         HIDE = 10
-        CLOSE = 30 # 禁止回复
+        CLOSE = 30  # 禁止回复
         NORMAL = 50
 
-        txt = {DEL: "删除", HIDE: "隐藏", CLOSE:"关闭", NORMAL:"正常"}
+        txt = {DEL: "删除", HIDE: "隐藏", CLOSE: "关闭", NORMAL: "正常"}
 
     print(list(MyState.keys()))
     print(list(MyState.values()))

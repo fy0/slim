@@ -115,6 +115,7 @@ class Column:
         return '"%s.%s"' % (table, self.column_name)
 
 
+# noinspection PyAttributeOutsideInit
 class BaseCompiler:
     def __init__(self, pv_params=False):
         self.pv_params = pv_params
@@ -197,6 +198,7 @@ class BaseCompiler:
         return ''
 
 
+# noinspection PyAttributeOutsideInit,SqlNoDataSourceInspection
 class SelectCompiler(BaseCompiler):
     def reset(self):
         super().reset()
@@ -436,6 +438,7 @@ class UpdateCompiler(BaseCompiler):
         return self._log_ret(' '.join(sql), self._values)
 
 
+# noinspection PyAttributeOutsideInit
 class InsertCompiler(BaseCompiler):
     into_table = BaseCompiler._from_table
     _from_tables = BaseCompiler._not_implemented
