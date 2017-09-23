@@ -1,3 +1,4 @@
+import aiohttp_cors
 from aiohttp import web
 from .session import SimpleSession
 from . import log
@@ -9,7 +10,8 @@ class SlimApplicationOptions:
         self.session_cls = SimpleSession
 
 
-def app_init(cookies_secret: bytes, *, aiohttp_app_instance=None, enable_log=True, route=None, session_cls=SimpleSession)\
+def app_init(cookies_secret: bytes, *, aiohttp_app_instance=None, enable_log=True, route=None,
+             session_cls=SimpleSession)\
         -> web.Application:
     if isinstance(aiohttp_app_instance, dict):
         # noinspection PyArgumentList
@@ -31,6 +33,20 @@ def app_init(cookies_secret: bytes, *, aiohttp_app_instance=None, enable_log=Tru
         # 推后至启动时进行
         def on_available(the_app):
             route.bind(the_app)
+
+            # Configure default CORS settings.
+            cors = aiohttp_cors.setup(app, defaults={
+                "*": aiohttp_cors.ResourceOptions(
+                    allow_credentials=True,
+                    expose_headers="*",
+                    allow_headers="*",
+                )
+            })
+
+            # Configure CORS on all routes.
+            for r in list(app.router.routes()):
+                cors.add(r)
+
         app.on_loop_available.append(on_available)
 
     return app

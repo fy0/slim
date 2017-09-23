@@ -5,6 +5,7 @@ https://github.com/fy0/slim
 
 from setuptools import setup, find_packages
 
+
 def description():
     return """github: https://github.com/fy0/slim"""
 
@@ -30,7 +31,7 @@ setup(
 
     classifiers=[
         'Development Status :: 3 - Alpha',
-    
+
         'Intended Audience :: Developers',
         'Topic :: Internet :: WWW/HTTP',
         'Topic :: Internet :: WWW/HTTP :: HTTP Servers',
@@ -48,15 +49,16 @@ setup(
     ],
 
     keywords='slim web framework model aiohttp asyncpg peewee',
-    packages=find_packages(exclude=['tests']) + ['slim-cli', 'slim-cli.template', 'slim-cli.template.view', 'slim-cli.template.model'],
+    packages=find_packages(exclude=['tests']) + ['slim-cli', 'slim-cli.template', 'slim-cli.template.view',
+                                                 'slim-cli.template.model'],
     package_dir={
         'slim-cli.template': 'slim-cli/template',
     },
     include_package_data=True,
     platforms='any',
 
-    install_requires=['aiohttp', 'click'],
-    python_requires='>=3.5', 
+    install_requires=['aiohttp', 'aiohttp_cors', 'click'],
+    python_requires='>=3.5',
 
     extras_require={
         'full': ['peewee', 'asyncpg', 'msgpack'],
