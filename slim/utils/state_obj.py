@@ -4,15 +4,10 @@ from .cls_init import MetaClassForInit
 
 
 class StateObject(metaclass=MetaClassForInit):
-    txt = {}
     _keys = []
     _values = []
     v2k = {}
     _items = None
-
-    @classmethod
-    def get_txt(cls, index):
-        return cls.txt.get(index)
 
     @classmethod
     def keys(cls):
@@ -59,4 +54,4 @@ if __name__ == '__main__':
     print(list(MyState.values()))
     print(list(MyState.items()))
     print(list(MyState.v2k.items()))
-    print([MyState.get_txt(x) for x in MyState.values()])
+    print([MyState.txt[x] for x in MyState.values()])
