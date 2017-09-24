@@ -9,7 +9,7 @@ from playhouse.shortcuts import model_to_dict
 
 from ...base.permission import AbilityRecord
 from ...retcode import RETCODE
-from ...utils import to_bin, pagination_calc, dict_filter
+from ...utils import to_bin, pagination_calc, dict_filter, bool_parse
 from ...base.view import AbstractSQLView, AbstractSQLFunctions
 
 logger = logging.getLogger(__name__)
@@ -67,15 +67,24 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
         for field_name, op, value in args:
             field = self.view.fields[field_name]
 
+            conv_func = None
+            # 说明：我记得 peewee 会自动完成 int/float 的转换，所以不用自己转
             if isinstance(field, peewee.BlobField):
+                conv_func = to_bin
+            elif isinstance(field, peewee.BooleanField):
+                conv_func = bool_parse
+
+            if conv_func:
                 try:
                     if op == 'in':
-                        value = list(map(to_bin, value))
+                        value = list(map(conv_func, value))
                     else:
-                        value = to_bin(value)
+                        value = conv_func(value)
                 except binascii.Error:
                     self.err = RETCODE.INVALID_PARAMS, 'Invalid query value for blob: Odd-length string'
                     return
+                except ValueError as e:
+                    self.err = RETCODE.INVALID_PARAMS, ' '.join(map(str, e.args))
 
             pw_args.append(getattr(field, _peewee_method_map[op])(value))
         return pw_args

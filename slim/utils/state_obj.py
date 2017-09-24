@@ -26,6 +26,10 @@ class StateObject(metaclass=MetaClassForInit):
         return cls._items
 
     @classmethod
+    def to_dict(cls):
+        return dict(cls.items())
+
+    @classmethod
     def cls_init(cls):
         _v2k, v2k = {}, OrderedDict()
 

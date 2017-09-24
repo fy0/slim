@@ -4,7 +4,7 @@ from asyncpg import Record
 from ...base.permission import A, AbilityRecord
 from ...retcode import RETCODE
 from ...support.asyncpg import query
-from ...utils import to_bin, pagination_calc, dict_filter
+from ...utils import to_bin, pagination_calc, dict_filter, bool_parse
 from ...exception import ResourceException
 from ...base.view import AbstractSQLView, AbstractSQLFunctions
 
@@ -47,6 +47,7 @@ class AsyncpgSQLFunctions(AbstractSQLFunctions):
 
             # https://www.postgresql.org/docs/9.6/static/datatype.html
             # asyncpg/protocol/protocol.pyx
+            # import asyncpg.protocol.protocol
             conv_func = None
             if type_codec in ['int2', 'int4', 'int8']:
                 type_codec = 'int'
@@ -55,8 +56,9 @@ class AsyncpgSQLFunctions(AbstractSQLFunctions):
                 type_codec = 'float'
                 conv_func = float
             elif type_codec == 'bytea':
-                type_codec = 'bytea'
                 conv_func = to_bin
+            elif type_codec == 'bool':
+                conv_func = bool_parse
 
             if conv_func:
                 try:
