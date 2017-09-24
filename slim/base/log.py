@@ -24,7 +24,7 @@ def enable():
             '[%(asctime)s][%(levelname).4s][%(name)s][%(lineno)s] %(message)s'
         ))
 
-        logger = logging.getLogger('mapi')
+        logger = logging.getLogger('slim')
         logger.setLevel(logging.DEBUG)
         logger.addHandler(default_handler)
 

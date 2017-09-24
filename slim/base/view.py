@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import time
-from typing import Tuple, Union, Mapping
+from typing import Tuple, Union, Mapping, Dict
 
 from aiohttp import web
 
@@ -77,6 +77,7 @@ class BasicView(metaclass=MetaClassForInit):
         self._cookie_set = None
         self._params_cache = None
         self._post_data_cache = None
+        self._post_json_cache = None
         self._current_user = None
 
     @property
@@ -121,6 +122,11 @@ class BasicView(metaclass=MetaClassForInit):
             self._params_cache = dict(self.request.query)
         return self._params_cache
 
+    async def post_json(self) -> dict:
+        if self._post_json_cache is None:
+            self._post_json_cache = dict(await self.request.json())
+        return self._post_json_cache
+
     async def post_data(self) -> dict:
         if self._post_data_cache is None:
             self._post_data_cache = dict(await self.request.post())
@@ -163,6 +169,7 @@ class BasicView(metaclass=MetaClassForInit):
         return default
 
 
+# noinspection PyMethodMayBeStatic
 class AbstractSQLView(BasicView):
     LIST_PAGE_SIZE = 20  # list 单次取出的默认大小
     LIST_ACCEPT_SIZE_FROM_CLIENT = False
@@ -282,12 +289,16 @@ class AbstractSQLView(BasicView):
     async def get(self):
         info = self._query_convert(self.params())
         if self.is_finished: return
+        info = self.handle_query(info)
+        if self.is_finished: return
         code, data = await self._sql.select_one(info)
 
         if code == RETCODE.SUCCESS:
             data = self._filter_record_by_ability(data)
             if not data:
                 return self.finish(RETCODE.NOT_FOUND)
+            data = self.handle_read(data)
+            if self.is_finished: return
         self.finish(code, data)
 
     def _get_list_page_and_size(self) -> Tuple[Union[int, None], Union[int, None]]:
@@ -314,6 +325,8 @@ class AbstractSQLView(BasicView):
         if self.is_finished: return
         info = self._query_convert(self.params())
         if self.is_finished: return
+        info = self.handle_query(info)
+        if self.is_finished: return
 
         code, data = await self._sql.select_pagination_list(info, size, page)
 
@@ -324,6 +337,8 @@ class AbstractSQLView(BasicView):
                 item = self._filter_record_by_ability(i)
                 if info['format'] == 'array':
                     item = get_values(item)
+                data = self.handle_read(data)
+                if self.is_finished: return
                 lst.append(item)
             data['items'] = lst
             self.finish(RETCODE.SUCCESS, data)
@@ -336,6 +351,9 @@ class AbstractSQLView(BasicView):
         for k, v in data.items():
             columns.append((self.table_name, k))
 
+        if len(columns) == 0:
+            return self.finish(RETCODE.INVALID_POSTDATA)
+
         if all(self.ability.cannot(self.current_user, action, *columns)):
             return self.finish(RETCODE.PERMISSION_DENIED)
 
@@ -344,7 +362,12 @@ class AbstractSQLView(BasicView):
     async def set(self):
         info = self._query_convert(self.params())
         if self.is_finished: return
+        info = self.handle_query(info)
+        if self.is_finished: return
+
         post_data = self._data_convert(await self.post_data())
+        if self.is_finished: return
+        post_data = self.handle_write(post_data)
         if self.is_finished: return
 
         logger.debug('data: %s' % post_data)
@@ -353,14 +376,28 @@ class AbstractSQLView(BasicView):
 
     async def new(self):
         post_data = self._data_convert(await self.post_data(), action=A.CREATE)
-        if self.is_finished: return
         logger.debug('data: %s' % post_data)
+        if self.is_finished: return
+        post_data = self.handle_write(post_data)
+        if self.is_finished: return
+
         code, data = await self._sql.insert(post_data)
         if code == RETCODE.SUCCESS:
             data = self._filter_record_by_ability(data)
+            data = self.handle_read(data)
+            if self.is_finished: return
         self.finish(code, data)
 
     @staticmethod
     async def _fetch_fields(cls_or_self):
         # raise NotImplementedError()
         pass
+
+    def handle_query(self, values: Mapping) -> Mapping:
+        return values
+
+    def handle_read(self, values: Mapping) -> Mapping:
+        return values
+
+    def handle_write(self, values: Mapping) -> Mapping:
+        return values

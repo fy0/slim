@@ -1,5 +1,7 @@
 import json
 import binascii
+import logging
+
 import peewee
 # noinspection PyPackageRequirements
 from playhouse.postgres_ext import BinaryJSONField
@@ -9,6 +11,8 @@ from ...base.permission import AbilityRecord
 from ...retcode import RETCODE
 from ...utils import to_bin, pagination_calc, dict_filter
 from ...base.view import AbstractSQLView, AbstractSQLFunctions
+
+logger = logging.getLogger(__name__)
 
 
 class PeeweeAbilityRecord(AbilityRecord):
@@ -114,7 +118,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
                             setattr(item, k, v)
                     item.save()
                     ok = True
-                except self.view.model.ErrorSavingData:
+                except peewee.DatabaseError:
                     db.rollback()
 
             if ok:
@@ -141,8 +145,9 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
             try:
                 item = self.view.model.create(**kwargs)
                 return RETCODE.SUCCESS, item.to_dict()
-            except self.view.model.ErrorSavingData:
+            except peewee.DatabaseError as e:
                 db.rollback()
+                logger.error("database error", e)
                 return RETCODE.FAILED, None
 
 

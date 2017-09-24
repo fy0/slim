@@ -10,6 +10,7 @@ class RETCODE(StateObject):
     TOO_LONG = -248  # 过长（用户名或其他参数）
     TOO_SHORT = -249  # 过短（用户名或其他参数）
     INVALID_POSTDATA = -243  # 非法提交内容
+    INVALID_POSTJSON = -242  # 非法提交内容
     INVALID_PARAMS = -250  # 非法参数
     ALREADY_EXISTS = -251  # 已存在
     NOT_FOUND = -252  # 未找到
@@ -26,6 +27,7 @@ class RETCODE(StateObject):
         FAILED: '失败',
         TOO_LONG: '过长（用户名或其他参数）',
         TOO_SHORT: '过短（用户名或其他参数）',
+        INVALID_POSTJSON: '非法提交内容',
         INVALID_POSTDATA: '非法提交内容',
         INVALID_PARAMS: '非法参数',
         ALREADY_EXISTS: '已存在',
@@ -44,6 +46,7 @@ class RETCODE(StateObject):
         FAILED: 'failed',
         TOO_LONG: '(username or sth.) too long',
         TOO_SHORT: '(username or sth.) too short',
+        INVALID_POSTJSON: 'invalid post',
         INVALID_POSTDATA: 'invalid post',
         INVALID_PARAMS: 'invalid parameter(s)',
         ALREADY_EXISTS: 'already exists',
