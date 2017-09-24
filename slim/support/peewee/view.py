@@ -144,7 +144,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
         with db.atomic():
             try:
                 item = self.view.model.create(**kwargs)
-                return RETCODE.SUCCESS, item.to_dict()
+                return RETCODE.SUCCESS, PeeweeAbilityRecord(self.view.table_name, item)
             except peewee.DatabaseError as e:
                 db.rollback()
                 logger.error("database error", e)
@@ -153,6 +153,8 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
 
 class PeeweeView(AbstractSQLView):
     model = None
+    # fields
+    # table_name
 
     @classmethod
     def cls_init(cls):

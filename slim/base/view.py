@@ -345,7 +345,7 @@ class AbstractSQLView(BasicView):
         else:
             self.finish(code, data)
 
-    def _data_convert(self, data: Mapping[str, object], action=A.WRITE):
+    def _data_convert(self, data: Dict[str, object], action=A.WRITE):
         # 写入/插入权限检查
         columns = []
         for k, v in data.items():
@@ -367,7 +367,7 @@ class AbstractSQLView(BasicView):
 
         post_data = self._data_convert(await self.post_data())
         if self.is_finished: return
-        post_data = self.handle_write(post_data)
+        post_data = self.handle_update(post_data)
         if self.is_finished: return
 
         logger.debug('data: %s' % post_data)
@@ -378,7 +378,7 @@ class AbstractSQLView(BasicView):
         post_data = self._data_convert(await self.post_data(), action=A.CREATE)
         logger.debug('data: %s' % post_data)
         if self.is_finished: return
-        post_data = self.handle_write(post_data)
+        post_data = self.handle_insert(post_data)
         if self.is_finished: return
 
         code, data = await self._sql.insert(post_data)
@@ -393,11 +393,14 @@ class AbstractSQLView(BasicView):
         # raise NotImplementedError()
         pass
 
-    def handle_query(self, values: Mapping) -> Mapping:
+    def handle_query(self, values: Dict) -> Dict:
         return values
 
-    def handle_read(self, values: Mapping) -> Mapping:
+    def handle_read(self, values: Dict) -> Dict:
         return values
 
-    def handle_write(self, values: Mapping) -> Mapping:
+    def handle_insert(self, values: Dict) -> Dict:
+        return values
+
+    def handle_update(self, values: Dict) -> Dict:
         return values

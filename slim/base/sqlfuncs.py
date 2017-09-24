@@ -1,4 +1,7 @@
 import logging
+from typing import Tuple
+
+from slim.base.permission import AbilityRecord
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +15,7 @@ class AbstractSQLFunctions:
     async def select_pagination_list(self, info, size, page):
         raise NotImplementedError()
 
-    async def select_one(self, select_info):
+    async def select_one(self, select_info) -> Tuple[object, AbilityRecord]:
         raise NotImplementedError()
         # code, item
 
@@ -20,9 +23,9 @@ class AbstractSQLFunctions:
         raise NotImplementedError()
         # code, item
 
-    async def insert(self, data):
+    async def insert(self, data) -> Tuple[object, AbilityRecord]:
         raise NotImplementedError()
-        # code, item
+        # code, record
 
     # noinspection PyMethodMayBeStatic
     def done(self, code, data=None):
