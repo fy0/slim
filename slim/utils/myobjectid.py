@@ -29,7 +29,8 @@ class ObjectID(object):
         object_id = struct.pack(">i", self.time)
         object_id += self._hostname_bytes
         object_id += struct.pack(">H", os.getpid() % 0xFFFF)
-        object_id += struct.pack(">I", ObjectID._index % 0xFFF)[1:]
+        ObjectID._index %= 0xFFF
+        object_id += struct.pack(">I", ObjectID._index)[1:]
         self.object_id = object_id
 
     def _parse_id(self, object_id):

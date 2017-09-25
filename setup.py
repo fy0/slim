@@ -64,6 +64,6 @@ setup(
         'full': ['peewee', 'asyncpg', 'msgpack'],
         'peewee': ['peewee'],
         'asyncpg': ['asyncpg']
-    },
+    }
 
 )

@@ -2,8 +2,7 @@ import asyncio
 import json
 import logging
 import time
-from typing import Tuple, Union, Mapping, Dict
-
+from typing import Tuple, Union, Dict, Iterable
 from aiohttp import web
 
 from .app import SlimApplicationOptions
@@ -13,7 +12,7 @@ from .sqlfuncs import AbstractSQLFunctions
 from ..retcode import RETCODE
 from ..utils import MetaClassForInit
 from ..utils.others import valid_sql_operator
-from ..exception import ResourceException
+from ..exception import ResourceException, ValueHandleException
 
 logger = logging.getLogger(__name__)
 
@@ -219,7 +218,7 @@ class AbstractSQLView(BasicView):
             orders.append([column, order])
         return orders
 
-    def _query_convert(self, params):
+    def _query_convert(self, params) -> Union[Dict, None]:
         args = []
         ret = {
             'args': args,
@@ -241,18 +240,21 @@ class AbstractSQLView(BasicView):
             op = '='
 
             if field_name not in self.fields:
-                return self.finish(RETCODE.INVALID_PARAMS, 'Column not found: %s' % field_name)
+                self.finish(RETCODE.INVALID_PARAMS, 'Column not found: %s' % field_name)
+                return
 
             if len(info) > 1:
                 op = info[1]
                 if op not in valid_sql_operator:
-                    return self.finish(RETCODE.INVALID_PARAMS, 'Invalid operator: %s' % op)
+                    self.finish(RETCODE.INVALID_PARAMS, 'Invalid operator: %s' % op)
+                    return
                 op = valid_sql_operator[op]
 
             # is 和 is not 可以确保完成了初步值转换
             if op in ('is', 'isnot'):
                 if value.lower() != 'null':
-                    return self.finish(RETCODE.INVALID_PARAMS, 'Invalid value: %s (must be null)' % value)
+                    self.finish(RETCODE.INVALID_PARAMS, 'Invalid value: %s (must be null)' % value)
+                    return
                 if op == 'isnot':
                     op = 'is not'
                 value = None
@@ -261,7 +263,8 @@ class AbstractSQLView(BasicView):
                 try:
                     value = json.loads(value)
                 except json.decoder.JSONDecodeError:
-                    return self.finish(RETCODE.INVALID_PARAMS, 'Invalid value: %s (must be json)' % value)
+                    self.finish(RETCODE.INVALID_PARAMS, 'Invalid value: %s (must be json)' % value)
+                    return
 
             args.append([field_name, op, value])
 
@@ -281,23 +284,31 @@ class AbstractSQLView(BasicView):
 
         return ret
 
-    def _filter_record_by_ability(self, record):
+    def _filter_record_by_ability(self, record) -> Union[Dict, None]:
         available_columns = self.ability.filter_record_columns_by_action(self.current_user, A.READ, record)
         if not available_columns: return
         return record.to_dict(available_columns)
 
+    def _handle_fix(self, ret):
+        if ret is None:
+            return
+
+        if isinstance(ret, Iterable):
+            return self.finish(*ret)
+
+        raise ValueHandleException('Invalid result type of handle function.')
+
     async def get(self):
         info = self._query_convert(self.params())
         if self.is_finished: return
-        info = self.handle_query(info)
+        self._handle_fix(self.handle_query(info))
         if self.is_finished: return
         code, data = await self._sql.select_one(info)
 
         if code == RETCODE.SUCCESS:
             data = self._filter_record_by_ability(data)
-            if not data:
-                return self.finish(RETCODE.NOT_FOUND)
-            data = self.handle_read(data)
+            if not data: return self.finish(RETCODE.NOT_FOUND)
+            self._handle_fix(self.handle_read(data))
             if self.is_finished: return
         self.finish(code, data)
 
@@ -325,7 +336,7 @@ class AbstractSQLView(BasicView):
         if self.is_finished: return
         info = self._query_convert(self.params())
         if self.is_finished: return
-        info = self.handle_query(info)
+        self._handle_fix(self.handle_query(info))
         if self.is_finished: return
 
         code, data = await self._sql.select_pagination_list(info, size, page)
@@ -335,9 +346,11 @@ class AbstractSQLView(BasicView):
             get_values = lambda x: list(x.values())
             for i in data['items']:
                 item = self._filter_record_by_ability(i)
+                if not data: return self.finish(RETCODE.NOT_FOUND)
+
                 if info['format'] == 'array':
                     item = get_values(item)
-                data = self.handle_read(data)
+                self._handle_fix(self.handle_read(data))
                 if self.is_finished: return
                 lst.append(item)
             data['items'] = lst
@@ -362,12 +375,12 @@ class AbstractSQLView(BasicView):
     async def set(self):
         info = self._query_convert(self.params())
         if self.is_finished: return
-        info = self.handle_query(info)
+        self._handle_fix(self.handle_query(info))
         if self.is_finished: return
 
         post_data = self._data_convert(await self.post_data())
         if self.is_finished: return
-        post_data = self.handle_update(post_data)
+        self._handle_fix(self.handle_update(post_data))
         if self.is_finished: return
 
         logger.debug('data: %s' % post_data)
@@ -378,13 +391,15 @@ class AbstractSQLView(BasicView):
         post_data = self._data_convert(await self.post_data(), action=A.CREATE)
         logger.debug('data: %s' % post_data)
         if self.is_finished: return
-        post_data = self.handle_insert(post_data)
+        self._handle_fix(self.handle_insert(post_data))
         if self.is_finished: return
 
         code, data = await self._sql.insert(post_data)
         if code == RETCODE.SUCCESS:
             data = self._filter_record_by_ability(data)
-            data = self.handle_read(data)
+            if not data: return self.finish(RETCODE.NOT_FOUND)
+
+            self._handle_fix(self.handle_read(data))
             if self.is_finished: return
         self.finish(code, data)
 
@@ -393,14 +408,18 @@ class AbstractSQLView(BasicView):
         # raise NotImplementedError()
         pass
 
-    def handle_query(self, values: Dict) -> Dict:
-        return values
+    @staticmethod
+    def handle_query(values: Dict) -> Union[None, tuple]:
+        pass
 
-    def handle_read(self, values: Dict) -> Dict:
-        return values
+    @staticmethod
+    def handle_read(values: Dict) -> Union[None, tuple]:
+        pass
 
-    def handle_insert(self, values: Dict) -> Dict:
-        return values
+    @staticmethod
+    def handle_insert(values: Dict) -> Union[None, tuple]:
+        pass
 
-    def handle_update(self, values: Dict) -> Dict:
-        return values
+    @staticmethod
+    def handle_update(values: Dict) -> Union[None, tuple]:
+        pass
