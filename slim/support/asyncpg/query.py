@@ -164,20 +164,20 @@ class BaseCompiler:
         self._default_tbl = tbl
         return self
 
-    def _from_table(self, table: str, as_default: bool = False):
+    def _from_table(self, table: str):
         self._tables = [table]
         if not self._default_tbl:
             self._default_tbl = table
         return self
 
-    def _from_tables(self, tables: list, *, default_table=None):
+    def _from_tables(self, tables: list):
         self._tables = tables
         if not self._default_tbl:
             self._default_tbl = tables[0]
         return self
 
     def _not_implemented(self):
-        if False: return True # for warning fix
+        if False: return True  # for warning fix
         raise NotImplementedError()
 
     def analysis(self):
@@ -249,6 +249,7 @@ class SelectCompiler(BaseCompiler):
 
     def order_by(self, column, order='asc', *, table=None):
         table = table or self._default_tbl
+        if order == 'default': order = 'asc'
         self._order_by.append([table, column, order])
         return self
 

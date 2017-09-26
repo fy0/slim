@@ -89,20 +89,47 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
             pw_args.append(getattr(field, _peewee_method_map[op])(value))
         return pw_args
 
-    async def select_one(self, info):
+    def _get_orders(self, orders):
+        # 注：此时早已经过检查可确认orders中的列存在
+        ret = []
+        fields = self.view.fields
+
+        for i in orders:
+            if len(i) == 2:
+                # column, order
+                item = fields[i[0]]
+                if i[1] == 'asc': item = item.asc()
+                elif i[1] == 'desc': item = item.desc()
+                ret.append(item)
+
+            elif len(i) == 3:
+                # column, order, table
+                # TODO: 日后再说
+                pass
+        return ret
+
+    def _make_select(self, info):
         nargs = self._get_args(info['args'])
-        if self.err: return self.err
+        if self.err: return
+        orders = self._get_orders(info['orders'])
+        if self.err: return
+
+        q = self.view.model.select()
+        # peewee 不允许 where 时 args 为空
+        if nargs: q = q.where(*nargs)
+        if orders: q = q.order_by(*orders)
+        return q
+
+    async def select_one(self, info):
         try:
-            item = self.view.model.get(*nargs)
-            return RETCODE.SUCCESS, PeeweeAbilityRecord(self.view.table_name, item)
+            q = self._make_select(info)
+            if self.err: return self.err
+            return RETCODE.SUCCESS, PeeweeAbilityRecord(self.view.table_name, q.get())
         except self.view.model.DoesNotExist:
             return RETCODE.NOT_FOUND, None
 
     async def select_pagination_list(self, info, size, page):
-        nargs = self._get_args(info['args'])
-        if self.err: return self.err
-        q = self.view.model.select().where(*nargs) if nargs else self.view.model.select()
-
+        q = self._make_select(info)
         count = q.count()
         pg = pagination_calc(count, size, page)
         # offset = size * (page - 1)
@@ -112,12 +139,10 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
         return RETCODE.SUCCESS, pg
 
     async def update(self, info, data):
-        pw_args = self._get_args(info['args'])
-        if self.err: return self.err
-
         try:
-            # noinspection PyArgumentList
-            item = self.view.model.get(*pw_args)
+            q = self._make_select(info)
+            if self.err: return self.err
+            item = q.get()
             db = self.view.model._meta.database
             with db.atomic():
                 ok = False

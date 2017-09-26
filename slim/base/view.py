@@ -205,14 +205,14 @@ class AbstractSQLView(BasicView):
         for i in text.split(','):
             items = i.split('.', 2)
 
-            if len(items) == 1: continue
+            if len(items) == 1: column, order = items[0], 'default'
             elif len(items) == 2: column, order = items
             else: raise ResourceException("Invalid order format")
 
             order = order.lower()
             if column not in self.fields:
                 raise ResourceException('Column not found: %s' % column)
-            if order not in ('asc', 'desc'):
+            if order not in ('asc', 'desc', 'default'):
                 raise ResourceException('Invalid column order: %s' % order)
 
             orders.append([column, order])
