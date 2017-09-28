@@ -9,6 +9,7 @@ class QueryException(Exception):
 
 
 def _sql_escape(key: str):
+    # TODO: 是否正确？
     return json.dumps(key)
 
 

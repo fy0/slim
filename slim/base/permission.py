@@ -1,6 +1,6 @@
 import copy
 import logging
-from typing import Dict
+from typing import Dict, Tuple, Any
 
 logger = logging.getLogger(__name__)
 
@@ -111,13 +111,13 @@ class Ability:
                 additional_args.extend(extra_conditions)
         return additional_args
 
-    def add_record_rule(self, actions, subject_cls: (AbilityTable, AbilityColumn), *, func=None):
+    def add_record_rule(self, wanted_actions, subject_cls: (AbilityTable, AbilityColumn), *, func):
         # subject_cls value:
         # table: 'table_name'
         # column: ('table_name', 'column_name')
-        self.record_rules.append([subject_cls, actions, func])
+        self.record_rules.append([subject_cls, wanted_actions, func])
 
-        """def func(ability, user, action, record: AbilityRecord):
+        """def func(ability, user, cur_action, record: AbilityRecord) -> bool:
             pass
         """
 
@@ -216,9 +216,9 @@ class Ability:
         return available
 
     @staticmethod
-    def is_rule_match_record(rule, action, record: AbilityRecord):
-        if action in rule[1]:
-            obj = rule[0]
+    def is_rule_match_record(record_rule, action, record: AbilityRecord) -> Tuple[Any, bool]:
+        if action in record_rule[1]:
+            obj = record_rule[0]
             if isinstance(obj, AbilityTable):
                 return 'table', obj.table == record.table
             elif isinstance(obj, AbilityColumn):
@@ -237,6 +237,7 @@ class Ability:
         """
         available = self.filter_columns_by_action(record.table, record.keys(), action)
 
+        # 先行匹配规则适用范围
         rules = {'table': [], 'column': []}
         for rule in self.record_rules:
             obj_type, exists = self.is_rule_match_record(rule, action, record)

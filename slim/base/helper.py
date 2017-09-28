@@ -89,7 +89,7 @@ try:
         return msgpack.dumps(obj)
 
     def _value_decode(data: bytes):
-        return msgpack.loads(data, encoding='utf-8')
+        return msgpack.loads(data)
 
 except ImportError:
 
@@ -109,11 +109,13 @@ def _create_signature(secret: bytes, s):
 
 def create_signed_value(secret, s: [list, tuple]):
     sign = _create_signature(secret, s)
+    # return base64.b64encode(_value_encode(s + [sign]))
     return str(base64.b64encode(_value_encode(s + [sign])), 'utf-8')
 
 
 def decode_signed_value(secret, s):
     s = _value_decode(base64.b64decode(bytes(s, 'utf-8')))
+    # s = _value_decode(base64.b64decode(value))
     data = s[:-1]
     sign = _create_signature(secret, data)
     if sign != s[-1]:

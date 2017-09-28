@@ -163,6 +163,7 @@ class BasicView(metaclass=MetaClassForInit):
         secret = self.slim_options.cookies_secret
         value = self.get_cookie(name)
         if value:
+            print(value)
             data = decode_signed_value(secret, value)
             # TODO: max_age_days 过期计算
             if data and data[2] == name:
