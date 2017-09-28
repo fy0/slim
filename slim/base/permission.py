@@ -1,3 +1,4 @@
+import copy
 import logging
 from typing import Dict
 
@@ -82,11 +83,19 @@ class Ability:
         """
         self.role = role
         if based_on:
-            self.data = based_on.data.copy()
-            # rules
+            self.data = copy.deepcopy(based_on.data)
+            # TODO: rules
         else:
             self.data = {}
-        if data: self.data.update(data)
+        if data:
+            # 权限继承对应到列
+            for k, v in data.items():
+                if isinstance(v, dict):
+                    if k in self.data and isinstance(self.data[k], dict):
+                        self.data[k].update(copy.deepcopy(v))
+                        continue
+                self.data[k] = copy.deepcopy(v)
+
         self.rules = []
         self.record_rules = []
 
@@ -273,5 +282,6 @@ class Permissions:
 
     def copy(self) -> 'Permissions':
         instance = Permissions()
-        instance.key_to_roles = self.role_to_ability.copy()
+        # TODO: 这里理论上存在 BUG，子类继承权限后如果进行修改，那么父类的 ability 也会跟着变化
+        instance.role_to_ability = self.role_to_ability.copy()
         return instance

@@ -81,10 +81,10 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
                     else:
                         value = conv_func(value)
                 except binascii.Error:
-                    self.err = RETCODE.INVALID_PARAMS, 'Invalid query value for blob: Odd-length string'
+                    self.err = RETCODE.INVALID_HTTP_PARAMS, 'Invalid query value for blob: Odd-length string'
                     return
                 except ValueError as e:
-                    self.err = RETCODE.INVALID_PARAMS, ' '.join(map(str, e.args))
+                    self.err = RETCODE.INVALID_HTTP_PARAMS, ' '.join(map(str, e.args))
 
             pw_args.append(getattr(field, _peewee_method_map[op])(value))
         return pw_args
@@ -163,7 +163,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
 
     async def insert(self, data):
         if not len(data):
-            return RETCODE.INVALID_PARAMS, None
+            return RETCODE.INVALID_HTTP_PARAMS, None
         db = self.view.model._meta.database
 
         kwargs = {}

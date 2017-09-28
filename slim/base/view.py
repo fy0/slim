@@ -23,6 +23,7 @@ class BasicView(metaclass=MetaClassForInit):
     并在wrapper函数中进行实例化，传入 request 对象
     """
     _interface = {}
+    # permission: Permissions  # 3.6
 
     @classmethod
     def use(cls, name, method_or_lst, url=None):
@@ -55,7 +56,7 @@ class BasicView(metaclass=MetaClassForInit):
 
     @classmethod
     def permission_init(cls):
-        """ Override """
+        """ Override it """
         cls.permission.add(Ability(None, {'*': '*'}))
 
     @classmethod
@@ -153,6 +154,7 @@ class BasicView(metaclass=MetaClassForInit):
         # https://stackoverflow.com/questions/16554887/does-pythons-time-time-return-a-timestamp-in-utc
         timestamp = int(time.time())
         # version, utctime, name, value
+        # assert isinatance(value, (str, list, tuple, bytes, int))
         to_sign = [1, timestamp, name, value]
         secret = self.slim_options.cookies_secret
         self.set_cookie(name, create_signed_value(secret, to_sign), max_age=max_age)
@@ -166,6 +168,28 @@ class BasicView(metaclass=MetaClassForInit):
             if data and data[2] == name:
                 return data[3]
         return default
+
+
+class QueryArguments(list):
+    def __contains__(self, item):
+        for i in self:
+            if i[0] == item:
+                return True
+
+    def map(self, key, func):
+        for i in self:
+            if i[0] == key:
+                i[:] = func(i)
+
+
+class ParamsQueryInfo(dict):
+    @property
+    def args(self) -> QueryArguments:
+        return self['args']
+
+    @property
+    def orders(self):
+        return self['orders']
 
 
 # noinspection PyMethodMayBeStatic
@@ -190,7 +214,7 @@ class AbstractSQLView(BasicView):
 
     async def _prepare(self):
         await super()._prepare()
-        value = self.request.headers.get('role')
+        value = self.request.headers.get('Role')
         role = int(value) if value and value.isdigit() else value
         self.ability = self.permission.request_role(self.current_user, role)
         if not self.ability:
@@ -218,13 +242,13 @@ class AbstractSQLView(BasicView):
             orders.append([column, order])
         return orders
 
-    def _query_convert(self, params) -> Union[Dict, None]:
-        args = []
-        ret = {
-            'args': args,
-            'orders': [],
-            'format': 'dict',
-        }
+    def _query_convert(self, params) -> Union[ParamsQueryInfo, None]:
+        args = QueryArguments()
+        ret = ParamsQueryInfo(
+            args=args,
+            orders=[],
+            format='dict'
+        )
 
         for key, value in params.items():
             # xxx.{op}
@@ -240,20 +264,20 @@ class AbstractSQLView(BasicView):
             op = '='
 
             if field_name not in self.fields:
-                self.finish(RETCODE.INVALID_PARAMS, 'Column not found: %s' % field_name)
+                self.finish(RETCODE.INVALID_HTTP_PARAMS, 'Column not found: %s' % field_name)
                 return
 
             if len(info) > 1:
                 op = info[1]
                 if op not in valid_sql_operator:
-                    self.finish(RETCODE.INVALID_PARAMS, 'Invalid operator: %s' % op)
+                    self.finish(RETCODE.INVALID_HTTP_PARAMS, 'Invalid operator: %s' % op)
                     return
                 op = valid_sql_operator[op]
 
             # is 和 is not 可以确保完成了初步值转换
             if op in ('is', 'isnot'):
                 if value.lower() != 'null':
-                    self.finish(RETCODE.INVALID_PARAMS, 'Invalid value: %s (must be null)' % value)
+                    self.finish(RETCODE.INVALID_HTTP_PARAMS, 'Invalid value: %s (must be null)' % value)
                     return
                 if op == 'isnot':
                     op = 'is not'
@@ -263,7 +287,7 @@ class AbstractSQLView(BasicView):
                 try:
                     value = json.loads(value)
                 except json.decoder.JSONDecodeError:
-                    self.finish(RETCODE.INVALID_PARAMS, 'Invalid value: %s (must be json)' % value)
+                    self.finish(RETCODE.INVALID_HTTP_PARAMS, 'Invalid value: %s (must be json)' % value)
                     return
 
             args.append([field_name, op, value])
@@ -316,14 +340,14 @@ class AbstractSQLView(BasicView):
         page = self.request.match_info.get('page', '1')
 
         if not page.isdigit():
-            self.finish(RETCODE.INVALID_PARAMS)
+            self.finish(RETCODE.INVALID_HTTP_PARAMS)
             return None, None
         page = int(page)
 
         size = self.request.match_info.get('size', None)
         if self.LIST_ACCEPT_SIZE_FROM_CLIENT:
             if size and not size.isdigit():
-                self.finish(RETCODE.INVALID_PARAMS)
+                self.finish(RETCODE.INVALID_HTTP_PARAMS)
                 return None, None
             size = int(size or self.LIST_PAGE_SIZE)
         else:
@@ -365,7 +389,7 @@ class AbstractSQLView(BasicView):
             columns.append((self.table_name, k))
 
         if len(columns) == 0:
-            return self.finish(RETCODE.INVALID_POSTDATA)
+            return self.finish(RETCODE.INVALID_HTTP_POSTDATA)
 
         if all(self.ability.cannot(self.current_user, action, *columns)):
             return self.finish(RETCODE.PERMISSION_DENIED)
@@ -408,18 +432,18 @@ class AbstractSQLView(BasicView):
         # raise NotImplementedError()
         pass
 
-    @staticmethod
-    def handle_query(values: Dict) -> Union[None, tuple]:
+    @classmethod
+    def handle_query(cls, info: ParamsQueryInfo) -> Union[None, tuple]:
         pass
 
-    @staticmethod
-    def handle_read(values: Dict) -> Union[None, tuple]:
+    @classmethod
+    def handle_read(cls, values: Dict) -> Union[None, tuple]:
         pass
 
-    @staticmethod
-    def handle_insert(values: Dict) -> Union[None, tuple]:
+    @classmethod
+    def handle_insert(cls, values: Dict) -> Union[None, tuple]:
         pass
 
-    @staticmethod
-    def handle_update(values: Dict) -> Union[None, tuple]:
+    @classmethod
+    def handle_update(cls, values: Dict) -> Union[None, tuple]:
         pass
