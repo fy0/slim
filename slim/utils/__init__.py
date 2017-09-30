@@ -9,6 +9,14 @@ from .pagination import pagination_calc
 from .state_obj import StateObject
 from .myobjectid import ObjectID
 
+
+try:
+    import msgpack
+except ImportError:
+    # noinspection SpellCheckingInspection
+    from . import umsgpack as msgpack
+
+
 RegexPatternType = type(re.compile(''))
 
 

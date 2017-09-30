@@ -149,7 +149,7 @@ class BasicView(metaclass=MetaClassForInit):
     def slim_options(self) -> SlimApplicationOptions:
         return self.request.app._slim_options
 
-    def set_secure_cookie(self, name, value, *, max_age=30):
+    def set_secure_cookie(self, name, value: bytes, *, max_age=30):
         #  一般来说是 UTC
         # https://stackoverflow.com/questions/16554887/does-pythons-time-time-return-a-timestamp-in-utc
         timestamp = int(time.time())
@@ -163,7 +163,6 @@ class BasicView(metaclass=MetaClassForInit):
         secret = self.slim_options.cookies_secret
         value = self.get_cookie(name)
         if value:
-            print(value)
             data = decode_signed_value(secret, value)
             # TODO: max_age_days 过期计算
             if data and data[2] == name:
