@@ -1,16 +1,17 @@
 import json
 import binascii
 import logging
+from typing import Type
 
 import peewee
 # noinspection PyPackageRequirements
 from playhouse.postgres_ext import BinaryJSONField
 from playhouse.shortcuts import model_to_dict
 
-from ...base.permission import AbilityRecord
+from ...base.permission import AbilityRecord, Permissions
 from ...retcode import RETCODE
 from ...utils import to_bin, pagination_calc, dict_filter, bool_parse
-from ...base.view import AbstractSQLView, AbstractSQLFunctions
+from ...base.view import AbstractSQLView, AbstractSQLFunctions, ViewOptions
 
 logger = logging.getLogger(__name__)
 
@@ -185,17 +186,33 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
                 return RETCODE.FAILED, None
 
 
+class PeeweeViewOptions(ViewOptions):
+    def __init__(self, *, list_page_size=20, list_accept_size_from_client=False, permission: Permissions = None,
+                 model:peewee.Model=None):
+        self.model = model
+        super().__init__(list_page_size=list_page_size, list_accept_size_from_client=list_accept_size_from_client,
+                         permission=permission)
+
+    def assign(self, obj: Type['PeeweeView']):
+        if self.model:
+            obj.model = self.model
+        super().assign(obj)
+
+
 class PeeweeView(AbstractSQLView):
+    options_cls = PeeweeViewOptions
     model = None
     # fields
     # table_name
 
     @classmethod
-    def cls_init(cls):
+    def cls_init(cls, check_options=True):
         # py3.6: __init_subclass__
+        if check_options:
+            cls._check_view_options()
         if not (cls.__name__ == 'PeeweeView' and AbstractSQLView in cls.__bases__):
             assert cls.model, "%s.model must be specified." % cls.__name__
-        super().cls_init()
+        super().cls_init(False)
 
     def __init__(self, request):
         super().__init__(request)

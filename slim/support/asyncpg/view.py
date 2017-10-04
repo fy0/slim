@@ -1,12 +1,12 @@
 import binascii
-from asyncpg import Record
+from asyncpg import Record, Type
 
-from ...base.permission import A, AbilityRecord
+from ...base.permission import A, AbilityRecord, Permissions
 from ...retcode import RETCODE
 from ...support.asyncpg import query
 from ...utils import to_bin, pagination_calc, dict_filter, bool_parse
 from ...exception import ResourceException
-from ...base.view import AbstractSQLView, AbstractSQLFunctions
+from ...base.view import AbstractSQLView, AbstractSQLFunctions, ViewOptions
 
 # noinspection SqlDialectInspection,SqlNoDataSourceInspection
 _field_query = '''SELECT a.attname as name, col_description(a.attrelid,a.attnum) as comment,
@@ -158,17 +158,34 @@ class AsyncpgSQLFunctions(AbstractSQLFunctions):
         return RETCODE.SUCCESS, AsyncpgAbilityRecord(self.view.table_name, ret)
 
 
+class AsyncpgViewOptions(ViewOptions):
+    def __init__(self, *, list_page_size=20, list_accept_size_from_client=False, permission: Permissions = None,
+                 conn=None, table_name: str=None):
+        self.conn = conn
+        self.table_name = table_name
+        super().__init__(list_page_size=list_page_size, list_accept_size_from_client=list_accept_size_from_client,
+                         permission=permission)
+
+    def assign(self, obj: Type['AsyncpgView']):
+        if self.conn:
+            obj.conn = self.conn
+        if self.table_name:
+            obj.table_name = self.table_name
+        super().assign(obj)
+
+
 class AsyncpgView(AbstractSQLView):
+    options_cls = AsyncpgViewOptions
     conn = None
     table_name = None
 
     @classmethod
-    def cls_init(cls):
+    def cls_init(cls, check_options=True):
         # py3.6: __init_subclass__
         if not (cls.__name__ == 'AsyncpgView' and AbstractSQLView in cls.__bases__):
             assert cls.conn, "%s.conn must be specified." % cls.__name__
             assert cls.table_name, "%s.conn must be specified." % cls.__name__
-        super().cls_init()
+        super().cls_init(False)
 
     def __init__(self, request):
         super().__init__(request)

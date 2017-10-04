@@ -61,6 +61,7 @@ def pagination_calc(count_all, page_size, cur_page=1, nearby=2):
 
         'info': {
             'page_size': page_size,
+            'page_count': page_count,  # 重复信息，只是防止用户困惑
             'count_all': count_all,
         }
     }

@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import time
-from typing import Tuple, Union, Dict, Iterable
+from typing import Tuple, Union, Dict, Iterable, Type
 from aiohttp import web
 
 from .app import SlimApplicationOptions
@@ -108,7 +108,7 @@ class BasicView(metaclass=MetaClassForInit):
         logger.debug('finish: %s' % self.ret_val)
         for i in self._cookie_set or ():
             if i[0] == 'set':
-                self.response.set_cookie(i[1], i[2], **i[3]) # secure not work
+                self.response.set_cookie(i[1], i[2], **i[3])
             else:
                 self.response.del_cookie(i[1])
 
@@ -192,8 +192,22 @@ class ParamsQueryInfo(dict):
         return self['orders']
 
 
+class ViewOptions:
+    def __init__(self, *, list_page_size=20, list_accept_size_from_client=False, permission: Permissions=None):
+        self.list_page_size = list_page_size
+        self.list_accept_size_from_client = list_accept_size_from_client
+        self.permission = permission
+
+    def assign(self, obj: Type['AbstractSQLView']):
+        obj.LIST_PAGE_SIZE = self.list_page_size
+        obj.LIST_ACCEPT_SIZE_FROM_CLIENT = self.list_accept_size_from_client
+        if self.permission:
+            obj.permission = self.permission
+
+
 # noinspection PyMethodMayBeStatic
 class AbstractSQLView(BasicView):
+    options_cls = ViewOptions
     LIST_PAGE_SIZE = 20  # list 单次取出的默认大小
     LIST_ACCEPT_SIZE_FROM_CLIENT = False
 
@@ -201,7 +215,15 @@ class AbstractSQLView(BasicView):
     table_name = ''
 
     @classmethod
-    def cls_init(cls):
+    def _check_view_options(cls):
+        options = getattr(cls, 'options', None)
+        if options and isinstance(options, ViewOptions):
+            options.assign(cls)
+
+    @classmethod
+    def cls_init(cls, check_options=True):
+        if check_options:
+            cls._check_view_options()
         super().cls_init()
 
         async def func():
