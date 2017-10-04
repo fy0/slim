@@ -368,10 +368,16 @@ class AbstractSQLView(BasicView):
 
         size = self.request.match_info.get('size', None)
         if self.LIST_ACCEPT_SIZE_FROM_CLIENT:
-            if size and not size.isdigit():
-                self.finish(RETCODE.INVALID_HTTP_PARAMS)
-                return None, None
-            size = int(size or self.LIST_PAGE_SIZE)
+            if size:
+                if size == '-1':  # size is infinite
+                    size = -1
+                elif size.isdigit():
+                    size = int(size or self.LIST_PAGE_SIZE)
+                else:
+                    self.finish(RETCODE.INVALID_HTTP_PARAMS)
+                    return None, None
+            else:
+                size = self.LIST_PAGE_SIZE
         else:
             size = self.LIST_PAGE_SIZE
 

@@ -133,7 +133,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
         q = self._make_select(info)
         count = q.count()
         pg = pagination_calc(count, size, page)
-        # offset = size * (page - 1)
+        if size == -1: size = count  # get all
 
         func = lambda item: PeeweeAbilityRecord(self.view.table_name, item)
         pg["items"] = list(map(func, q.paginate(page, size)))

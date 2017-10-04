@@ -120,6 +120,7 @@ class AsyncpgSQLFunctions(AbstractSQLFunctions):
         count = (await self.view.conn.fetchrow(sql[0], *sql[1]))['count']
 
         pg = pagination_calc(count, size, page)
+        if size == -1: size = count  # get all
         offset = size * (page - 1)
 
         sc.reset()

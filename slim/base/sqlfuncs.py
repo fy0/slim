@@ -13,6 +13,7 @@ class AbstractSQLFunctions:
         self.request = view.request
 
     async def select_pagination_list(self, info, size, page):
+        """ tips: size == -1 means infinite """
         raise NotImplementedError()
 
     async def select_one(self, select_info) -> Tuple[object, AbilityRecord]:
