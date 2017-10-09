@@ -460,18 +460,14 @@ class AbstractSQLView(BasicView):
         # raise NotImplementedError()
         pass
 
-    @classmethod
-    def handle_query(cls, info: ParamsQueryInfo) -> Union[None, tuple]:
+    def handle_query(self, info: ParamsQueryInfo) -> Union[None, tuple]:
         pass
 
-    @classmethod
-    def handle_read(cls, values: Dict) -> Union[None, tuple]:
+    def handle_read(self, values: Dict) -> Union[None, tuple]:
         pass
 
-    @classmethod
-    def handle_insert(cls, values: Dict) -> Union[None, tuple]:
+    def handle_insert(self, values: Dict) -> Union[None, tuple]:
         pass
 
-    @classmethod
-    def handle_update(cls, values: Dict) -> Union[None, tuple]:
+    def handle_update(self, values: Dict) -> Union[None, tuple]:
         pass
