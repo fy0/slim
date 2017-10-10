@@ -16,6 +16,7 @@ from ...base.view import AbstractSQLView, AbstractSQLFunctions, ViewOptions
 logger = logging.getLogger(__name__)
 
 
+# noinspection PyProtectedMember
 class PeeweeAbilityRecord(AbilityRecord):
     # noinspection PyMissingConstructor
     def __init__(self, table_name, val: peewee.Model):
@@ -23,8 +24,13 @@ class PeeweeAbilityRecord(AbilityRecord):
         self.val = val  # 只是为了补全才继承的
 
     def keys(self):
-        # noinspection PyProtectedMember
-        return self.val._meta.fields.keys()
+        ret = set()
+        for k, v in self.val._meta.fields.items():
+            if isinstance(v, peewee.ForeignKeyField):
+                ret.add('%s_id' % k)  # foreign key
+            else:
+                ret.add(k)
+        return ret
 
     def get(self, key):
         return getattr(self.val, key)
@@ -33,9 +39,17 @@ class PeeweeAbilityRecord(AbilityRecord):
         return hasattr(self.val, key)
 
     def to_dict(self, available_columns=None):
+        data = {}
+        fields = self.val._meta.fields
+        for k, v in model_to_dict(self.val, recurse=False).items():
+            if isinstance(fields[k], peewee.ForeignKeyField):
+                data[k + '_id'] = v
+            else:
+                data[k] = v
+
         if available_columns:
-            return dict_filter(model_to_dict(self.val), available_columns)
-        return model_to_dict(self.val)
+            return dict_filter(data, available_columns)
+        return data
 
 
 _peewee_method_map = {
@@ -67,12 +81,16 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
         pw_args = []
         for field_name, op, value in args:
             field = self.view.fields[field_name]
+            if isinstance(field, peewee.ForeignKeyField):
+                tfield = field.to_field
+            else:
+                tfield = field
 
             conv_func = None
             # 说明：我记得 peewee 会自动完成 int/float 的转换，所以不用自己转
-            if isinstance(field, peewee.BlobField):
+            if isinstance(tfield, peewee.BlobField):
                 conv_func = to_bin
-            elif isinstance(field, peewee.BooleanField):
+            elif isinstance(tfield, peewee.BooleanField):
                 conv_func = bool_parse
 
             if conv_func:
@@ -222,5 +240,9 @@ class PeeweeView(AbstractSQLView):
     @staticmethod
     async def _fetch_fields(cls_or_self):
         if cls_or_self.model:
-            cls_or_self.fields = cls_or_self.model._meta.fields
+            def wrap(name, field):
+                if isinstance(field, peewee.ForeignKeyField):
+                    return '%s_id' % name
+                return name
+            cls_or_self.fields = {wrap(k, v):v for k, v in cls_or_self.model._meta.fields.items()}
             cls_or_self.table_name = cls_or_self.model._meta.db_table
