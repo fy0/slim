@@ -49,10 +49,10 @@ setup(
     ],
 
     keywords='slim web framework model aiohttp asyncpg peewee',
-    packages=find_packages(exclude=['tests']) + ['slim-cli', 'slim-cli.template', 'slim-cli.template.view',
-                                                 'slim-cli.template.model'],
+    packages=find_packages(exclude=['tests']) + ['slim_cli', 'slim_cli.template', 'slim_cli.template.view',
+                                                 'slim_cli.template.model'],
     package_dir={
-        'slim-cli.template': 'slim-cli/template',
+        'slim_cli.template': 'slim_cli/template',
     },
     include_package_data=True,
     platforms='any',
@@ -64,6 +64,11 @@ setup(
         'full': ['peewee', 'asyncpg', 'msgpack'],
         'peewee': ['peewee'],
         'asyncpg': ['asyncpg']
-    }
+    },
 
+    entry_points={
+        'console_scripts': [
+            'slim=slim_cli.main:cli',
+        ],
+    }
 )

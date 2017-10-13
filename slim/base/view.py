@@ -122,12 +122,14 @@ class BasicView(metaclass=MetaClassForInit):
             self._params_cache = dict(self.request.query)
         return self._params_cache
 
-    async def post_json(self) -> dict:
+    async def _post_json(self) -> dict:
+        # post body: raw(text) json
         if self._post_json_cache is None:
             self._post_json_cache = dict(await self.request.json())
         return self._post_json_cache
 
     async def post_data(self) -> dict:
+        # post body: form data
         if self._post_data_cache is None:
             self._post_data_cache = dict(await self.request.post())
         return self._post_data_cache

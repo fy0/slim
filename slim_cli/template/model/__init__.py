@@ -9,14 +9,14 @@ asyncpg_conn = None
 
 
 def asyncpg_init(db_uri):
-    async def create_conn(db_uri):
+    async def create_conn():
         global asyncpg_conn
         asyncpg_conn = await asyncpg.connect(db_uri)
 
     async_run(create_conn)
 
 
-asyncpg_init(config.DATABASE_URI)
+# asyncpg_init(config.DATABASE_URI)
 
 # peewee 配置
 
