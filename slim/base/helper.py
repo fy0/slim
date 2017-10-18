@@ -3,6 +3,8 @@ import hashlib
 import hmac
 import json
 import logging
+from asyncio import iscoroutinefunction
+
 from slim.utils import msgpack
 from posixpath import join as urljoin
 
@@ -35,6 +37,7 @@ def view_bind(app, url, view_cls):
             if view_instance.is_finished:
                 return view_instance.response
 
+            assert iscoroutinefunction(func), "Add 'async' before interface function %r" % func.__name__
             ret = await func(view_instance)
             return ret if ret is not None else view_instance.response
 

@@ -9,7 +9,7 @@ class TestViewBasic(BasicView):
     def interface(cls):
         cls.use('info', 'GET')
 
-    def info(self):
+    async def info(self):
         self.finish(RETCODE.SUCCESS, {
             'retcode': list(RETCODE.items()),
             #'retinfo': RETCODE.txt,

@@ -31,7 +31,7 @@ def app_init(cookies_secret: bytes, *, aiohttp_app_instance=None, enable_log=Tru
 
     if route:
         # 推后至启动时进行
-        def on_available(the_app):
+        def on_startup(the_app):
             route.bind(the_app)
 
             # Configure default CORS settings.
@@ -47,6 +47,6 @@ def app_init(cookies_secret: bytes, *, aiohttp_app_instance=None, enable_log=Tru
             for r in list(app.router.routes()):
                 cors.add(r)
 
-        app.on_loop_available.append(on_available)
+        app.on_startup.append(on_startup)
 
     return app

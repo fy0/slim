@@ -2,13 +2,11 @@ from slim.utils import async_run
 import config
 
 # asyncpg 配置
-
-import asyncpg
-
 asyncpg_conn = None
 
 
 def asyncpg_init(db_uri):
+    import asyncpg
     async def create_conn():
         global asyncpg_conn
         asyncpg_conn = await asyncpg.connect(db_uri)
