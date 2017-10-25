@@ -5,6 +5,8 @@ import json
 import logging
 from asyncio import iscoroutinefunction
 
+from aiohttp import web_response
+
 from slim.utils import msgpack
 from posixpath import join as urljoin
 
@@ -27,8 +29,9 @@ def view_bind(app, url, view_cls):
         # noinspection PyProtectedMember
         async def wfunc(request):
             view_instance = view_cls(request)
+            handler_name = '%s.%s' % (view_cls.__name__, func.__name__)
             ascii_encodable_path = request.path.encode('ascii', 'backslashreplace').decode('ascii')
-            logger.info("{} {}".format(request._method, ascii_encodable_path))
+            logger.info("{} {} -> {}".format(request._method, ascii_encodable_path, handler_name))
 
             await view_instance._prepare()
             if view_instance.is_finished:
@@ -37,9 +40,14 @@ def view_bind(app, url, view_cls):
             if view_instance.is_finished:
                 return view_instance.response
 
-            assert iscoroutinefunction(func), "Add 'async' before interface function %r" % func.__name__
-            ret = await func(view_instance)
-            return ret if ret is not None else view_instance.response
+            assert iscoroutinefunction(func), "Add 'async' before interface function %r" % handler_name
+            resp = await func(view_instance) or view_instance.response
+
+            # 提示: 这里抛出异常应该会在中间件触发之前
+            # 不过我可以做这样一个假设：所有View对象都有标准的返回
+            assert isinstance(resp, web_response.StreamResponse), \
+                "Handler {!r} should return response instance, got {!r}".format(handler_name, type(resp),)
+            return resp
 
         return wfunc
 

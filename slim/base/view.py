@@ -103,6 +103,8 @@ class BasicView(metaclass=MetaClassForInit):
         return None
 
     def finish(self, code, data=None):
+        if not data:
+            data = RETCODE.txt_cn.get(code)
         self.ret_val = {'code': code, 'data': data}  # for access in inhreads method
         self.response = web.json_response(self.ret_val)
         logger.debug('finish: %s' % self.ret_val)
