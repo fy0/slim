@@ -1,0 +1,6 @@
+slim
+aiohttp
+peewee
+asyncpg
+wtforms
+msgpack

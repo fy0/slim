@@ -12,6 +12,10 @@ py_ver = sys.version_info.major
 
 
 class ObjectID(object):
+    _cache_index = None
+    _cache_time = None
+    _cache_time_float = None
+
     _index = 0
     _hostname_bytes = hashlib.md5(socket.gethostname().encode('utf-8')).digest()[0:3]
 
@@ -25,11 +29,24 @@ class ObjectID(object):
         # 0|1|2|3 | 4|5|6 | 7|8 | 9|10|11
         # 时间戳 | 机器  | PID | 计数器
         ObjectID._index += 1
-        self.time = int(time.time())
+        ObjectID._index %= 0xFFF
+        time_float = time.time()
+        self.time = int(time_float)
+
+        # 防止重复
+        if self.time == ObjectID._cache_time:
+            if ObjectID._index + 1 == ObjectID._cache_index:
+                offset = self.time - self._cache_time_float + 1.1
+                time.sleep(offset)
+        else:
+            ObjectID._cache_index = ObjectID._index
+            ObjectID._cache_time = self.time
+            ObjectID._cache_time_float = time_float
+
+        # 生成
         object_id = struct.pack(">i", self.time)
         object_id += self._hostname_bytes
         object_id += struct.pack(">H", os.getpid() % 0xFFFF)
-        ObjectID._index %= 0xFFF
         object_id += struct.pack(">I", ObjectID._index)[1:]
         self.object_id = object_id
 

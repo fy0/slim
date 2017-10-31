@@ -1,13 +1,10 @@
 import base64
 import hashlib
 import hmac
-import json
 import logging
 from asyncio import iscoroutinefunction
-
 from aiohttp import web_response
-
-from slim.utils import msgpack
+from ..utils import msgpack, async_run
 from posixpath import join as urljoin
 
 
@@ -82,6 +79,9 @@ def view_bind(app, url, view_cls):
 class Route:
     urls = []
 
+    def __init__(self):
+        self.on_bind = []
+
     def __call__(self, url):
         def _(cls):
             self.urls.append((url, cls))
@@ -91,6 +91,12 @@ class Route:
     def bind(self, app):
         for url, cls in self.urls:
             view_bind(app, url, cls)
+
+        for func in self.on_bind:
+            if iscoroutinefunction(func):
+                async_run(func())
+            elif callable(func):
+                func()
 
 
 def _value_encode(obj):

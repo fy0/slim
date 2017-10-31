@@ -340,6 +340,7 @@ class AbstractSQLView(BasicView):
         return record.to_dict(available_columns)
 
     def _handle_fix(self, ret):
+        """ check result of handle_query/read/insert/update """
         if ret is None:
             return
 
@@ -353,6 +354,7 @@ class AbstractSQLView(BasicView):
         if self.is_finished: return
         self._handle_fix(self.handle_query(info))
         if self.is_finished: return
+        logger.debug('query info: %s' , info)
         code, data = await self._sql.select_one(info)
 
         if code == RETCODE.SUCCESS:
