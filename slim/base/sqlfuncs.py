@@ -12,7 +12,7 @@ class AbstractSQLFunctions:
         self.view = view
         self.request = view.request
 
-    async def select_pagination_list(self, info, size, page):
+    async def select_paginated_list(self, info, size, page):
         """ tips: size == -1 means infinite """
         raise NotImplementedError()
 

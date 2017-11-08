@@ -134,6 +134,7 @@ class BasicView(metaclass=MetaClassForInit):
         # post body: form data
         if self._post_data_cache is None:
             self._post_data_cache = dict(await self.request.post())
+            logger.debug('raw post data: %s', self._post_data_cache)
         return self._post_data_cache
 
     def set_cookie(self, key, value, *, path='/', expires=None, domain=None, max_age=None, secure=None,
@@ -175,6 +176,7 @@ class BasicView(metaclass=MetaClassForInit):
 
 
 class QueryArguments(list):
+    """ 与 list 实际没有太大不同，独立为类型的目的是使其能与list区分开来 """
     def __contains__(self, item):
         for i in self:
             if i[0] == item:
@@ -187,6 +189,7 @@ class QueryArguments(list):
 
 
 class ParamsQueryInfo(dict):
+    """ 目的同 QueryArguments，即与其他 dict 能够区分 """
     @property
     def args(self) -> QueryArguments:
         return self['args']
@@ -194,6 +197,10 @@ class ParamsQueryInfo(dict):
     @property
     def orders(self):
         return self['orders']
+
+    @property
+    def select(self):
+        return self['select']
 
 
 class ViewOptions:
@@ -246,7 +253,7 @@ class AbstractSQLView(BasicView):
         if not self.ability:
             self.finish(RETCODE.INVALID_ROLE)
 
-    def _query_order(self, text):
+    def _parse_order(self, text):
         """
         :param text: order=id.desc, xxx.asc
         :return: 
@@ -268,9 +275,30 @@ class AbstractSQLView(BasicView):
             orders.append([column, order])
         return orders
 
-    def _query_convert(self, params) -> Union[ParamsQueryInfo, None]:
+    def _parse_select(self, text: str):
+        """
+        get columns from select text
+        :param text: col1, col2
+        :return: None or [col1, col2]
+        """
+        info = set(text.split(','))
+        if '*' in info:
+            return None
+        else:
+            selected_columns = []
+            for column in info:
+                if column:
+                    if column not in self.fields:
+                        raise ResourceException('Column not found: %s' % column)
+                    selected_columns.append(column)
+            assert selected_columns, "No column(s) selected"
+            return selected_columns
+
+    def _parse_params(self, params) -> Union[ParamsQueryInfo, None]:
+        """ parse params to query information """
         args = QueryArguments()
         ret = ParamsQueryInfo(
+            select=None,
             args=args,
             orders=[],
             format='dict'
@@ -282,7 +310,10 @@ class AbstractSQLView(BasicView):
 
             field_name = info[0]
             if field_name == 'order':
-                ret['orders'] = self._query_order(value)
+                ret['orders'] = self._parse_order(value)
+                continue
+            elif field_name == 'select':
+                ret['select'] = self._parse_select(value)
                 continue
             elif field_name == '_data_format':
                 ret['format'] = value
@@ -318,28 +349,28 @@ class AbstractSQLView(BasicView):
 
             args.append([field_name, op, value])
 
-        logger.debug('params: %s' % ret)
-
-        # TODO: 权限检查在列存在检查之后有暴露列的风险
         # 查询权限检查
-        columns = []
+        from_columns = []
         for field_name, op, value in args:
-            columns.append((self.table_name, field_name))
-        if columns and all(self.ability.cannot(self.current_user, A.QUERY, *columns)):
+            from_columns.append((self.table_name, field_name))
+        if from_columns and all(self.ability.cannot(self.current_user, A.QUERY, *from_columns)):
+            logger.debug('params: %s' % ret)
             return self.finish(RETCODE.PERMISSION_DENIED)
 
-        # 角色读取限制参数附加
-        addition_args = self.ability.get_additional_args(self.current_user, A.READ, self.table_name)
-        ret['args'] += addition_args
+        # 读取权限检查，限定被查询的列
+        if ret['select'] is None:
+            ret['select'] = self.fields.keys()
+        ret['select'] = self.ability.filter_columns(self.table_name, ret['select'], A.READ)
 
+        logger.debug('params: %s' % ret)
         return ret
 
     def _filter_record_by_ability(self, record) -> Union[Dict, None]:
-        available_columns = self.ability.filter_record_columns_by_action(self.current_user, A.READ, record)
+        available_columns = self.ability.filter_record(self.current_user, A.READ, record)
         if not available_columns: return
         return record.to_dict(available_columns)
 
-    def _handle_fix(self, ret):
+    def _call_handle_fix(self, ret):
         """ check result of handle_query/read/insert/update """
         if ret is None:
             return
@@ -350,17 +381,17 @@ class AbstractSQLView(BasicView):
         raise ValueHandleException('Invalid result type of handle function.')
 
     async def get(self):
-        info = self._query_convert(self.params())
+        info = self._parse_params(self.params())
         if self.is_finished: return
-        self._handle_fix(self.handle_query(info))
+        self._call_handle_fix(self.handle_query(info))
         if self.is_finished: return
-        logger.debug('query info: %s' , info)
+        logger.debug('query info: %s', info)
         code, data = await self._sql.select_one(info)
 
         if code == RETCODE.SUCCESS:
             data = self._filter_record_by_ability(data)
             if not data: return self.finish(RETCODE.NOT_FOUND)
-            self._handle_fix(self.handle_read(data))
+            self._call_handle_fix(self.handle_read(data))
             if self.is_finished: return
         self.finish(code, data)
 
@@ -392,12 +423,12 @@ class AbstractSQLView(BasicView):
     async def list(self):
         page, size = self._get_list_page_and_size()
         if self.is_finished: return
-        info = self._query_convert(self.params())
+        info = self._parse_params(self.params())
         if self.is_finished: return
-        self._handle_fix(self.handle_query(info))
+        self._call_handle_fix(self.handle_query(info))
         if self.is_finished: return
 
-        code, data = await self._sql.select_pagination_list(info, size, page)
+        code, data = await self._sql.select_paginated_list(info, size, page)
 
         if code == RETCODE.SUCCESS:
             lst = []
@@ -408,7 +439,7 @@ class AbstractSQLView(BasicView):
 
                 if info['format'] == 'array':
                     item = get_values(item)
-                self._handle_fix(self.handle_read(data))
+                self._call_handle_fix(self.handle_read(data))
                 if self.is_finished: return
                 lst.append(item)
             data['items'] = lst
@@ -431,14 +462,14 @@ class AbstractSQLView(BasicView):
         return data
 
     async def set(self):
-        info = self._query_convert(self.params())
+        info = self._parse_params(self.params())
         if self.is_finished: return
-        self._handle_fix(self.handle_query(info))
+        self._call_handle_fix(self.handle_query(info))
         if self.is_finished: return
 
         post_data = self._data_convert(await self.post_data())
         if self.is_finished: return
-        self._handle_fix(self.handle_update(post_data))
+        self._call_handle_fix(self.handle_update(post_data))
         if self.is_finished: return
 
         logger.debug('data: %s' % post_data)
@@ -449,7 +480,7 @@ class AbstractSQLView(BasicView):
         post_data = self._data_convert(await self.post_data(), action=A.CREATE)
         logger.debug('data: %s' % post_data)
         if self.is_finished: return
-        self._handle_fix(self.handle_insert(post_data))
+        self._call_handle_fix(self.handle_insert(post_data))
         if self.is_finished: return
 
         code, data = await self._sql.insert(post_data)
@@ -457,7 +488,7 @@ class AbstractSQLView(BasicView):
             data = self._filter_record_by_ability(data)
             if not data: return self.finish(RETCODE.NOT_FOUND)
 
-            self._handle_fix(self.handle_read(data))
+            self._call_handle_fix(self.handle_read(data))
             if self.is_finished: return
         self.finish(code, data)
 

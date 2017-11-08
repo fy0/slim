@@ -83,33 +83,20 @@ class Ability:
         """
         self.role = role
         if based_on:
-            self.data = copy.deepcopy(based_on.data)
-            # TODO: rules
+            self.rules = copy.deepcopy(based_on.rules)
+            self.record_rules = copy.deepcopy(based_on.record_rules)
         else:
-            self.data = {}
+            self.rules = {}
+            self.record_rules = []
+
         if data:
             # 权限继承对应到列
             for k, v in data.items():
                 if isinstance(v, dict):
-                    if k in self.data and isinstance(self.data[k], dict):
-                        self.data[k].update(copy.deepcopy(v))
+                    if k in self.rules and isinstance(self.rules[k], dict):
+                        self.rules[k].update(copy.deepcopy(v))
                         continue
-                self.data[k] = copy.deepcopy(v)
-
-        self.rules = []
-        self.record_rules = []
-
-    def add_rule(self, actions, table, *extra_conditions, func=None):
-        self.rules.append([table, actions, extra_conditions, func])
-
-    def get_additional_args(self, user, action, table):
-        additional_args = []
-        for rtable, ractions, extra_conditions, func in self.rules:
-            if table == rtable and action in ractions:
-                if func:
-                    additional_args.extend(func(self, user, action, table))
-                additional_args.extend(extra_conditions)
-        return additional_args
+                self.rules[k] = copy.deepcopy(v)
 
     def add_record_rule(self, wanted_actions, subject_cls: (AbilityTable, AbilityColumn), *, func):
         # subject_cls value:
@@ -121,7 +108,29 @@ class Ability:
             pass
         """
 
-    def _get_direct_permission(self, obj):
+    @staticmethod
+    def _is_rule_match_record(record_rule, action, record: AbilityRecord) -> Tuple[Any, bool]:
+        """
+        检查记录(从数据库查询出的数据的单项)是否匹配对应规则，在查询之后执行
+        :param record_rule:
+        :param action:
+        :param record:
+        :return:
+        """
+        if action in record_rule[1]:
+            obj = record_rule[0]
+            if isinstance(obj, AbilityTable):
+                return 'table', obj.table == record.table
+            elif isinstance(obj, AbilityColumn):
+                return 'column', obj.table == record.table and record.has(obj.column)
+        return None, False
+
+    def _parse_permission(self, obj):
+        """
+        从 obj 中取出权限
+        :param obj:
+        :return: [A.QUERY, A.WRITE, ...]
+        """
         if isinstance(obj, str):
             if obj == '*':
                 return A.ALL
@@ -135,12 +144,19 @@ class Ability:
                     logger.warning('Invalid permission action: %s', i)
             return obj
         elif isinstance(obj, dict):
-            return self._get_direct_permission(obj.get('*'))
+            return self._parse_permission(obj.get('*'))
 
     def can(self, user, action, *subjects):
+        """
+        can with tables or columns before query
+        :param user:
+        :param action:
+        :param subjects: [('table_name', 'column_name')] or 'table_name'
+        :return:
+        """
         ret_lst = []
-        global_data = self.data.get('*')
-        global_actions = self._get_direct_permission(global_data)
+        global_data = self.rules.get('*')
+        global_actions = self._parse_permission(global_data)
 
         for i in subjects:
             ret = False
@@ -153,8 +169,8 @@ class Ability:
             if global_actions and action in global_actions:
                 ret = True
 
-            table_data = self.data.get(table)
-            table_actions = self._get_direct_permission(table_data)
+            table_data = self.rules.get(table)
+            table_actions = self._parse_permission(table_data)
 
             # table
             if table_actions and action in table_actions:
@@ -162,7 +178,7 @@ class Ability:
 
             # column
             if type(table_data) == dict:
-                column_actions = self._get_direct_permission(table_data.get(column))
+                column_actions = self._parse_permission(table_data.get(column))
                 if column_actions is not None:
                     ret = action in column_actions
 
@@ -170,31 +186,37 @@ class Ability:
 
         return ret_lst
 
-    def can_query(self, user, *subjects):
-        """
-        这一查询不能附加 condition
-        :param user: 
-        :param subjects: 
-        :return: 
-        """
-        return self.can(user, A.QUERY, *subjects)
-
     def cannot(self, user, action, *subjects):
+        """
+        cannot with tables or columns before query
+        :param user:
+        :param action:
+        :param subjects:
+        :return:
+        """
         func = lambda x: not x
         return list(map(func, self.can(user, action, *subjects)))
 
-    def filter_columns_by_action(self, table, columns, action):
+    def filter_columns(self, table, columns, action):
+        """
+        根据权限进行列过滤
+        :param table: 表名
+        :param columns: 列名列表
+        :param action: 行为
+        :return: 可用列的列表
+        """
+        # TODO: 此过程可以加缓存
         # 全局
-        global_data = self.data.get('*')
-        global_actions = self._get_direct_permission(global_data)
+        global_data = self.rules.get('*')
+        global_actions = self._parse_permission(global_data)
         if global_actions and action in global_actions:
             available = list(columns)
         else:
             available = []
 
         # table
-        table_data = self.data.get(table)
-        table_actions = self._get_direct_permission(table_data)
+        table_data = self.rules.get(table)
+        table_actions = self._parse_permission(table_data)
 
         if table_actions and action in table_actions:
             available = list(columns)
@@ -202,7 +224,7 @@ class Ability:
         # column
         for column in columns:
             if type(table_data) == dict:
-                column_actions = self._get_direct_permission(table_data.get(column))
+                column_actions = self._parse_permission(table_data.get(column))
                 if column_actions is not None:
                     if action in column_actions:
                         # 有权限，试图加入列表
@@ -215,32 +237,28 @@ class Ability:
 
         return available
 
-    @staticmethod
-    def is_rule_match_record(record_rule, action, record: AbilityRecord) -> Tuple[Any, bool]:
-        if action in record_rule[1]:
-            obj = record_rule[0]
-            if isinstance(obj, AbilityTable):
-                return 'table', obj.table == record.table
-            elif isinstance(obj, AbilityColumn):
-                return 'column', obj.table == record.table and record.has(obj.column)
-        return None, False
-
-    def filter_record_columns_by_action(self, user, action, record: AbilityRecord):
+    def filter_record(self, user, action, record: AbilityRecord, *, available=None):
         """
-        特别解释一下，因为不同orm的Record并不相同，这里只返回可用的数据列
-        自行实现对列的过滤。如果返回值为空表示完全无权
-        
+        filter record columns by rules and action
+        在查询完成之后，根据规则对记录进行过滤
+        特别解释一下，因为不同orm的Record并不相同，这里只返回可用的数据列的列表
+        自行实现对列的过滤。如果返回值为空表示完全无权或输入数据为空
         :param user: 
         :param action: 
-        :param record: 
-        :return: 
+        :param record:
+        :param available:
+        :return: 可用列
         """
-        available = self.filter_columns_by_action(record.table, record.keys(), action)
+        if available is None:
+            # available = record.keys()
+            # 为了避免不必要的麻烦（主要是没有 info['select'] 又需要读出 record 的情况，例如 insert 和 update）
+            # 这里直接再对列做一次过滤
+            available = self.filter_columns(record.table, record.keys(), action)
 
         # 先行匹配规则适用范围
         rules = {'table': [], 'column': []}
         for rule in self.record_rules:
-            obj_type, exists = self.is_rule_match_record(rule, action, record)
+            obj_type, exists = self._is_rule_match_record(rule, action, record)
             if exists:
                 rules[obj_type].append(rule)
 

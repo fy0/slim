@@ -1,8 +1,4 @@
 # coding:utf-8
-
-import re
-import os
-import sys
 from slim.base.permission import A, Ability, AbilityColumn, AbilityTable, AbilityRecord
 
 
@@ -51,6 +47,7 @@ def rule1_func2(ability, user, action, record: AbilityRecord):
 def rule1_func3(ability, user, action, record: AbilityRecord):
     return False
 
+
 ab.add_record_rule([A.CREATE, A.READ], AbilityTable('rule_test1'), func=rule1_func1)
 ab.add_record_rule([A.WRITE], AbilityTable('rule_test1'), func=rule1_func2)
 ab.add_record_rule([A.DELETE], AbilityTable('rule_test1'), func=rule1_func3)
@@ -58,6 +55,7 @@ ab.add_record_rule([A.DELETE], AbilityTable('rule_test1'), func=rule1_func3)
 
 def rule2_func1(ability, user, action, record: AbilityRecord):
     return True
+
 
 ab.add_record_rule([A.CREATE, A.READ], AbilityColumn('rule_test2', 'a'), func=rule2_func1)
 ab.add_record_rule([A.CREATE, A.READ], AbilityColumn('rule_test2', 'b'), func=rule2_func1)
@@ -98,10 +96,10 @@ def test_ability_column():
 
 
 def test_filter():
-    assert ab.filter_columns_by_action('user', ['username', 'nickname', 'password', 'salt'], A.QUERY) == ['username', 'nickname', 'password']
-    assert ab.filter_columns_by_action('user', ['username', 'nickname', 'password', 'salt'], A.READ) == ['username', 'nickname', 'password']
-    assert ab.filter_columns_by_action('user', ['username', 'nickname', 'password', 'salt'], A.WRITE) == []
-    assert ab.filter_columns_by_action('topic', ['id', 'title', 'author'], A.WRITE) == ['id', 'title', 'author']
+    assert ab.filter_columns('user', ['username', 'nickname', 'password', 'salt'], A.QUERY) == ['username', 'nickname', 'password']
+    assert ab.filter_columns('user', ['username', 'nickname', 'password', 'salt'], A.READ) == ['username', 'nickname', 'password']
+    assert ab.filter_columns('user', ['username', 'nickname', 'password', 'salt'], A.WRITE) == []
+    assert ab.filter_columns('topic', ['id', 'title', 'author'], A.WRITE) == ['id', 'title', 'author']
 
 
 class DictAbilityRecord(AbilityRecord):
@@ -120,17 +118,34 @@ class DictAbilityRecord(AbilityRecord):
 
 def test_record_filter():
     record1 = DictAbilityRecord('rule_test1', {'a': 'aaa', 'b': 'bbb', 'c': 'ccc'})
-    assert ab.filter_record_columns_by_action(None, A.CREATE, record1) == ['a', 'b', 'c']
-    assert ab.filter_record_columns_by_action(None, A.READ, record1) == ['a', 'b', 'c']
-    assert ab.filter_record_columns_by_action(None, A.DELETE, record1) == []
+    a1c = ab.filter_columns(record1.table, record1.keys(), A.CREATE)
+    a1r = ab.filter_columns(record1.table, record1.keys(), A.READ)
+    a1d = ab.filter_columns(record1.table, record1.keys(), A.DELETE)
+    assert ab.filter_record(None, A.CREATE, record1, available=a1c) == ['a', 'b', 'c']
+    assert ab.filter_record(None, A.READ, record1, available=a1r) == ['a', 'b', 'c']
+    assert ab.filter_record(None, A.DELETE, record1, available=a1d) == []
     record1_1 = DictAbilityRecord('rule_test1_1', {'a': 'aaa', 'b': 'bbb', 'c': 'ccc'})
-    assert ab.filter_record_columns_by_action(None, A.DELETE, record1_1) == ['a', 'b', 'c']
+    a1_1 = ab.filter_columns(record1_1.table, record1_1.keys(), A.DELETE)
+    assert ab.filter_record(None, A.DELETE, record1_1, available=a1_1) == ['a', 'b', 'c']
+    assert ab.filter_record(None, A.CREATE, record1) == ['a', 'b', 'c']
+    assert ab.filter_record(None, A.READ, record1) == ['a', 'b', 'c']
+    assert ab.filter_record(None, A.DELETE, record1) == []
+    assert ab.filter_record(None, A.DELETE, record1_1) == ['a', 'b', 'c']
 
     record2 = DictAbilityRecord('rule_test2', {'a': 'aaa', 'b': 'bbb', 'c': 'ccc'})
-    assert ab.filter_record_columns_by_action(None, A.READ, record2) == ['a', 'b']
-    assert ab.filter_record_columns_by_action(None, A.CREATE, record2) == ['a', 'b']
-    assert ab.filter_record_columns_by_action(None, A.DELETE, record2) == []
-    assert ab.filter_record_columns_by_action(None, A.WRITE, record2) == []
+    a2r = ab.filter_columns(record2.table, record2.keys(), A.READ)
+    a2c = ab.filter_columns(record2.table, record2.keys(), A.CREATE)
+    a2d = ab.filter_columns(record2.table, record2.keys(), A.DELETE)
+    a2w = ab.filter_columns(record2.table, record2.keys(), A.WRITE)
+    assert ab.filter_record(None, A.READ, record2, available=a2r) == ['a', 'b']
+    assert ab.filter_record(None, A.CREATE, record2, available=a2c) == ['a', 'b']
+    assert ab.filter_record(None, A.DELETE, record2, available=a2d) == []
+    assert ab.filter_record(None, A.WRITE, record2, available=a2w) == []
+    
+    assert ab.filter_record(None, A.READ, record2) == ['a', 'b']     
+    assert ab.filter_record(None, A.CREATE, record2) == ['a', 'b']   
+    assert ab.filter_record(None, A.DELETE, record2) == []           
+    assert ab.filter_record(None, A.WRITE, record2) == []
 
 
 def test_global():

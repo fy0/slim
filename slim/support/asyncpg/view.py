@@ -100,7 +100,7 @@ class AsyncpgSQLFunctions(AbstractSQLFunctions):
         if self.err: return self.err
 
         sc = query.SelectCompiler()
-        sql = sc.select_raw('*').from_table(view.table_name).simple_where_many(nargs)\
+        sql = sc.select(info['select']).from_table(view.table_name).simple_where_many(nargs)\
             .order_by_many(info['orders']).sql()
         ret = await view.conn.fetchrow(sql[0], *sql[1])
         if not ret: return RETCODE.NOT_FOUND, None
@@ -110,7 +110,7 @@ class AsyncpgSQLFunctions(AbstractSQLFunctions):
         else:
             return RETCODE.NOT_FOUND, None
 
-    async def select_pagination_list(self, info, size, page):
+    async def select_paginated_list(self, info, size, page):
         nargs = self._get_args(info['args'])
         if self.err: return self.err
 
@@ -124,7 +124,7 @@ class AsyncpgSQLFunctions(AbstractSQLFunctions):
         offset = size * (page - 1)
 
         sc.reset()
-        sql = sc.select_raw('*').from_table(self.view.table_name).simple_where_many(nargs) \
+        sql = sc.select(info['select']).from_table(self.view.table_name).simple_where_many(nargs) \
             .order_by_many(info['orders']).limit(size).offset(offset).sql()
         ret = await self.view.conn.fetch(sql[0], *sql[1])
         func = lambda item: AsyncpgAbilityRecord(self.view.table_name, item)
@@ -136,7 +136,7 @@ class AsyncpgSQLFunctions(AbstractSQLFunctions):
         nargs = self._get_args(info['args'])
         if self.err: return self.err
 
-        columns = view.ability.filter_columns_by_action(view.table_name, data.keys(), A.WRITE)
+        columns = view.ability.filter_columns(view.table_name, data.keys(), A.WRITE)
         if not columns:
             return RETCODE.PERMISSION_DENIED, None
         ndata = self._get_data(dict_filter(data, columns))

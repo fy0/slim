@@ -3,6 +3,7 @@ import hashlib
 import hmac
 import logging
 from asyncio import iscoroutinefunction
+from typing import Iterable
 from aiohttp import web_response
 from ..utils import msgpack, async_run
 from posixpath import join as urljoin
@@ -77,20 +78,34 @@ def view_bind(app, url, view_cls):
 
 
 class Route:
-    urls = []
+    funcs = []
+    views = []
 
     def __init__(self):
         self.on_bind = []
 
-    def __call__(self, url):
-        def _(cls):
-            self.urls.append((url, cls))
-            return cls
+    def __call__(self, url, method: [Iterable, str] = None):
+        def _(obj):
+            from .view import BasicView
+            if iscoroutinefunction(obj):
+                assert method, "Must give at least one method to function `%s`" % obj.__name__
+                if type(method) == str: methods = (method,)
+                else: methods = list(method)
+                self.funcs.append((url, methods, obj))
+            elif issubclass(obj, BasicView):
+                self.views.append((url, obj))
+            else:
+                raise BaseException('Invalid type for router')
+            return obj
         return _
 
     def bind(self, app):
-        for url, cls in self.urls:
+        for url, cls in self.views:
             view_bind(app, url, cls)
+
+        for url, methods, func in self.funcs:
+            for method in methods:
+                app.router.add_route(method, url, func)
 
         for func in self.on_bind:
             if iscoroutinefunction(func):

@@ -8,7 +8,7 @@ import peewee
 from playhouse.postgres_ext import BinaryJSONField
 from playhouse.shortcuts import model_to_dict
 
-from ...base.permission import AbilityRecord, Permissions
+from ...base.permission import AbilityRecord, Permissions, A
 from ...retcode import RETCODE
 from ...utils import to_bin, pagination_calc, dict_filter, bool_parse
 from ...base.view import AbstractSQLView, AbstractSQLFunctions, ViewOptions
@@ -19,18 +19,30 @@ logger = logging.getLogger(__name__)
 # noinspection PyProtectedMember
 class PeeweeAbilityRecord(AbilityRecord):
     # noinspection PyMissingConstructor
-    def __init__(self, table_name, val: peewee.Model):
-        self.table = table_name
-        self.val = val  # 只是为了补全才继承的
+    def __init__(self, table_name, val: peewee.Model, *, view=None, selected=None):
+        self.view = view
+        self.selected = selected
+        if view:
+            # if view exists, get information from View class
+            self.table = view.table_name
+            self._fields = view.fields
+        else:
+            self.table = table_name
+            self._fields = None
+        self.val = val  # 只是为了补全才继承的`
+
+    @property
+    def fields(self):
+        if not self._fields:
+            self._fields = {}
+            for name, v in self.val._meta.fields.items():
+                if isinstance(v, peewee.ForeignKeyField):
+                    name = '%s_id' % name  # foreign key
+                self._fields[name] = v
+        return self._fields
 
     def keys(self):
-        ret = set()
-        for k, v in self.val._meta.fields.items():
-            if isinstance(v, peewee.ForeignKeyField):
-                ret.add('%s_id' % k)  # foreign key
-            else:
-                ret.add(k)
-        return ret
+        return self.fields.keys()
 
     def get(self, key):
         return getattr(self.val, key)
@@ -41,14 +53,16 @@ class PeeweeAbilityRecord(AbilityRecord):
     def to_dict(self, available_columns=None):
         data = {}
         fields = self.val._meta.fields
-        for k, v in model_to_dict(self.val, recurse=False).items():
-            if isinstance(fields[k], peewee.ForeignKeyField):
-                data[k + '_id'] = v
-            else:
-                data[k] = v
+        for name, v in model_to_dict(self.val, recurse=False).items():
+            if isinstance(fields[name], peewee.ForeignKeyField):
+                name = name + '_id'
+            if self.selected and (name not in self.selected):
+                continue
+            data[name] = v
 
         if available_columns:
             return dict_filter(data, available_columns)
+
         return data
 
 
@@ -133,7 +147,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
         orders = self._get_orders(info['orders'])
         if self.err: return
 
-        q = self.view.model.select()
+        q = self.view.model.select(*[self.view.fields[x] for x in info['select']])
         # peewee 不允许 where 时 args 为空
         if nargs: q = q.where(*nargs)
         if orders: q = q.order_by(*orders)
@@ -143,17 +157,17 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
         try:
             q = self._make_select(info)
             if self.err: return self.err
-            return RETCODE.SUCCESS, PeeweeAbilityRecord(self.view.table_name, q.get())
+            return RETCODE.SUCCESS, PeeweeAbilityRecord(None, q.get(), view=self.view, selected=info['select'])
         except self.view.model.DoesNotExist:
             return RETCODE.NOT_FOUND, None
 
-    async def select_pagination_list(self, info, size, page):
+    async def select_paginated_list(self, info, size, page):
         q = self._make_select(info)
         count = q.count()
         pg = pagination_calc(count, size, page)
         if size == -1: size = count  # get all
 
-        func = lambda item: PeeweeAbilityRecord(self.view.table_name, item)
+        func = lambda item: PeeweeAbilityRecord(None, item, view=self.view, selected=info['select'])
         pg["items"] = list(map(func, q.paginate(page, size)))
         return RETCODE.SUCCESS, pg
 
@@ -197,7 +211,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
         with db.atomic():
             try:
                 item = self.view.model.create(**kwargs)
-                return RETCODE.SUCCESS, PeeweeAbilityRecord(self.view.table_name, item)
+                return RETCODE.SUCCESS, PeeweeAbilityRecord(None, item, view=self.view)
             except peewee.DatabaseError as e:
                 db.rollback()
                 logger.error("database error", e)
@@ -244,5 +258,5 @@ class PeeweeView(AbstractSQLView):
                 if isinstance(field, peewee.ForeignKeyField):
                     return '%s_id' % name
                 return name
-            cls_or_self.fields = {wrap(k, v):v for k, v in cls_or_self.model._meta.fields.items()}
+            cls_or_self.fields = {wrap(k, v): v for k, v in cls_or_self.model._meta.fields.items()}
             cls_or_self.table_name = cls_or_self.model._meta.db_table
