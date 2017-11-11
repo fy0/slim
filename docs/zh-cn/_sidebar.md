@@ -1,8 +1,8 @@
 
 - 快速开始
     - [背景](quickstart/background.md)
+    - [启程](quickstart/helloworld.md)
     - [基础设计](quickstart/design.md)
-    - [简单示例](quickstart/helloworld.md)
 
 - 用户手册
     - 响应请求
