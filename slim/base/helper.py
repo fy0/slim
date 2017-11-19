@@ -4,7 +4,7 @@ import hmac
 import logging
 from asyncio import iscoroutinefunction
 from typing import Iterable
-from aiohttp import web_response
+from aiohttp import web, web_response
 from ..utils import msgpack, async_run
 from posixpath import join as urljoin
 
@@ -80,18 +80,21 @@ def view_bind(app, url, view_cls):
 class Route:
     funcs = []
     views = []
+    aiohttp_views = []
 
     def __init__(self):
         self.on_bind = []
 
-    def __call__(self, url, method: [Iterable, str] = None):
+    def __call__(self, url, method: [Iterable, str] = 'GET'):
         def _(obj):
             from .view import BasicView
             if iscoroutinefunction(obj):
-                assert method, "Must give at least one method to function `%s`" % obj.__name__
+                assert method, "Must give at least one method to http handler `%s`" % obj.__name__
                 if type(method) == str: methods = (method,)
                 else: methods = list(method)
                 self.funcs.append((url, methods, obj))
+            elif issubclass(obj, web.View):
+                self.aiohttp_views.append((url, obj))
             elif issubclass(obj, BasicView):
                 self.views.append((url, obj))
             else:
@@ -99,9 +102,30 @@ class Route:
             return obj
         return _
 
+    def head(self, url):
+        return self.__call__(url, 'HEAD')
+
+    def get(self, url):
+        return self.__call__(url, 'GET')
+
+    def post(self, url):
+        return self.__call__(url, 'POS')
+
+    def put(self, url):
+        return self.__call__(url, 'PUT')
+
+    def patch(self, url):
+        return self.__call__(url, 'PATCH')
+
+    def delete(self, url):
+        return self.__call__(url, 'DELETE')
+
     def bind(self, app):
         for url, cls in self.views:
             view_bind(app, url, cls)
+
+        for url, cls in self.aiohttp_views:
+            app.router.add_route('*', url, cls)
 
         for url, methods, func in self.funcs:
             for method in methods:
