@@ -44,8 +44,13 @@ def app_init(cookies_secret: bytes, *, aiohttp_app_instance=None, enable_log=Tru
             })
 
             # Configure CORS on all routes.
+            cors_added = set()
             for r in list(app.router.routes()):
-                cors.add(r)
+                if hasattr(r, 'resource'):
+                    r = r.resource
+                if r not in cors_added:
+                    cors.add(r)
+                    cors_added.add(r)
 
         app.on_startup.append(on_startup)
 

@@ -80,6 +80,7 @@ def view_bind(app, url, view_cls):
 class Route:
     funcs = []
     views = []
+    statics = []
     aiohttp_views = []
 
     def __init__(self):
@@ -120,6 +121,15 @@ class Route:
     def delete(self, url):
         return self.__call__(url, 'DELETE')
 
+    def add_static(self, prefix, path, **kwargs):
+        """
+        :param prefix: URL prefix
+        :param path: file directory
+        :param kwargs:
+        :return:
+        """
+        self.statics.append((prefix, path, kwargs),)
+
     def bind(self, app):
         for url, cls in self.views:
             view_bind(app, url, cls)
@@ -131,11 +141,14 @@ class Route:
             for method in methods:
                 app.router.add_route(method, url, func)
 
+        for prefix, path, kwargs in self.statics:
+            app.router.add_static(prefix, path, **kwargs)
+
         for func in self.on_bind:
             if iscoroutinefunction(func):
-                async_run(func())
+                async_run(func(app))
             elif callable(func):
-                func()
+                func(app)
 
 
 def _value_encode(obj):
