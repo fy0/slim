@@ -1,3 +1,3 @@
-from slim.base.helper import Route
+from slim.base.route import Route
 
 route = Route()
