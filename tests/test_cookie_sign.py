@@ -7,7 +7,7 @@ from requests.utils import dict_from_cookiejar
 
 from slim import app_init
 from slim.base.helper import create_signed_value, decode_signed_value, _value_decode, _value_encode, Route
-from slim.base.view import BasicView
+from slim.base.view import BaseView
 from slim.retcode import RETCODE
 
 secret = b'asdasd' * 5
@@ -40,7 +40,7 @@ class FakeRequest:
 
 
 @route('/')
-class CookiesView(BasicView):
+class CookiesView(BaseView):
     pass
 
 

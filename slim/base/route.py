@@ -83,44 +83,48 @@ class Route:
     websockets = []
 
     def __init__(self):
-        self.on_bind = []
+        self.before_bind = []
+        self.after_bind = []  # on_bind(app)
 
     def __call__(self, url, method: [Iterable, str] = 'GET'):
         def _(obj):
-            from .view import BasicView
+            from .view import BaseView
             if iscoroutinefunction(obj):
                 assert method, "Must give at least one method to http handler `%s`" % obj.__name__
                 if type(method) == str: methods = (method,)
                 else: methods = list(method)
                 self.funcs.append((url, methods, obj))
-            elif issubclass(obj, WSHandler):
-                self.websockets.append((url, obj()))
-            elif issubclass(obj, web.View):
-                self.aiohttp_views.append((url, obj))
-            elif issubclass(obj, BasicView):
-                self.views.append((url, obj))
+            elif isinstance(obj, type):
+                if issubclass(obj, WSHandler):
+                    self.websockets.append((url, obj()))
+                elif issubclass(obj, web.View):
+                    self.aiohttp_views.append((url, obj))
+                elif issubclass(obj, BaseView):
+                    self.views.append((url, obj))
+                else:
+                    raise BaseException('Invalid type for router: %r' % type(obj).__name__)
             else:
-                raise BaseException('Invalid type for router')
+                raise BaseException('Invalid type for router: %r' % type(obj).__name__)
             return obj
         return _
 
-    def head(self, url):
-        return self.__call__(url, 'HEAD')
+    def head(self, url, obj):
+        return self.__call__(url, 'HEAD')(obj)
 
-    def get(self, url):
-        return self.__call__(url, 'GET')
+    def get(self, url, obj):
+        return self.__call__(url, 'GET')(obj)
 
-    def post(self, url):
-        return self.__call__(url, 'POS')
+    def post(self, url, obj):
+        return self.__call__(url, 'POS')(obj)
 
-    def put(self, url):
-        return self.__call__(url, 'PUT')
+    def put(self, url, obj):
+        return self.__call__(url, 'PUT')(obj)
 
-    def patch(self, url):
-        return self.__call__(url, 'PATCH')
+    def patch(self, url, obj):
+        return self.__call__(url, 'PATCH')(obj)
 
-    def delete(self, url):
-        return self.__call__(url, 'DELETE')
+    def delete(self, url, obj):
+        return self.__call__(url, 'DELETE')(obj)
 
     def add_static(self, prefix, path, **kwargs):
         """
@@ -132,6 +136,12 @@ class Route:
         self.statics.append((prefix, path, kwargs),)
 
     def bind(self, app):
+        for func in self.before_bind:
+            if iscoroutinefunction(func):
+                async_run(func(app))
+            elif callable(func):
+                func(app)
+
         for url, cls in self.views:
             view_bind(app, url, cls)
 
@@ -148,7 +158,7 @@ class Route:
         for prefix, path, kwargs in self.statics:
             app.router.add_static(prefix, path, **kwargs)
 
-        for func in self.on_bind:
+        for func in self.after_bind:
             if iscoroutinefunction(func):
                 async_run(func(app))
             elif callable(func):

@@ -159,7 +159,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
             if self.err: return self.err
             return RETCODE.SUCCESS, PeeweeAbilityRecord(None, q.get(), view=self.view, selected=info['select'])
         except self.view.model.DoesNotExist:
-            return RETCODE.NOT_FOUND, None
+            return RETCODE.NOT_FOUND, NotImplemented
 
     async def select_paginated_list(self, info, size, page):
         q = self._make_select(info)
@@ -192,11 +192,11 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
                 return RETCODE.SUCCESS, {'count': 1}
 
         except self.view.model.DoesNotExist:
-            return RETCODE.NOT_FOUND, None
+            return RETCODE.NOT_FOUND, NotImplemented
 
     async def insert(self, data):
         if not len(data):
-            return RETCODE.INVALID_HTTP_PARAMS, None
+            return RETCODE.INVALID_HTTP_PARAMS, NotImplemented
         db = self.view.model._meta.database
 
         kwargs = {}
@@ -215,7 +215,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
             except peewee.DatabaseError as e:
                 db.rollback()
                 logger.error("database error", e)
-                return RETCODE.FAILED, None
+                return RETCODE.FAILED, NotImplemented
 
 
 class PeeweeViewOptions(ViewOptions):

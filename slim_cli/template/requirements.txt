@@ -1,5 +1,5 @@
 slim
-aiohttp
+aiohttp<=2.3.5
 peewee
 asyncpg
 wtforms

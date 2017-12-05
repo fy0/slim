@@ -17,7 +17,7 @@ from ..exception import ResourceException, ValueHandleException
 logger = logging.getLogger(__name__)
 
 
-class BasicView(metaclass=MetaClassForInit):
+class BaseView(metaclass=MetaClassForInit):
     """
     应在 cls_init 时完成全部接口的扫描与wrap函数创建
     并在wrapper函数中进行实例化，传入 request 对象
@@ -217,7 +217,7 @@ class ViewOptions:
 
 
 # noinspection PyMethodMayBeStatic
-class AbstractSQLView(BasicView):
+class AbstractSQLView(BaseView):
     options_cls = ViewOptions
     LIST_PAGE_SIZE = 20  # list 单次取出的默认大小
     LIST_ACCEPT_SIZE_FROM_CLIENT = False
@@ -393,6 +393,7 @@ class AbstractSQLView(BasicView):
             if not data: return self.finish(RETCODE.NOT_FOUND)
             self._call_handle_fix(self.handle_read(data))
             if self.is_finished: return
+
         self.finish(code, data)
 
     def _get_list_page_and_size(self) -> Tuple[Union[int, None], Union[int, None]]:

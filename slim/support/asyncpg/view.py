@@ -103,12 +103,12 @@ class AsyncpgSQLFunctions(AbstractSQLFunctions):
         sql = sc.select(info['select']).from_table(view.table_name).simple_where_many(nargs)\
             .order_by_many(info['orders']).sql()
         ret = await view.conn.fetchrow(sql[0], *sql[1])
-        if not ret: return RETCODE.NOT_FOUND, None
+        if not ret: return RETCODE.NOT_FOUND, NotImplemented
 
         if ret:
             return RETCODE.SUCCESS, AsyncpgAbilityRecord(view.table_name, ret)
         else:
-            return RETCODE.NOT_FOUND, None
+            return RETCODE.NOT_FOUND, NotImplemented
 
     async def select_paginated_list(self, info, size, page):
         nargs = self._get_args(info['args'])
@@ -138,7 +138,7 @@ class AsyncpgSQLFunctions(AbstractSQLFunctions):
 
         columns = view.ability.filter_columns(view.table_name, data.keys(), A.WRITE)
         if not columns:
-            return RETCODE.PERMISSION_DENIED, None
+            return RETCODE.PERMISSION_DENIED, NotImplemented
         ndata = self._get_data(dict_filter(data, columns))
 
         uc = query.UpdateCompiler()
@@ -149,7 +149,7 @@ class AsyncpgSQLFunctions(AbstractSQLFunctions):
             num = int(ret[len("UPDATE "):])
             return RETCODE.SUCCESS, {'count': num}
         else:
-            return RETCODE.FAILED, None
+            return RETCODE.FAILED, NotImplemented
 
     async def insert(self, data):
         ndata = self._get_data(data)

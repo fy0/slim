@@ -20,6 +20,8 @@ class RETCODE(StateObject):
     INVALID_HTTP_PARAMS = -219  # 非法参数
     INVALID_HTTP_POSTDATA = -218  # 非法提交内容
 
+    WS_DONE = 1  # Websocket 请求完成
+
     txt_cn = {
         SUCCESS: '成功',
         FAILED: '失败',
@@ -38,6 +40,8 @@ class RETCODE(StateObject):
 
         INVALID_HTTP_PARAMS: '非法参数',
         INVALID_HTTP_POSTDATA: '非法提交内容',
+
+        WS_DONE: 'Websocket 请求完成'
     }
 
     txt_en = {
@@ -58,4 +62,6 @@ class RETCODE(StateObject):
 
         INVALID_HTTP_PARAMS: 'invalid parameter(s)',
         INVALID_HTTP_POSTDATA: 'invalid post',
+
+        WS_DONE: 'Websocket request done'
     }
