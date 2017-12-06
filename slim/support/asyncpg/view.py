@@ -188,8 +188,8 @@ class AsyncpgView(AbstractSQLView):
             assert cls.table_name, "%s.conn must be specified." % cls.__name__
         super().cls_init(False)
 
-    def __init__(self, request):
-        super().__init__(request)
+    def __init__(self, app, request):
+        super().__init__(app, request)
         self._sql = AsyncpgSQLFunctions(self)
 
     @staticmethod

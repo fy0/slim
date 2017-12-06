@@ -2,10 +2,10 @@ import asyncio
 import json
 import logging
 import time
-from typing import Tuple, Union, Dict, Iterable, Type
+from typing import Tuple, Union, Dict, Iterable, Type, List, Set
 from aiohttp import web
 
-from .app import SlimApplicationOptions
+from .app import Application
 from .helper import create_signed_value, decode_signed_value
 from .permission import Permissions, Ability, A
 from .sqlfuncs import AbstractSQLFunctions
@@ -26,20 +26,23 @@ class BaseView(metaclass=MetaClassForInit):
     # permission: Permissions  # 3.6
 
     @classmethod
-    def use(cls, name, method_or_lst, url=None):
+    def use(cls, name, method: [str, Set, List], url=None):
         """ interface helper function"""
-        if type(method_or_lst) == list:
-            val = method_or_lst
-        else:
-            val = {'method': method_or_lst, 'url': url} if url else method_or_lst
-        cls._interface[name] = val
+        if not isinstance(method, (str, list, set, tuple)):
+            raise BaseException('Invalid type of method: %s' % type(method).__name__)
+
+        if isinstance(method, str):
+            method = {method}
+
+        # TODO: check methods available
+        cls._interface[name] = [{'method': method, 'url': url}]
 
     @classmethod
     def use_lst(cls, name):
-        cls.use(name, [
-            {'method': 'GET', 'url': '/%s/{page}' % name},
-            {'method': 'GET', 'url': '/%s/{page}/{size}' % name},
-        ])
+        cls._interface[name] = [
+            {'method': {'GET'}, 'url': '%s/{page}' % name},
+            {'method': {'GET'}, 'url': '%s/{page}/{size}' % name},
+        ]
 
     @classmethod
     def discard(cls, name):
@@ -69,8 +72,10 @@ class BaseView(metaclass=MetaClassForInit):
             cls.permission = Permissions()
         cls.permission_init()
 
-    def __init__(self, request: web.web_request.Request):
-        self.request = request
+    def __init__(self, app: Application, aiohttp_request: web.web_request.Request):
+        self.app = app
+        self._request = aiohttp_request
+
         self.ret_val = None
         self.response = None
         self.session = None
@@ -85,7 +90,7 @@ class BaseView(metaclass=MetaClassForInit):
         return self.response
 
     async def _prepare(self):
-        session_cls = self.slim_options.session_cls
+        session_cls = self.app.options.session_cls
         self.session = await session_cls.get_session(self)
 
     async def prepare(self):
@@ -121,19 +126,19 @@ class BaseView(metaclass=MetaClassForInit):
 
     def params(self) -> dict:
         if self._params_cache is None:
-            self._params_cache = dict(self.request.query)
+            self._params_cache = dict(self._request.query)
         return self._params_cache
 
     async def _post_json(self) -> dict:
         # post body: raw(text) json
         if self._post_json_cache is None:
-            self._post_json_cache = dict(await self.request.json())
+            self._post_json_cache = dict(await self._request.json())
         return self._post_json_cache
 
     async def post_data(self) -> dict:
         # post body: form data
         if self._post_data_cache is None:
-            self._post_data_cache = dict(await self.request.post())
+            self._post_data_cache = dict(await self._request.post())
             logger.debug('raw post data: %s', self._post_data_cache)
         return self._post_data_cache
 
@@ -146,13 +151,9 @@ class BaseView(metaclass=MetaClassForInit):
         self._cookie_set.append(('set', key, value, kwargs))
 
     def get_cookie(self, name, default=None):
-        if self.request.cookies is not None and name in self.request.cookies:
-            return self.request.cookies.get(name)
+        if self._request.cookies is not None and name in self._request.cookies:
+            return self._request.cookies.get(name)
         return default
-
-    @property
-    def slim_options(self) -> SlimApplicationOptions:
-        return self.request.app._slim_options
 
     def set_secure_cookie(self, name, value: bytes, *, max_age=30):
         #  一般来说是 UTC
@@ -161,11 +162,11 @@ class BaseView(metaclass=MetaClassForInit):
         # version, utctime, name, value
         # assert isinatance(value, (str, list, tuple, bytes, int))
         to_sign = [1, timestamp, name, value]
-        secret = self.slim_options.cookies_secret
+        secret = self.app.options.cookies_secret
         self.set_cookie(name, create_signed_value(secret, to_sign), max_age=max_age)
 
     def get_secure_cookie(self, name, default=None, max_age_days=31):
-        secret = self.slim_options.cookies_secret
+        secret = self.app.options.cookies_secret
         value = self.get_cookie(name)
         if value:
             data = decode_signed_value(secret, value)
@@ -241,13 +242,13 @@ class AbstractSQLView(BaseView):
             return await cls._fetch_fields(cls)
         asyncio.get_event_loop().run_until_complete(func())
 
-    def __init__(self, request):
-        super().__init__(request)
+    def __init__(self, app, request):
+        super().__init__(app, request)
         self._sql = AbstractSQLFunctions(self)
 
     async def _prepare(self):
         await super()._prepare()
-        value = self.request.headers.get('Role')
+        value = self._request.headers.get('Role')
         role = int(value) if value and value.isdigit() else value
         self.ability = self.permission.request_role(self.current_user, role)
         if not self.ability:
@@ -397,14 +398,14 @@ class AbstractSQLView(BaseView):
         self.finish(code, data)
 
     def _get_list_page_and_size(self) -> Tuple[Union[int, None], Union[int, None]]:
-        page = self.request.match_info.get('page', '1')
+        page = self._request.match_info.get('page', '1')
 
         if not page.isdigit():
             self.finish(RETCODE.INVALID_HTTP_PARAMS)
             return None, None
         page = int(page)
 
-        size = self.request.match_info.get('size', None)
+        size = self._request.match_info.get('size', None)
         if self.LIST_ACCEPT_SIZE_FROM_CLIENT:
             if size:
                 if size == '-1':  # size is infinite

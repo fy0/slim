@@ -1,30 +1,42 @@
 import logging
-from asyncio import iscoroutinefunction
-from typing import Iterable
+from asyncio import iscoroutinefunction, Future
+from typing import Iterable, Type, TYPE_CHECKING
 from aiohttp import web, web_response
+import asyncio
 from posixpath import join as urljoin
 
 from slim.base.ws import WSHandler
 from ..utils import async_run
 
+if TYPE_CHECKING:
+    from .view import BaseView
+
 logger = logging.getLogger(__name__)
 # __all__ = ('Route',)
 
 
-def view_bind(app, url, view_cls):
-    """
-    将 API 绑定到 web 服务上
-    :param view_cls:
-    :param app:
-    :param url:
-    :return:
-    """
-    url = url or view_cls.__class__.__name__.lower()
+class Beacon:
+    _is_coroutine = asyncio.coroutines._is_coroutine
 
-    def wrap(func):
-        # noinspection PyProtectedMember
-        async def wfunc(request):
-            view_instance = view_cls(request)
+    def __init__(self, data):
+        self.data = data
+
+    def __call__(self, request):
+        raise BaseException("Critical error, slim router CRASHED!")
+
+
+def get_route_middleware(app):
+    @web.middleware
+    # noinspection PyProtectedMember
+    async def route_middleware(request, handler):
+        if not isinstance(handler, Beacon):
+            return await handler(request)
+        else:
+            data = handler.data
+            view_cls = data['view']
+            func = data['handler']
+
+            view_instance = view_cls(app, request)
             handler_name = '%s.%s' % (view_cls.__name__, func.__name__)
             ascii_encodable_path = request.path.encode('ascii', 'backslashreplace').decode('ascii')
             logger.info("{} {} -> {}".format(request._method, ascii_encodable_path, handler_name))
@@ -36,53 +48,56 @@ def view_bind(app, url, view_cls):
             if view_instance.is_finished:
                 return view_instance.response
 
-            assert iscoroutinefunction(func), "Add 'async' before interface function %r" % handler_name
             resp = await func(view_instance) or view_instance.response
-
-            # 提示: 这里抛出异常应该会在中间件触发之前
-            # 不过我可以做这样一个假设：所有View对象都有标准的返回
             assert isinstance(resp, web_response.StreamResponse), \
-                "Handler {!r} should return response instance, got {!r}".format(handler_name, type(resp),)
+                "Handler {!r} should return response instance, got {!r}".format(handler_name, type(resp), )
             return resp
+    return route_middleware
 
-        return wfunc
 
-    def add_route(route_key, item, req_handler):
-        cut_uri = lambda x: x[1:] if x and x[0] == '/' else x
-        if type(item) == str:
-            app.router.add_route(item, urljoin('/api', cut_uri(url), cut_uri(route_key)), wrap(req_handler))
-        elif type(item) == dict:
-            methods = item['method']
-            if type(methods) == str:
-                methods = [methods]
-            elif type(methods) not in (list, set, tuple):
-                raise BaseException('Invalid type of route config description: %s', type(item))
+def view_bind(app, cls_url, view_cls: Type['BaseView']):
+    """
+    将 API 绑定到 web 服务上
+    :param view_cls:
+    :param app:
+    :param cls_url:
+    :return:
+    """
+    cls_url = cls_url or view_cls.__class__.__name__.lower()
 
-            for i in methods:
-                if 'url' in item:
-                    app.router.add_route(i, urljoin('/api', cut_uri(url), cut_uri(item['url'])), wrap(req_handler))
-                else:
-                    app.router.add_route(i, urljoin('/api', cut_uri(url), cut_uri(route_key)), wrap(req_handler))
-        elif type(item) in (list, set, tuple):
-            for i in item:
-                add_route(route_key, i, req_handler)
-        else:
-            raise BaseException('Invalid type of route config description: %s', type(item))
+    def add_route(name, route_info, beacon):
+        for method in route_info['method']:
+            route_key = route_info['url'] if route_info['url'] else name
+            app._raw_app.router.add_route(method, urljoin('/api', cls_url, route_key), beacon)
 
     # noinspection PyProtectedMember
-    for key, http_method in view_cls._interface.items():
-        request_handler = getattr(view_cls, key, None)
-        if request_handler: add_route(key, http_method, request_handler)
+    for name, route_info_lst in view_cls._interface.items():
+        for route_info in route_info_lst:
+            real_handler = getattr(view_cls, name, None)
+            if real_handler is None: continue # TODO: delete
+            assert real_handler is not None, "handler must be exists"
+
+            handler_name = '%s.%s' % (view_cls.__name__, real_handler.__name__)
+            assert iscoroutinefunction(real_handler), "Add 'async' before interface function %r" % handler_name
+
+            beacon = Beacon({
+                'view': view_cls,
+                'name': name,
+                'handler': real_handler,
+                'route_info': route_info
+            })
+            add_route(name, route_info, beacon)
 
 
 class Route:
-    funcs = []
-    views = []
-    statics = []
-    aiohttp_views = []
-    websockets = []
+    def __init__(self, app):
+        self.funcs = []
+        self.views = []
+        self.statics = []
+        self.aiohttp_views = []
+        self.websockets = []
 
-    def __init__(self):
+        self.app = app
         self.before_bind = []
         self.after_bind = []  # on_bind(app)
 
@@ -135,7 +150,10 @@ class Route:
         """
         self.statics.append((prefix, path, kwargs),)
 
-    def bind(self, app):
+    def bind(self):
+        app = self.app
+        raw_router = app._raw_app.router
+
         for func in self.before_bind:
             if iscoroutinefunction(func):
                 async_run(func(app))
@@ -146,17 +164,17 @@ class Route:
             view_bind(app, url, cls)
 
         for url, wsh in self.websockets:
-            app.router.add_get(url, wsh._handle)
+            raw_router.add_get(url, wsh._handle)
 
         for url, cls in self.aiohttp_views:
-            app.router.add_route('*', url, cls)
+            raw_router.add_route('*', url, cls)
 
         for url, methods, func in self.funcs:
             for method in methods:
-                app.router.add_route(method, url, func)
+                raw_router.add_route(method, url, func)
 
         for prefix, path, kwargs in self.statics:
-            app.router.add_static(prefix, path, **kwargs)
+            raw_router.add_static(prefix, path, **kwargs)
 
         for func in self.after_bind:
             if iscoroutinefunction(func):

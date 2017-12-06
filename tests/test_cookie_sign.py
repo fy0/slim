@@ -56,7 +56,7 @@ def test_app_secure_cookies():
     for k, v in cookies_view.response.cookies.items():
         cookies_jar.set_cookie(morsel_to_cookie(v))
 
-    cookies_view.request.cookies = dict_from_cookiejar(cookies_jar)
+    cookies_view._request.cookies = dict_from_cookiejar(cookies_jar)
 
     assert cookies_view.get_secure_cookie('test') == '内容测试'
     assert cookies_view.get_secure_cookie('test2') == {'value': '内容测试'}

@@ -1,55 +1,58 @@
-import aiohttp_cors
 from aiohttp import web
 from aiohttp.web_urldispatcher import StaticResource
-
+from slim.utils.jsdict import JsDict
 from .session import SimpleSession
+import aiohttp_cors
 from . import log
 
 
-class SlimApplicationOptions:
+class SlimTables(JsDict):
+    def __repr__(self):
+        return '<SlimTables ' + dict.__repr__(self) + '>'
+
+
+class SlimPermissions(JsDict):
+    def __repr__(self):
+        return '<SlimPermissions ' + dict.__repr__(self) + '>'
+
+
+class ApplicationOptions:
     def __init__(self):
         self.cookies_secret = b'use a secret'
         self.session_cls = SimpleSession
 
 
-def app_init(cookies_secret: bytes, *, aiohttp_app_instance=None, enable_log=True, route=None,
-             session_cls=SimpleSession)\
-        -> web.Application:
-    if isinstance(aiohttp_app_instance, dict):
-        # noinspection PyArgumentList
-        app = web.Application(**aiohttp_app_instance)
-    elif isinstance(aiohttp_app_instance, web.Application):
-        app = aiohttp_app_instance
-    else:
-        app = web.Application()
+class Application:
+    def __init__(self, *, cookies_secret: bytes, enable_log=True, session_cls=SimpleSession):
+        from .route import get_route_middleware, Route
 
-    options = SlimApplicationOptions()
-    options.cookies_secret = cookies_secret
-    options.session_cls = session_cls
-    app._slim_options = options
+        self.route = Route(self)
+        self.tables = SlimTables()
+        self.permissions = SlimPermissions()
 
-    if enable_log:
-        log.enable()
+        if enable_log:
+            log.enable()
 
-    if route:
-        # 推后至启动时进行
-        def on_startup(the_app):
-            route.bind(the_app)
+        self.options = ApplicationOptions()
+        self.options.cookies_secret = cookies_secret
+        self.options.session_cls = session_cls
+        self._raw_app = web.Application(middlewares=[get_route_middleware(self)])
 
-            # Configure default CORS settings.
-            cors = aiohttp_cors.setup(app, defaults={
-                "*": aiohttp_cors.ResourceOptions(
-                    allow_credentials=True,
-                    expose_headers="*",
-                    allow_headers="*",
-                )
-            })
+    def run(self, host, port):
+        self.route.bind()
 
-            # Configure CORS on all routes.
-            for r in list(app.router.routes()):
-                if type(r.resource) != StaticResource:
-                    cors.add(r)
+        # Configure default CORS settings.
+        cors = aiohttp_cors.setup(self._raw_app, defaults={
+            "*": aiohttp_cors.ResourceOptions(
+                allow_credentials=True,
+                expose_headers="*",
+                allow_headers="*",
+            )
+        })
 
-        app.on_startup.append(on_startup)
+        # Configure CORS on all routes.
+        for r in list(self._raw_app.router.routes()):
+            if type(r.resource) != StaticResource:
+                cors.add(r)
 
-    return app
+        web.run_app(host=host, port=port, app=self._raw_app)

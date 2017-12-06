@@ -10,7 +10,6 @@ class AbstractSQLFunctions:
     def __init__(self, view):
         self.err = None
         self.view = view
-        self.request = view.request
 
     async def select_paginated_list(self, info, size, page):
         """ tips: size == -1 means infinite """
