@@ -1,9 +1,9 @@
 from slim.base.view import BaseView
 from slim.retcode import RETCODE
-from view import route
+from app import app
 
 
-@route('/misc')
+@app.route('misc')
 class TestBaseView(BaseView):
     @classmethod
     def interface(cls):
