@@ -39,7 +39,13 @@ class Application:
         self._raw_app = web.Application(middlewares=[get_route_middleware(self)])
 
     def run(self, host, port):
+        from .view import AbstractSQLView
         self.route.bind()
+
+        for _, cls in self.route.views:
+            if issubclass(cls, AbstractSQLView):
+                self.tables[cls.table_name] = cls
+                self.permissions[cls.table_name] = cls.permission
 
         # Configure default CORS settings.
         cors = aiohttp_cors.setup(self._raw_app, defaults={

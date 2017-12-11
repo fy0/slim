@@ -1,8 +1,8 @@
 import logging
+import asyncio
 from asyncio import iscoroutinefunction, Future
 from typing import Iterable, Type, TYPE_CHECKING
 from aiohttp import web, web_response
-import asyncio
 from posixpath import join as urljoin
 
 from slim.base.ws import WSHandler
