@@ -254,9 +254,12 @@ class PeeweeView(AbstractSQLView):
     @staticmethod
     async def _fetch_fields(cls_or_self):
         if cls_or_self.model:
+            cls_or_self.foreign_keys = {}
+
             def wrap(name, field):
                 if isinstance(field, peewee.ForeignKeyField):
-                    return '%s_id' % name
+                    name = '%s_id' % name
+                    cls_or_self.foreign_keys[name] = field.rel_model._meta.db_table
                 return name
             cls_or_self.fields = {wrap(k, v): v for k, v in cls_or_self.model._meta.fields.items()}
             cls_or_self.table_name = cls_or_self.model._meta.db_table

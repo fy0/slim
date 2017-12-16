@@ -46,6 +46,7 @@ class Application:
             if issubclass(cls, AbstractSQLView):
                 self.tables[cls.table_name] = cls
                 self.permissions[cls.table_name] = cls.permission
+                cls.permission.app = self
 
         # Configure default CORS settings.
         cors = aiohttp_cors.setup(self._raw_app, defaults={

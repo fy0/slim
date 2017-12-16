@@ -5,7 +5,7 @@ from ...base.permission import A, AbilityRecord, Permissions
 from ...retcode import RETCODE
 from ...support.asyncpg import query
 from ...utils import to_bin, pagination_calc, dict_filter, bool_parse
-from ...exception import ResourceException
+from ...exception import SyntaxException
 from ...base.view import AbstractSQLView, AbstractSQLFunctions, ViewOptions
 
 # noinspection SqlDialectInspection,SqlNoDataSourceInspection
@@ -14,6 +14,16 @@ _field_query = '''SELECT a.attname as name, col_description(a.attrelid,a.attnum)
   FROM pg_class as c,pg_attribute as a inner join pg_type on pg_type.oid = a.atttypid 
   where c.relname = $1 and a.attrelid = c.oid and a.attnum>0;'''
 
+_fk_query = '''
+SELECT a.attname, c2.relname
+  FROM pg_class as c, pg_class as c2, pg_attribute as a,
+    pg_CONSTRAINT as con
+  WHERE c.oid = con.conrelid -- OID与表关联
+        and c.relname = $1 -- 查询当前表的OID
+        and con.confrelid = c2.oid -- 查询出关联的表名
+        and a.attrelid = c.oid -- 找到对应表的列的属性
+        and a.attnum=ANY(con.conkey); -- 外键位置与具体列对应
+'''
 
 class AsyncpgAbilityRecord(AbilityRecord):
     # noinspection PyMissingConstructor
@@ -193,22 +203,17 @@ class AsyncpgView(AbstractSQLView):
         self._sql = AsyncpgSQLFunctions(self)
 
     @staticmethod
-    async def _fetch_fields_by_table_name(conn, table_name):
-        info = await conn.fetch(_field_query, table_name)
-        if not info:
-            raise ResourceException("Table not found: %s" % table_name)
-        ret = {}
-        for i in info:
-            ret[i['name']] = i
-        return ret
-
-    @staticmethod
     async def _fetch_fields(cls_or_self):
         if cls_or_self.table_name:
             info = await cls_or_self.conn.fetch(_field_query, cls_or_self.table_name)
             if not info:
-                raise ResourceException("Table not found: %s" % cls_or_self.table_name)
+                raise SyntaxException("Table not found: %s" % cls_or_self.table_name)
             ret = {}
             for i in info:
                 ret[i['name']] = i
             cls_or_self.fields = ret
+
+            info = await cls_or_self.conn.fetch(_fk_query, cls_or_self.table_name)
+            for i in info:
+                ret[i['attname']] = i['relname']
+            cls_or_self.foreign_keys = ret

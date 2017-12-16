@@ -2,17 +2,18 @@ import asyncio
 import json
 import logging
 import time
+from abc import abstractmethod
 from typing import Tuple, Union, Dict, Iterable, Type, List, Set
 from aiohttp import web
 
 from .app import Application
 from .helper import create_signed_value, decode_signed_value
-from .permission import Permissions, Ability, A
+from .permission import Permissions, Ability, BaseUser, A
 from .sqlfuncs import AbstractSQLFunctions
 from ..retcode import RETCODE
 from ..utils import MetaClassForInit
 from ..utils.others import valid_sql_operator
-from ..exception import ResourceException, ValueHandleException
+from ..exception import SyntaxException, ValueHandleException, ResourceException
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +98,7 @@ class BaseView(metaclass=MetaClassForInit):
         pass
 
     @property
-    def current_user(self):
+    def current_user(self) -> BaseUser:
         if not self._current_user:
             self._current_user = self.get_current_user()
         return self._current_user
@@ -223,7 +224,8 @@ class AbstractSQLView(BaseView):
     LIST_PAGE_SIZE = 20  # list 单次取出的默认大小
     LIST_ACCEPT_SIZE_FROM_CLIENT = False
 
-    fields = {}
+    fields = {} # :[str, object], key is column, value can be everything
+    foreign_keys = {} # :[str, str], key is column, value is table name
     table_name = ''
 
     @classmethod
@@ -265,13 +267,13 @@ class AbstractSQLView(BaseView):
 
             if len(items) == 1: column, order = items[0], 'default'
             elif len(items) == 2: column, order = items
-            else: raise ResourceException("Invalid order format")
+            else: raise SyntaxException("Invalid order syntax")
 
             order = order.lower()
             if column not in self.fields:
                 raise ResourceException('Column not found: %s' % column)
             if order not in ('asc', 'desc', 'default'):
-                raise ResourceException('Invalid column order: %s' % order)
+                raise SyntaxException('Invalid order name: %s' % order)
 
             orders.append([column, order])
         return orders
@@ -292,8 +294,38 @@ class AbstractSQLView(BaseView):
                     if column not in self.fields:
                         raise ResourceException('Column not found: %s' % column)
                     selected_columns.append(column)
-            assert selected_columns, "No column(s) selected"
+            if not selected_columns:
+                raise ResourceException("No column(s) selected")
             return selected_columns
+
+    def _parse_read_pk(self, value: str):
+        value = json.loads(value) # [List, Dict[str, str]]
+
+        if isinstance(value, list):
+            new_value = {}
+            for i in value:
+                new_value[i] = None
+            value = new_value
+
+        if isinstance(value, dict):
+            roles = self.current_user.roles
+            for column, role in value.items():
+                # 当前用户可用此角色？
+                if role not in roles:
+                    raise ResourceException('Role not found: %s' % column)
+                # 检查列是否存在
+                if column not in self.fields:
+                    raise ResourceException('Column not found: %s' % column)
+                # 获取对应表名
+                table = self.foreign_keys.get(column, None)
+                if table is None:
+                    raise ResourceException('Not a foreign key field: %s' % column)
+                # 检查对应的表的角色是否存在
+                if role not in self.app.permissions[table]:
+                    raise ResourceException('Role not found: %s' % column)
+            return value
+        else:
+            raise SyntaxException('Invalid value for "read_pk": %s' % value)
 
     def _parse_params(self, params) -> Union[ParamsQueryInfo, None]:
         """ parse params to query information """
@@ -316,7 +348,10 @@ class AbstractSQLView(BaseView):
             elif field_name == 'select':
                 ret['select'] = self._parse_select(value)
                 continue
-            elif field_name == '_data_format':
+            elif field_name == 'read_pk':
+                ret['read_pk'] = self._parse_read_pk(value)
+                continue
+            elif field_name == 'data_format':
                 ret['format'] = value
                 continue
             op = '='
@@ -371,7 +406,7 @@ class AbstractSQLView(BaseView):
         if not available_columns: return
         return record.to_dict(available_columns)
 
-    def _call_handle_fix(self, ret):
+    def _check_handle_result(self, ret):
         """ check result of handle_query/read/insert/update """
         if ret is None:
             return
@@ -384,7 +419,7 @@ class AbstractSQLView(BaseView):
     async def get(self):
         info = self._parse_params(self.params())
         if self.is_finished: return
-        self._call_handle_fix(self.handle_query(info))
+        self._check_handle_result(self.handle_query(info))
         if self.is_finished: return
         logger.debug('query info: %s', info)
         code, data = await self._sql.select_one(info)
@@ -392,7 +427,7 @@ class AbstractSQLView(BaseView):
         if code == RETCODE.SUCCESS:
             data = self._filter_record_by_ability(data)
             if not data: return self.finish(RETCODE.NOT_FOUND)
-            self._call_handle_fix(self.handle_read(data))
+            self._check_handle_result(self.handle_read(data))
             if self.is_finished: return
 
         self.finish(code, data)
@@ -427,7 +462,7 @@ class AbstractSQLView(BaseView):
         if self.is_finished: return
         info = self._parse_params(self.params())
         if self.is_finished: return
-        self._call_handle_fix(self.handle_query(info))
+        self._check_handle_result(self.handle_query(info))
         if self.is_finished: return
 
         code, data = await self._sql.select_paginated_list(info, size, page)
@@ -441,7 +476,7 @@ class AbstractSQLView(BaseView):
 
                 if info['format'] == 'array':
                     item = get_values(item)
-                self._call_handle_fix(self.handle_read(data))
+                self._check_handle_result(self.handle_read(data))
                 if self.is_finished: return
                 lst.append(item)
             data['items'] = lst
@@ -466,12 +501,12 @@ class AbstractSQLView(BaseView):
     async def set(self):
         info = self._parse_params(self.params())
         if self.is_finished: return
-        self._call_handle_fix(self.handle_query(info))
+        self._check_handle_result(self.handle_query(info))
         if self.is_finished: return
 
         post_data = self._data_convert(await self.post_data())
         if self.is_finished: return
-        self._call_handle_fix(self.handle_update(post_data))
+        self._check_handle_result(self.handle_update(post_data))
         if self.is_finished: return
 
         logger.debug('data: %s' % post_data)
@@ -482,7 +517,7 @@ class AbstractSQLView(BaseView):
         post_data = self._data_convert(await self.post_data(), action=A.CREATE)
         logger.debug('data: %s' % post_data)
         if self.is_finished: return
-        self._call_handle_fix(self.handle_insert(post_data))
+        self._check_handle_result(self.handle_insert(post_data))
         if self.is_finished: return
 
         code, data = await self._sql.insert(post_data)
@@ -490,12 +525,14 @@ class AbstractSQLView(BaseView):
             data = self._filter_record_by_ability(data)
             if not data: return self.finish(RETCODE.NOT_FOUND)
 
-            self._call_handle_fix(self.handle_read(data))
+            self._check_handle_result(self.handle_read(data))
             if self.is_finished: return
         self.finish(code, data)
 
     @staticmethod
+    @abstractmethod
     async def _fetch_fields(cls_or_self):
+        """ override it """
         # raise NotImplementedError()
         pass
 

@@ -288,7 +288,12 @@ class Ability:
 
 class Permissions:
     def __init__(self):
+        self.app = None
         self.role_to_ability = {}
+
+    @property
+    def roles(self):
+        return self.role_to_ability
 
     def add(self, ability: Ability):
         self.role_to_ability[ability.role] = ability

@@ -1,3 +1,8 @@
+
+class SyntaxException(Exception):
+    pass
+
+
 class ResourceException(Exception):
     pass
 
