@@ -238,7 +238,11 @@ class AbstractSQLView(BaseView):
     def cls_init(cls, check_options=True):
         if check_options:
             cls._check_view_options()
-        super().cls_init()
+
+        # because of BaseView.cls_init is a bound method (@classmethod)
+        # so we can only route BaseView._interface, not cls._interface defined by user
+        BaseView.cls_init.__func__(cls)
+        # super().cls_init()  # fixed in 3.6
 
         async def func():
             return await cls._fetch_fields(cls)

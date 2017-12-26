@@ -5,6 +5,7 @@ from typing import Iterable, Type, TYPE_CHECKING
 from aiohttp import web, web_response
 from posixpath import join as urljoin
 
+
 from slim.base.ws import WSHandler
 from ..utils import async_run
 
@@ -15,24 +16,14 @@ logger = logging.getLogger(__name__)
 # __all__ = ('Route',)
 
 
-class Beacon:
-    _is_coroutine = asyncio.coroutines._is_coroutine
-
-    def __init__(self, data):
-        self.data = data
-
-    def __call__(self, request):
-        raise BaseException("Critical error, slim router CRASHED!")
-
-
 def get_route_middleware(app):
     @web.middleware
     # noinspection PyProtectedMember
     async def route_middleware(request, handler):
-        if not isinstance(handler, Beacon):
+        if not app.route._is_beacon(handler):
             return await handler(request)
         else:
-            data = handler.data
+            data = app.route._beacons[handler]
             view_cls = data['view']
             func = data['handler']
 
@@ -65,10 +56,12 @@ def view_bind(app, cls_url, view_cls: Type['BaseView']):
     """
     cls_url = cls_url or view_cls.__class__.__name__.lower()
 
-    def add_route(name, route_info, beacon):
+    def add_route(name, route_info, beacon_info):
         for method in route_info['method']:
+            async def beacon(request): pass
             route_key = route_info['url'] if route_info['url'] else name
             app._raw_app.router.add_route(method, urljoin('/api', cls_url, route_key), beacon)
+            app.route._beacons[beacon] = beacon_info
 
     # noinspection PyProtectedMember
     for name, route_info_lst in view_cls._interface.items():
@@ -80,13 +73,13 @@ def view_bind(app, cls_url, view_cls: Type['BaseView']):
             handler_name = '%s.%s' % (view_cls.__name__, real_handler.__name__)
             assert iscoroutinefunction(real_handler), "Add 'async' before interface function %r" % handler_name
 
-            beacon = Beacon({
+            beacon_info = {
                 'view': view_cls,
                 'name': name,
                 'handler': real_handler,
                 'route_info': route_info
-            })
-            add_route(name, route_info, beacon)
+            }
+            add_route(name, route_info, beacon_info)
 
 
 class Route:
@@ -100,6 +93,10 @@ class Route:
         self.app = app
         self.before_bind = []
         self.after_bind = []  # on_bind(app)
+        self._beacons = {}
+
+    def _is_beacon(self, func):
+        return func in self._beacons
 
     def __call__(self, url, method: [Iterable, str] = 'GET'):
         def _(obj):
