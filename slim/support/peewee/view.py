@@ -142,7 +142,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
         return ret
 
     def _make_select(self, info):
-        nargs = self._get_args(info['args'])
+        nargs = self._get_args(info['conditions'])
         if self.err: return
         orders = self._get_orders(info['orders'])
         if self.err: return

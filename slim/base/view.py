@@ -1,19 +1,18 @@
 import asyncio
-import json
 import logging
 import time
 from abc import abstractmethod
 from typing import Tuple, Union, Dict, Iterable, Type, List, Set
 from aiohttp import web
 
+from slim.base.query import ParamsQueryInfo
 from .app import Application
 from .helper import create_signed_value, decode_signed_value
 from .permission import Permissions, Ability, BaseUser, A
 from .sqlfuncs import AbstractSQLFunctions
 from ..retcode import RETCODE
 from ..utils import MetaClassForInit
-from ..utils.others import valid_sql_operator
-from ..exception import SyntaxException, ValueHandleException, ResourceException
+from ..exception import ValueHandleException
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +102,13 @@ class BaseView(metaclass=MetaClassForInit):
             self._current_user = self.get_current_user()
         return self._current_user
 
+    @property
+    def current_user_roles(self):
+        u = self.current_user
+        if u is None:
+            return {None}
+        return u.roles
+
     def get_current_user(self):
         """Override to determine the current user from, e.g., a cookie.
         """
@@ -177,34 +183,6 @@ class BaseView(metaclass=MetaClassForInit):
         return default
 
 
-class QueryArguments(list):
-    """ 与 list 实际没有太大不同，独立为类型的目的是使其能与list区分开来 """
-    def __contains__(self, item):
-        for i in self:
-            if i[0] == item:
-                return True
-
-    def map(self, key, func):
-        for i in self:
-            if i[0] == key:
-                i[:] = func(i)
-
-
-class ParamsQueryInfo(dict):
-    """ 目的同 QueryArguments，即与其他 dict 能够区分 """
-    @property
-    def args(self) -> QueryArguments:
-        return self['args']
-
-    @property
-    def orders(self):
-        return self['orders']
-
-    @property
-    def select(self):
-        return self['select']
-
-
 class ViewOptions:
     def __init__(self, *, list_page_size=20, list_accept_size_from_client=False, permission: Permissions=None):
         self.list_page_size = list_page_size
@@ -252,158 +230,42 @@ class AbstractSQLView(BaseView):
         super().__init__(app, request)
         self._sql = AbstractSQLFunctions(self)
 
+    def load_role(self, role_val):
+        role = int(role_val) if role_val and role_val.isdigit() else role_val
+        self.ability = self.permission.request_role(self.current_user, role)
+        return self.ability
+
     async def _prepare(self):
         await super()._prepare()
         value = self._request.headers.get('Role')
-        role = int(value) if value and value.isdigit() else value
-        self.ability = self.permission.request_role(self.current_user, role)
-        if not self.ability:
+        if not self.load_role(value):
             self.finish(RETCODE.INVALID_ROLE)
 
-    def _parse_order(self, text):
+    async def load_fk(self, info, items):
         """
-        :param text: order=id.desc, xxx.asc
-        :return: 
+        :param info:
+        :param items: the data got from database and filtered from permission
+        :return:
         """
-        orders = []
-        for i in text.split(','):
-            items = i.split('.', 2)
+        if not items: return
+        # first: get tables' instances
+        table_map = {}
+        for column in info['read_pk'].keys():
+            tbl_name = self.foreign_keys[column]
+            table_map[column] = self.app.tables[tbl_name]
 
-            if len(items) == 1: column, order = items[0], 'default'
-            elif len(items) == 2: column, order = items
-            else: raise SyntaxException("Invalid order syntax")
+        # second: get query parameters
+        for column, role in info['read_pk'].items():
+            pks = []
+            for i in items:
+                pks.append(i.get(column, NotImplemented))
 
-            order = order.lower()
-            if column not in self.fields:
-                raise ResourceException('Column not found: %s' % column)
-            if order not in ('asc', 'desc', 'default'):
-                raise SyntaxException('Invalid order name: %s' % order)
-
-            orders.append([column, order])
-        return orders
-
-    def _parse_select(self, text: str):
-        """
-        get columns from select text
-        :param text: col1, col2
-        :return: None or [col1, col2]
-        """
-        info = set(text.split(','))
-        if '*' in info:
-            return None
-        else:
-            selected_columns = []
-            for column in info:
-                if column:
-                    if column not in self.fields:
-                        raise ResourceException('Column not found: %s' % column)
-                    selected_columns.append(column)
-            if not selected_columns:
-                raise ResourceException("No column(s) selected")
-            return selected_columns
-
-    def _parse_read_pk(self, value: str):
-        value = json.loads(value) # [List, Dict[str, str]]
-
-        if isinstance(value, list):
-            new_value = {}
-            for i in value:
-                new_value[i] = None
-            value = new_value
-
-        if isinstance(value, dict):
-            roles = self.current_user.roles
-            for column, role in value.items():
-                # 当前用户可用此角色？
-                if role not in roles:
-                    raise ResourceException('Role not found: %s' % column)
-                # 检查列是否存在
-                if column not in self.fields:
-                    raise ResourceException('Column not found: %s' % column)
-                # 获取对应表名
-                table = self.foreign_keys.get(column, None)
-                if table is None:
-                    raise ResourceException('Not a foreign key field: %s' % column)
-                # 检查对应的表的角色是否存在
-                if role not in self.app.permissions[table]:
-                    raise ResourceException('Role not found: %s' % column)
-            return value
-        else:
-            raise SyntaxException('Invalid value for "read_pk": %s' % value)
-
-    def _parse_params(self, params) -> Union[ParamsQueryInfo, None]:
-        """ parse params to query information """
-        args = QueryArguments()
-        ret = ParamsQueryInfo(
-            select=None,
-            args=args,
-            orders=[],
-            format='dict'
-        )
-
-        for key, value in params.items():
-            # xxx.{op}
-            info = key.split('.', 1)
-
-            field_name = info[0]
-            if field_name == 'order':
-                ret['orders'] = self._parse_order(value)
-                continue
-            elif field_name == 'select':
-                ret['select'] = self._parse_select(value)
-                continue
-            elif field_name == 'read_pk':
-                ret['read_pk'] = self._parse_read_pk(value)
-                continue
-            elif field_name == 'data_format':
-                ret['format'] = value
-                continue
-            op = '='
-
-            if field_name not in self.fields:
-                self.finish(RETCODE.INVALID_HTTP_PARAMS, 'Column not found: %s' % field_name)
-                return
-
-            if len(info) > 1:
-                op = info[1]
-                if op not in valid_sql_operator:
-                    self.finish(RETCODE.INVALID_HTTP_PARAMS, 'Invalid operator: %s' % op)
-                    return
-                op = valid_sql_operator[op]
-
-            # is 和 is not 可以确保完成了初步值转换
-            if op in ('is', 'isnot'):
-                if value.lower() != 'null':
-                    self.finish(RETCODE.INVALID_HTTP_PARAMS, 'Invalid value: %s (must be null)' % value)
-                    return
-                if op == 'isnot':
-                    op = 'is not'
-                value = None
-
-            if op == 'in':
-                try:
-                    value = json.loads(value)
-                except json.decoder.JSONDecodeError:
-                    self.finish(RETCODE.INVALID_HTTP_PARAMS, 'Invalid value: %s (must be json)' % value)
-                    return
-
-            args.append([field_name, op, value])
-
-        # 查询权限检查
-        from_columns = []
-        for field_name, op, value in args:
-            from_columns.append((self.table_name, field_name))
-        if from_columns and all(self.ability.cannot(self.current_user, A.QUERY, *from_columns)):
-            logger.debug('params: %s' % ret)
-            return self.finish(RETCODE.PERMISSION_DENIED)
-
-        # 读取权限检查，限定被查询的列
-        if ret['select'] is None:
-            ret['select'] = self.fields.keys()
-        ret['select'] = self.ability.filter_columns(self.table_name, ret['select'], A.READ)
-
-        logger.debug('params: %s' % ret)
-        return ret
+            # third: query foreign keys
+            info2 = ParamsQueryInfo(table_map[column])
+            info2.add_condition(info.PRIMARY_KEY, 'in', pks)
+            code, data = table_map[column]._sql.select_paginated_list(info2, -1, 1)
+            pk_values = table_map[column]._convert_list_result(info2, data)
+        return items
 
     def _filter_record_by_ability(self, record) -> Union[Dict, None]:
         available_columns = self.ability.filter_record(self.current_user, A.READ, record)
@@ -421,11 +283,9 @@ class AbstractSQLView(BaseView):
         raise ValueHandleException('Invalid result type of handle function.')
 
     async def get(self):
-        info = self._parse_params(self.params())
-        if self.is_finished: return
+        info = ParamsQueryInfo.new(self, self.params(), self.ability)
         self._check_handle_result(self.handle_query(info))
         if self.is_finished: return
-        logger.debug('query info: %s', info)
         code, data = await self._sql.select_one(info)
 
         if code == RETCODE.SUCCESS:
@@ -461,28 +321,32 @@ class AbstractSQLView(BaseView):
 
         return page, size
 
+    async def _convert_list_result(self, info, data):
+        lst = []
+        get_values = lambda x: list(x.values())
+        for i in data['items']:
+            item = self._filter_record_by_ability(i)
+            if not data: return self.finish(RETCODE.NOT_FOUND)
+
+            if info['format'] == 'array':
+                item = get_values(item)
+            self._check_handle_result(self.handle_read(data))
+            if self.is_finished: return
+            lst.append(item)
+        return lst
+
     async def list(self):
         page, size = self._get_list_page_and_size()
         if self.is_finished: return
-        info = self._parse_params(self.params())
-        if self.is_finished: return
+        info = ParamsQueryInfo.new(self, self.params(), self.ability)
         self._check_handle_result(self.handle_query(info))
         if self.is_finished: return
 
         code, data = await self._sql.select_paginated_list(info, size, page)
 
         if code == RETCODE.SUCCESS:
-            lst = []
-            get_values = lambda x: list(x.values())
-            for i in data['items']:
-                item = self._filter_record_by_ability(i)
-                if not data: return self.finish(RETCODE.NOT_FOUND)
-
-                if info['format'] == 'array':
-                    item = get_values(item)
-                self._check_handle_result(self.handle_read(data))
-                if self.is_finished: return
-                lst.append(item)
+            lst = await self._convert_list_result(info, data)
+            #data['items'] = await self.load_fk(info, lst)
             data['items'] = lst
             self.finish(RETCODE.SUCCESS, data)
         else:
@@ -503,8 +367,7 @@ class AbstractSQLView(BaseView):
         return data
 
     async def set(self):
-        info = self._parse_params(self.params())
-        if self.is_finished: return
+        info = ParamsQueryInfo.new(self, self.params(), self.ability)
         self._check_handle_result(self.handle_query(info))
         if self.is_finished: return
 
@@ -537,7 +400,6 @@ class AbstractSQLView(BaseView):
     @abstractmethod
     async def _fetch_fields(cls_or_self):
         """ override it """
-        # raise NotImplementedError()
         pass
 
     def handle_query(self, info: ParamsQueryInfo) -> Union[None, tuple]:

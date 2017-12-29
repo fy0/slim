@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 class BaseUser:
     def __init__(self):
-        self.roles = [None]
+        self.roles = {None}
 
 
 class A:

@@ -1,5 +1,6 @@
 # coding:utf-8
 
+
 class JsDict(dict):
     def __getitem__(self, item):
         return self.get(item)
