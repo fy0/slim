@@ -8,14 +8,15 @@ logger = logging.getLogger(__name__)
 
 
 class AbstractSQLFunctions:
-    def __init__(self, view):
+    def __init__(self, view_cls):
         self.err = None
-        self.view = view
+        self.vcls = view_cls
 
     @abstractmethod
     async def select_paginated_list(self, info, size, page):
         """ tips: size == -1 means infinite """
         raise NotImplementedError()
+        # code, data with items
 
     @abstractmethod
     async def select_one(self, select_info) -> Tuple[object, AbilityRecord]:
@@ -32,6 +33,15 @@ class AbstractSQLFunctions:
         raise NotImplementedError()
         # code, record
 
-    # noinspection PyMethodMayBeStatic
-    def done(self, code, data=None):
-        return code, data
+    @staticmethod
+    def convert_list_result(format, data):
+        lst = []
+        get_values = lambda x: list(x.values())
+        for record in data['items']:
+            item = record.to_dict()
+
+            if format == 'array':
+                item = get_values(item)
+
+            lst.append(item)
+        return lst

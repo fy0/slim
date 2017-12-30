@@ -94,7 +94,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
     def _get_args(self, args):
         pw_args = []
         for field_name, op, value in args:
-            field = self.view.fields[field_name]
+            field = self.vcls.fields[field_name]
             if isinstance(field, peewee.ForeignKeyField):
                 tfield = field.to_field
             else:
@@ -103,7 +103,10 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
             conv_func = None
             # 说明：我记得 peewee 会自动完成 int/float 的转换，所以不用自己转
             if isinstance(tfield, peewee.BlobField):
-                conv_func = to_bin
+                def conv_func(val):
+                    if isinstance(val, memoryview):
+                        return val
+                    return to_bin(val)
             elif isinstance(tfield, peewee.BooleanField):
                 conv_func = bool_parse
 
@@ -125,7 +128,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
     def _get_orders(self, orders):
         # 注：此时早已经过检查可确认orders中的列存在
         ret = []
-        fields = self.view.fields
+        fields = self.vcls.fields
 
         for i in orders:
             if len(i) == 2:
@@ -147,7 +150,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
         orders = self._get_orders(info['orders'])
         if self.err: return
 
-        q = self.view.model.select(*[self.view.fields[x] for x in info['select']])
+        q = self.vcls.model.select(*[self.vcls.fields[x] for x in info['select']])
         # peewee 不允许 where 时 args 为空
         if nargs: q = q.where(*nargs)
         if orders: q = q.order_by(*orders)
@@ -157,8 +160,8 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
         try:
             q = self._make_select(info)
             if self.err: return self.err
-            return RETCODE.SUCCESS, PeeweeAbilityRecord(None, q.get(), view=self.view, selected=info['select'])
-        except self.view.model.DoesNotExist:
+            return RETCODE.SUCCESS, PeeweeAbilityRecord(None, q.get(), view=self.vcls, selected=info['select'])
+        except self.vcls.model.DoesNotExist:
             return RETCODE.NOT_FOUND, NotImplemented
 
     async def select_paginated_list(self, info, size, page):
@@ -167,7 +170,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
         pg = pagination_calc(count, size, page)
         if size == -1: size = count  # get all
 
-        func = lambda item: PeeweeAbilityRecord(None, item, view=self.view, selected=info['select'])
+        func = lambda item: PeeweeAbilityRecord(None, item, view=self.vcls, selected=info['select'])
         pg["items"] = list(map(func, q.paginate(page, size)))
         return RETCODE.SUCCESS, pg
 
@@ -176,12 +179,12 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
             q = self._make_select(info)
             if self.err: return self.err
             item = q.get()
-            db = self.view.model._meta.database
+            db = self.vcls.model._meta.database
             with db.atomic():
                 ok = False
                 try:
                     for k, v in data.items():
-                        if k in self.view.fields:
+                        if k in self.vcls.fields:
                             setattr(item, k, v)
                     item.save()
                     ok = True
@@ -191,18 +194,18 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
             if ok:
                 return RETCODE.SUCCESS, {'count': 1}
 
-        except self.view.model.DoesNotExist:
+        except self.vcls.model.DoesNotExist:
             return RETCODE.NOT_FOUND, NotImplemented
 
     async def insert(self, data):
         if not len(data):
             return RETCODE.INVALID_HTTP_PARAMS, NotImplemented
-        db = self.view.model._meta.database
+        db = self.vcls.model._meta.database
 
         kwargs = {}
         for k, v in data.items():
-            if k in self.view.fields:
-                field = self.view.fields[k]
+            if k in self.vcls.fields:
+                field = self.vcls.fields[k]
                 if isinstance(field, BinaryJSONField):
                     kwargs[k] = json.loads(v)
                 else:
@@ -210,8 +213,8 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
 
         with db.atomic():
             try:
-                item = self.view.model.create(**kwargs)
-                return RETCODE.SUCCESS, PeeweeAbilityRecord(None, item, view=self.view)
+                item = self.vcls.model.create(**kwargs)
+                return RETCODE.SUCCESS, PeeweeAbilityRecord(None, item, view=self.vcls)
             except peewee.DatabaseError as e:
                 db.rollback()
                 logger.error("database error", e)
@@ -232,10 +235,13 @@ class PeeweeViewOptions(ViewOptions):
 
 
 class PeeweeView(AbstractSQLView):
+    _sql_cls = PeeweeSQLFunctions
     options_cls = PeeweeViewOptions
     model = None
     # fields
     # table_name
+    # primary_key
+    # foreign_keys
 
     @classmethod
     def cls_init(cls, check_options=True):
@@ -246,14 +252,12 @@ class PeeweeView(AbstractSQLView):
             assert cls.model, "%s.model must be specified." % cls.__name__
         super().cls_init(False)
 
-    def __init__(self, app, request):
-        super().__init__(app, request)
-        self._sql = PeeweeSQLFunctions(self)
-
     # noinspection PyProtectedMember
     @staticmethod
     async def _fetch_fields(cls_or_self):
         if cls_or_self.model:
+            model = cls_or_self.model
+            cls_or_self.primary_key = model._meta.primary_key.db_column
             cls_or_self.foreign_keys = {}
 
             def wrap(name, field):
@@ -261,5 +265,6 @@ class PeeweeView(AbstractSQLView):
                     name = '%s_id' % name
                     cls_or_self.foreign_keys[name] = field.rel_model._meta.db_table
                 return name
-            cls_or_self.fields = {wrap(k, v): v for k, v in cls_or_self.model._meta.fields.items()}
-            cls_or_self.table_name = cls_or_self.model._meta.db_table
+
+            cls_or_self.fields = {wrap(k, v): v for k, v in model._meta.fields.items()}
+            cls_or_self.table_name = model._meta.db_table

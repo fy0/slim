@@ -52,7 +52,7 @@ class AsyncpgSQLFunctions(AbstractSQLFunctions):
         # 这里注意，args可能多次使用，不要修改其中内容
         for i in args:
             i = i[:]
-            field = self.view.fields[i[0]]
+            field = self.vcls.fields[i[0]]
             type_codec = field['typename']
 
             # https://www.postgresql.org/docs/9.6/static/datatype.html
@@ -88,7 +88,7 @@ class AsyncpgSQLFunctions(AbstractSQLFunctions):
     def _get_data(self, data):
         ndata = {}
         for k, v in data.items():
-            field = self.view.fields[k]
+            field = self.vcls.fields[k]
             type_codec = field['typename']
 
             if type_codec in ['int2', 'int4', 'int8']:
@@ -105,8 +105,8 @@ class AsyncpgSQLFunctions(AbstractSQLFunctions):
         return ndata
 
     async def select_one(self, info):
-        view = self.view
-        nargs = self._get_args(info['args'])
+        view = self.vcls
+        nargs = self._get_args(info['conditions'])
         if self.err: return self.err
 
         sc = query.SelectCompiler()
@@ -121,29 +121,29 @@ class AsyncpgSQLFunctions(AbstractSQLFunctions):
             return RETCODE.NOT_FOUND, NotImplemented
 
     async def select_paginated_list(self, info, size, page):
-        nargs = self._get_args(info['args'])
+        nargs = self._get_args(info['conditions'])
         if self.err: return self.err
 
         sc = query.SelectCompiler()
-        sql = sc.select_count().from_table(self.view.table_name).simple_where_many(nargs)\
+        sql = sc.select_count().from_table(self.vcls.table_name).simple_where_many(nargs)\
             .order_by_many(info['orders']).sql()
-        count = (await self.view.conn.fetchrow(sql[0], *sql[1]))['count']
+        count = (await self.vcls.conn.fetchrow(sql[0], *sql[1]))['count']
 
         pg = pagination_calc(count, size, page)
         if size == -1: size = count  # get all
         offset = size * (page - 1)
 
         sc.reset()
-        sql = sc.select(info['select']).from_table(self.view.table_name).simple_where_many(nargs) \
+        sql = sc.select(info['select']).from_table(self.vcls.table_name).simple_where_many(nargs) \
             .order_by_many(info['orders']).limit(size).offset(offset).sql()
-        ret = await self.view.conn.fetch(sql[0], *sql[1])
-        func = lambda item: AsyncpgAbilityRecord(self.view.table_name, item)
+        ret = await self.vcls.conn.fetch(sql[0], *sql[1])
+        func = lambda item: AsyncpgAbilityRecord(self.vcls.table_name, item)
         pg["items"] = list(map(func, ret))
         return RETCODE.SUCCESS, pg
 
     async def update(self, info, data):
-        view = self.view
-        nargs = self._get_args(info['args'])
+        view = self.vcls
+        nargs = self._get_args(info['conditions'])
         if self.err: return self.err
 
         columns = view.ability.filter_columns(view.table_name, data.keys(), A.WRITE)
@@ -164,9 +164,9 @@ class AsyncpgSQLFunctions(AbstractSQLFunctions):
     async def insert(self, data):
         ndata = self._get_data(data)
         ic = query.InsertCompiler()
-        sql = ic.into_table(self.view.table_name).set_values(ndata).returning().sql()
-        ret = await self.view.conn.fetchrow(sql[0], *sql[1])
-        return RETCODE.SUCCESS, AsyncpgAbilityRecord(self.view.table_name, ret)
+        sql = ic.into_table(self.vcls.table_name).set_values(ndata).returning().sql()
+        ret = await self.vcls.conn.fetchrow(sql[0], *sql[1])
+        return RETCODE.SUCCESS, AsyncpgAbilityRecord(self.vcls.table_name, ret)
 
 
 class AsyncpgViewOptions(ViewOptions):
@@ -197,10 +197,6 @@ class AsyncpgView(AbstractSQLView):
             assert cls.conn, "%s.conn must be specified." % cls.__name__
             assert cls.table_name, "%s.conn must be specified." % cls.__name__
         super().cls_init(False)
-
-    def __init__(self, app, request):
-        super().__init__(app, request)
-        self._sql = AsyncpgSQLFunctions(self)
 
     @staticmethod
     async def _fetch_fields(cls_or_self):

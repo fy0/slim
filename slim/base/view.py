@@ -198,6 +198,7 @@ class ViewOptions:
 
 # noinspection PyMethodMayBeStatic
 class AbstractSQLView(BaseView):
+    _sql_cls = AbstractSQLFunctions
     options_cls = ViewOptions
     LIST_PAGE_SIZE = 20  # list 单次取出的默认大小
     LIST_ACCEPT_SIZE_FROM_CLIENT = False
@@ -223,12 +224,10 @@ class AbstractSQLView(BaseView):
         # super().cls_init()  # fixed in 3.6
 
         async def func():
-            return await cls._fetch_fields(cls)
-        asyncio.get_event_loop().run_until_complete(func())
+            await cls._fetch_fields(cls)
+            cls._sql = cls._sql_cls(cls)
 
-    def __init__(self, app, request):
-        super().__init__(app, request)
-        self._sql = AbstractSQLFunctions(self)
+        asyncio.get_event_loop().run_until_complete(func())
 
     def load_role(self, role_val):
         role = int(role_val) if role_val and role_val.isdigit() else role_val
@@ -261,10 +260,26 @@ class AbstractSQLView(BaseView):
                 pks.append(i.get(column, NotImplemented))
 
             # third: query foreign keys
-            info2 = ParamsQueryInfo(table_map[column])
+            vcls = table_map[column]
+            ability = vcls.permission.request_role(self.current_user, role)
+            info2 = ParamsQueryInfo(vcls)
+
             info2.add_condition(info.PRIMARY_KEY, 'in', pks)
-            code, data = table_map[column]._sql.select_paginated_list(info2, -1, 1)
-            pk_values = table_map[column]._convert_list_result(info2, data)
+            info2.set_select(None)
+            info2.check_permission(ability)
+
+            code, data = await vcls._sql.select_paginated_list(info2, -1, 1)
+            pk_values = vcls._sql.convert_list_result(info2['format'], data)
+
+            pk_dict = {}
+            for i in pk_values:
+                pk_dict[i[vcls.primary_key]] = i
+
+            for _, item in enumerate(items):
+                k = item.get(column, NotImplemented)
+                if k in pk_dict:
+                    item[column] = pk_dict[k]
+
         return items
 
     def _filter_record_by_ability(self, record) -> Union[Dict, None]:
@@ -330,6 +345,7 @@ class AbstractSQLView(BaseView):
 
             if info['format'] == 'array':
                 item = get_values(item)
+
             self._check_handle_result(self.handle_read(data))
             if self.is_finished: return
             lst.append(item)
@@ -346,8 +362,8 @@ class AbstractSQLView(BaseView):
 
         if code == RETCODE.SUCCESS:
             lst = await self._convert_list_result(info, data)
-            #data['items'] = await self.load_fk(info, lst)
-            data['items'] = lst
+            data['items'] = await self.load_fk(info, lst)
+            #data['items'] = lst
             self.finish(RETCODE.SUCCESS, data)
         else:
             self.finish(code, data)
@@ -399,7 +415,16 @@ class AbstractSQLView(BaseView):
     @staticmethod
     @abstractmethod
     async def _fetch_fields(cls_or_self):
-        """ override it """
+        """
+        4 values must be set up in this function:
+        1. cls_or_self.table_name: str
+        2. cls_or_self.fields: Dict['column', Any]
+        3. cls_or_self.primary_key: str
+        4. cls_or_self.foreign_keys: Dict['column', 'foreign table name']
+
+        :param cls_or_self:
+        :return:
+        """
         pass
 
     def handle_query(self, info: ParamsQueryInfo) -> Union[None, tuple]:

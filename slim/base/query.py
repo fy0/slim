@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Union
+from typing import Union, Iterable
 
 from .permission import A
 from ..utils.others import valid_sql_operator
@@ -40,8 +40,13 @@ class ParamsQueryInfo(dict):
         return self['select']
 
     def __init__(self, view=None, **kwargs):
-        super().__init__(**kwargs)
         self.view = view
+        self['select'] = None
+        self['conditions'] = []
+        self['orders'] = []
+        self['format'] = 'dict'
+        self['read_pk'] = {}
+        super().__init__(**kwargs)
 
     def set_view(self, view):
         """
@@ -135,7 +140,10 @@ class ParamsQueryInfo(dict):
             raise SyntaxException('Invalid value for "read_pk": %s' % value)
 
     def set_select(self, field_names):
-        self['select'] = field_names
+        if field_names is None:
+            self['select'] = self.view.fields.keys()
+        else:
+            self['select'] = field_names
 
     def add_condition(self, field_name, op, value):
         """
@@ -147,11 +155,15 @@ class ParamsQueryInfo(dict):
         :param value:
         :return: None
         """
+        if field_name == self.PRIMARY_KEY:
+            field_name = self.view.primary_key
+
         if field_name not in self.view.fields:
             raise ParamsException('Column not found: %s' % field_name)
 
         if op not in valid_sql_operator:
             raise ParamsException('Invalid operator: %s' % op)
+
         op = valid_sql_operator[op]
 
         # is 和 is not 可以确保完成了初步值转换
@@ -163,10 +175,12 @@ class ParamsQueryInfo(dict):
             value = None
 
         if op == 'in':
-            try:
-                value = json.loads(value)
-            except json.decoder.JSONDecodeError:
-                raise ParamsException('Invalid value: %s (must be json)' % value)
+            if type(value) == str:
+                try:
+                    value = json.loads(value)
+                except json.decoder.JSONDecodeError:
+                    raise ParamsException('Invalid value: %s (must be json)' % value)
+            assert isinstance(value, Iterable)
 
         self.conditions.append([field_name, op, value])
 
@@ -220,5 +234,5 @@ class ParamsQueryInfo(dict):
 
         # 读取权限检查，限定被查询的列
         if self['select'] is None:
-            self['select'] = view.fields.keys()
+            self['select'] = self.view.fields.keys()
         self['select'] = ability.filter_columns(view.table_name, self['select'], A.READ)
