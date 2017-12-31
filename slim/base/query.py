@@ -45,7 +45,7 @@ class ParamsQueryInfo(dict):
         self['conditions'] = []
         self['orders'] = []
         self['format'] = 'dict'
-        self['read_pk'] = {}
+        self['load_fk'] = {}
         super().__init__(**kwargs)
 
     def set_view(self, view):
@@ -100,7 +100,7 @@ class ParamsQueryInfo(dict):
                 raise ResourceException("No column(s) selected")
             return selected_columns
 
-    def _parse_read_pk(self, value: str):
+    def _parse_load_fk(self, value: str):
         """
         :param value:
         :return: {
@@ -111,7 +111,7 @@ class ParamsQueryInfo(dict):
         try:
             value = json.loads(value) # [List, Dict[str, str]]
         except json.JSONDecodeError:
-            raise SyntaxException("Invalid json syntax for read_pk")
+            raise SyntaxException("Invalid json syntax for load_fk")
 
         if isinstance(value, list):
             new_value = {}
@@ -137,7 +137,7 @@ class ParamsQueryInfo(dict):
                     raise ResourceException('Role not found: %s' % column)
             return value
         else:
-            raise SyntaxException('Invalid value for "read_pk": %s' % value)
+            raise SyntaxException('Invalid value for "load_fk": %s' % value)
 
     def set_select(self, field_names):
         if field_names is None:
@@ -207,8 +207,8 @@ class ParamsQueryInfo(dict):
             elif field_name == 'select':
                 query['select'] = query._parse_select(value)
                 continue
-            elif field_name == 'read_pk':
-                query['read_pk'] = query._parse_read_pk(value)
+            elif field_name == 'load_fk':
+                query['load_fk'] = query._parse_load_fk(value)
                 continue
             elif field_name == 'data_format':
                 query['format'] = value

@@ -249,12 +249,12 @@ class AbstractSQLView(BaseView):
         if not items: return
         # first: get tables' instances
         table_map = {}
-        for column in info['read_pk'].keys():
+        for column in info['load_fk'].keys():
             tbl_name = self.foreign_keys[column]
             table_map[column] = self.app.tables[tbl_name]
 
         # second: get query parameters
-        for column, role in info['read_pk'].items():
+        for column, role in info['load_fk'].items():
             pks = []
             for i in items:
                 pks.append(i.get(column, NotImplemented))
@@ -270,6 +270,8 @@ class AbstractSQLView(BaseView):
 
             code, data = await vcls._sql.select_paginated_list(info2, -1, 1)
             pk_values = vcls._sql.convert_list_result(info2['format'], data)
+
+            # TODO: 别忘了！这里还少一个对结果的权限检查！
 
             pk_dict = {}
             for i in pk_values:
@@ -363,7 +365,6 @@ class AbstractSQLView(BaseView):
         if code == RETCODE.SUCCESS:
             lst = await self._convert_list_result(info, data)
             data['items'] = await self.load_fk(info, lst)
-            #data['items'] = lst
             self.finish(RETCODE.SUCCESS, data)
         else:
             self.finish(code, data)
