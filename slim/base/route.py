@@ -95,6 +95,13 @@ class Route:
         self.after_bind = []  # on_bind(app)
         self._beacons = {}
 
+    @staticmethod
+    def interface(method, url=None):
+        def wrapper(func):
+            func._interface = (method, url)
+            return func
+        return wrapper
+
     def _is_beacon(self, func):
         return func in self._beacons
 

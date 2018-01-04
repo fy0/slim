@@ -166,6 +166,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
 
     async def select_paginated_list(self, info, size, page):
         q = self._make_select(info)
+        if self.err: return self.err
         count = q.count()
         pg = pagination_calc(count, size, page)
         if size == -1: size = count  # get all

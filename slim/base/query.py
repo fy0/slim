@@ -45,7 +45,7 @@ class ParamsQueryInfo(dict):
         self['conditions'] = []
         self['orders'] = []
         self['format'] = 'dict'
-        self['load_fk'] = {}
+        self['loadfk'] = {}
         super().__init__(**kwargs)
 
     def set_view(self, view):
@@ -111,7 +111,7 @@ class ParamsQueryInfo(dict):
         try:
             value = json.loads(value) # [List, Dict[str, str]]
         except json.JSONDecodeError:
-            raise SyntaxException("Invalid json syntax for load_fk")
+            raise SyntaxException("Invalid json syntax for loadfk: %s" % value)
 
         if isinstance(value, list):
             new_value = {}
@@ -137,7 +137,7 @@ class ParamsQueryInfo(dict):
                     raise ResourceException('Role not found: %s' % column)
             return value
         else:
-            raise SyntaxException('Invalid value for "load_fk": %s' % value)
+            raise SyntaxException('Invalid value for "loadfk": %s' % value)
 
     def set_select(self, field_names):
         if field_names is None:
@@ -207,8 +207,9 @@ class ParamsQueryInfo(dict):
             elif field_name == 'select':
                 query['select'] = query._parse_select(value)
                 continue
-            elif field_name == 'load_fk':
-                query['load_fk'] = query._parse_load_fk(value)
+            elif field_name == 'loadfk':
+                if value:
+                    query['loadfk'] = query._parse_load_fk(value)
                 continue
             elif field_name == 'data_format':
                 query['format'] = value

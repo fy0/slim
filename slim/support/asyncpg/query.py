@@ -601,5 +601,5 @@ print(str(a))
 '''
 
 
-sc = SelectCompiler()
-sc.select().from_table("common_file").simple_where_one('state', 'is', 40).simple_where_one('state', '=', 40)
+#sc = SelectCompiler()
+#sc.select().from_table("common_file").simple_where_one('state', 'is', 40).simple_where_one('state', '=', 40)

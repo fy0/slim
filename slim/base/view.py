@@ -2,6 +2,7 @@ import asyncio
 import logging
 import time
 from abc import abstractmethod
+from types import FunctionType
 from typing import Tuple, Union, Dict, Iterable, Type, List, Set
 from aiohttp import web
 
@@ -66,6 +67,10 @@ class BaseView(metaclass=MetaClassForInit):
     def cls_init(cls):
         cls._interface = {}
         cls.interface()
+        for k, v in vars(cls).items():
+            if isinstance(v, FunctionType):
+                if getattr(v, '_interface', None):
+                    cls.use(k, *v._interface)
         if getattr(cls, 'permission', None):
             cls.permission = cls.permission.copy()
         else:
@@ -208,6 +213,19 @@ class AbstractSQLView(BaseView):
     table_name = ''
 
     @classmethod
+    def add_soft_foreign_key(cls, column, table):
+        """
+        the column stores foreign table's primary key but isn't a foreign key (to avoid constraint)
+        warning: if the table not exists, will crash when query with loadfk
+        :param column: table's column
+        :param table: foreign table name
+        :return: True, None
+        """
+        if column in cls.fields:
+            cls.foreign_keys[column] = table
+            return True
+
+    @classmethod
     def _check_view_options(cls):
         options = getattr(cls, 'options', None)
         if options and isinstance(options, ViewOptions):
@@ -249,12 +267,12 @@ class AbstractSQLView(BaseView):
         if not items: return
         # first: get tables' instances
         table_map = {}
-        for column in info['load_fk'].keys():
+        for column in info['loadfk'].keys():
             tbl_name = self.foreign_keys[column]
             table_map[column] = self.app.tables[tbl_name]
 
         # second: get query parameters
-        for column, role in info['load_fk'].items():
+        for column, role in info['loadfk'].items():
             pks = []
             for i in items:
                 pks.append(i.get(column, NotImplemented))
