@@ -1,13 +1,9 @@
 import copy
 import logging
 from typing import Dict, Tuple, Any
+from .user import BaseUser
 
 logger = logging.getLogger(__name__)
-
-
-class BaseUser:
-    def __init__(self):
-        self.roles = {None}
 
 
 class A:

@@ -7,8 +7,9 @@ from app import app
 class TestBaseView(BaseView):
     @classmethod
     def interface(cls):
-        cls.use('info', 'GET')
+        pass
 
+    @app.route.interface('GET')
     async def info(self):
         self.finish(RETCODE.SUCCESS, {
             'retcode': list(RETCODE.items()),
