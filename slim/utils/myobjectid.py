@@ -29,7 +29,7 @@ class ObjectID(object):
         # 0|1|2|3 | 4|5|6 | 7|8 | 9|10|11
         # 时间戳 | 机器  | PID | 计数器
         ObjectID._index += 1
-        ObjectID._index %= 0xFFF
+        ObjectID._index %= 0xFFFFFF
         time_float = time.time()
         self.time = int(time_float)
 

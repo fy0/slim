@@ -54,6 +54,7 @@ def view_bind(app, cls_url, view_cls: Type['BaseView']):
     :param cls_url:
     :return:
     """
+    if view_cls._is_internal_view: return
     cls_url = cls_url or view_cls.__class__.__name__.lower()
 
     def add_route(name, route_info, beacon_info):
@@ -105,7 +106,7 @@ class Route:
     def _is_beacon(self, func):
         return func in self._beacons
 
-    def __call__(self, url, method: [Iterable, str] = 'GET'):
+    def __call__(self, url, method: [Iterable, str, None] = 'GET'):
         def _(obj):
             from .view import BaseView
             if iscoroutinefunction(obj):
@@ -119,6 +120,9 @@ class Route:
                 elif issubclass(obj, web.View):
                     self.aiohttp_views.append((url, obj))
                 elif issubclass(obj, BaseView):
+                    if method is None:
+                        # internal view, can't request over http
+                        obj._is_internal_view = True
                     self.views.append((url, obj))
                 else:
                     raise BaseException('Invalid type for router: %r' % type(obj).__name__)

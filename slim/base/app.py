@@ -62,4 +62,7 @@ class Application:
             if type(r.resource) != StaticResource:
                 cors.add(r)
 
+        for _, cls in self.route.views:
+            cls._ready()
+
         web.run_app(host=host, port=port, app=self._raw_app)

@@ -24,6 +24,7 @@ class BaseView(metaclass=MetaClassForInit):
     并在wrapper函数中进行实例化，传入 request 对象
     """
     _interface = {}
+    _is_internal_view = False
     # permission: Permissions  # 3.6
 
     @classmethod
@@ -187,6 +188,20 @@ class BaseView(metaclass=MetaClassForInit):
                 return data[3]
         return default
 
+    @classmethod
+    def _ready(cls):
+        """ private version of cls.ready() """
+        cls.ready()
+
+    @classmethod
+    def ready(cls):
+        """
+        All modules loaded, and ready to serve.
+        Emitted after register routes and before loop start
+        :return:
+        """
+        pass
+
 
 class ViewOptions:
     def __init__(self, *, list_page_size=20, list_accept_size_from_client=False, permission: Permissions=None):
@@ -264,7 +279,8 @@ class AbstractSQLView(BaseView):
         :param items: the data got from database and filtered from permission
         :return:
         """
-        if not items: return
+        # if not items, items is probably [], so return itself.
+        if not items: return items
         # first: get tables' instances
         table_map = {}
         for column in info['loadfk'].keys():
@@ -272,14 +288,14 @@ class AbstractSQLView(BaseView):
             table_map[column] = self.app.tables[tbl_name]
 
         # second: get query parameters
-        for column, role in info['loadfk'].items():
+        for column, fkdata in info['loadfk'].items():
             pks = []
             for i in items:
                 pks.append(i.get(column, NotImplemented))
 
             # third: query foreign keys
             vcls = table_map[column]
-            ability = vcls.permission.request_role(self.current_user, role)
+            ability = vcls.permission.request_role(self.current_user, fkdata['role'])
             info2 = ParamsQueryInfo(vcls)
 
             info2.add_condition(info.PRIMARY_KEY, 'in', pks)
@@ -291,14 +307,15 @@ class AbstractSQLView(BaseView):
 
             # TODO: 别忘了！这里还少一个对结果的权限检查！
 
-            pk_dict = {}
+            fk_dict = {}
             for i in pk_values:
-                pk_dict[i[vcls.primary_key]] = i
+                fk_dict[i[vcls.primary_key]] = i
 
+            column_to_set = fkdata.get('as', column) or column
             for _, item in enumerate(items):
                 k = item.get(column, NotImplemented)
-                if k in pk_dict:
-                    item[column] = pk_dict[k]
+                if k in fk_dict:
+                    item[column_to_set] = fk_dict[k]
 
         return items
 

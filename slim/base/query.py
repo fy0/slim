@@ -121,9 +121,19 @@ class ParamsQueryInfo(dict):
 
         if isinstance(value, dict):
             roles = self.view.current_user_roles
-            for column, role in value.items():
+            for column, data in value.items():
+                # data: str, role name
+                # dict, {'role': <str>, 'as': <str>}
+                if isinstance(data, str):
+                    data = {'role': data}
+                elif isinstance(data, dict):
+                    if 'role' not in data:
+                        data['role'] = None
+                else:
+                    data = {'role': data}
+
                 # 当前用户可用此角色？
-                if role not in roles:
+                if data['role'] not in roles:
                     raise ResourceException('Role not found: %s' % column)
                 # 检查列是否存在
                 if column not in self.view.fields:
@@ -132,9 +142,14 @@ class ParamsQueryInfo(dict):
                 table = self.view.foreign_keys.get(column, None)
                 if table is None:
                     raise ResourceException('Not a foreign key field: %s' % column)
+                # 检查表是否存在
+                if table not in self.view.app.tables:
+                    raise ResourceException('Table not found or not a SQLView: %s' % table)
                 # 检查对应的表的角色是否存在
-                if role not in self.view.app.permissions[table].roles:
+                if data['role'] not in self.view.app.permissions[table].roles:
                     raise ResourceException('Role not found: %s' % column)
+                # 值覆盖
+                value[column] = data
             return value
         else:
             raise SyntaxException('Invalid value for "loadfk": %s' % value)
