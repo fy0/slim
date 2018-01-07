@@ -100,6 +100,10 @@ class ParamsQueryInfo(dict):
                 raise ResourceException("No column(s) selected")
             return selected_columns
 
+    @classmethod
+    def add_load_foreign_key(cls, column, data):
+        pass
+
     def _parse_load_fk(self, value: str):
         """
         :param value:
@@ -121,7 +125,8 @@ class ParamsQueryInfo(dict):
 
         if isinstance(value, dict):
             roles = self.view.current_user_roles
-            for column, data in value.items():
+
+            def solve_data(column, data):
                 # data: str, role name
                 # dict, {'role': <str>, 'as': <str>}
                 if isinstance(data, str):
@@ -142,14 +147,31 @@ class ParamsQueryInfo(dict):
                 table = self.view.foreign_keys.get(column, None)
                 if table is None:
                     raise ResourceException('Not a foreign key field: %s' % column)
+                if ('table' in data) and (data['table'] is not None):
+                    if data['table'] not in table:
+                        raise ResourceException('Foreign key not match the table: %s -> %s' % (column, data['table']))
+                    table = data['table']
+                else:
+                    table = table[0]  # 取第一个结果，因为外键可能是软外键
+                data['table'] = table
                 # 检查表是否存在
                 if table not in self.view.app.tables:
                     raise ResourceException('Table not found or not a SQLView: %s' % table)
                 # 检查对应的表的角色是否存在
                 if data['role'] not in self.view.app.permissions[table].roles:
                     raise ResourceException('Role not found: %s' % column)
+                return data
+
+            for column, data in value.items():
+                if isinstance(data, list):
+                    ret = []
+                    for i in data:
+                        ret.append(solve_data(column, i))
+                else:
+                    ret = solve_data(column, data)
+
                 # 值覆盖
-                value[column] = data
+                value[column] = ret
             return value
         else:
             raise SyntaxException('Invalid value for "loadfk": %s' % value)

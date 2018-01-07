@@ -8,7 +8,7 @@ from .cls_init import MetaClassForInit
 from .pagination import pagination_calc
 from .state_obj import StateObject
 from .myobjectid import ObjectID
-
+from .customid import CustomID
 
 try:
     import msgpack

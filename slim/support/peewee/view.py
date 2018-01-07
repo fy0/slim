@@ -264,7 +264,7 @@ class PeeweeView(AbstractSQLView):
             def wrap(name, field):
                 if isinstance(field, peewee.ForeignKeyField):
                     name = '%s_id' % name
-                    cls_or_self.foreign_keys[name] = field.rel_model._meta.db_table
+                    cls_or_self.foreign_keys[name] = [field.rel_model._meta.db_table]
                 return name
 
             cls_or_self.fields = {wrap(k, v): v for k, v in model._meta.fields.items()}

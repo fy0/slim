@@ -211,5 +211,5 @@ class AsyncpgView(AbstractSQLView):
 
             info = await cls_or_self.conn.fetch(_fk_query, cls_or_self.table_name)
             for i in info:
-                ret[i['attname']] = i['relname']
+                ret[i['attname']] = [i['relname']]
             cls_or_self.foreign_keys = ret

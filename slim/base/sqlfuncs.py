@@ -12,6 +12,9 @@ class AbstractSQLFunctions:
         self.err = None
         self.vcls = view_cls
 
+    def reset(self):
+        self.err = None
+
     @abstractmethod
     async def select_paginated_list(self, info, size, page):
         """ tips: size == -1 means infinite """

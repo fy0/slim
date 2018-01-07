@@ -224,7 +224,7 @@ class AbstractSQLView(BaseView):
     LIST_ACCEPT_SIZE_FROM_CLIENT = False
 
     fields = {} # :[str, object], key is column, value can be everything
-    foreign_keys = {} # :[str, str], key is column, value is table name
+    foreign_keys = {} # :[str, [str]], key is column, value is table names (because of soft foreign keys, multi foreigns on one column is valid)
     table_name = ''
 
     @classmethod
@@ -237,7 +237,10 @@ class AbstractSQLView(BaseView):
         :return: True, None
         """
         if column in cls.fields:
-            cls.foreign_keys[column] = table
+            if column not in cls.foreign_keys:
+                cls.foreign_keys[column] = [table]
+            else:
+                cls.foreign_keys[column].append(table)
             return True
 
     @classmethod
@@ -258,6 +261,7 @@ class AbstractSQLView(BaseView):
 
         async def func():
             await cls._fetch_fields(cls)
+            # FIX: 这个可能会在并发时串结果啊，有待验证
             cls._sql = cls._sql_cls(cls)
 
         asyncio.get_event_loop().run_until_complete(func())
@@ -269,6 +273,7 @@ class AbstractSQLView(BaseView):
 
     async def _prepare(self):
         await super()._prepare()
+        self._sql.reset()
         value = self._request.headers.get('Role')
         if not self.load_role(value):
             self.finish(RETCODE.INVALID_ROLE)
@@ -282,10 +287,10 @@ class AbstractSQLView(BaseView):
         # if not items, items is probably [], so return itself.
         if not items: return items
         # first: get tables' instances
-        table_map = {}
-        for column in info['loadfk'].keys():
-            tbl_name = self.foreign_keys[column]
-            table_map[column] = self.app.tables[tbl_name]
+        #table_map = {}
+        #for column in info['loadfk'].keys():
+        #    tbl_name = self.foreign_keys[column][0]
+        #    table_map[column] = self.app.tables[tbl_name]
 
         # second: get query parameters
         for column, fkdata in info['loadfk'].items():
@@ -294,7 +299,7 @@ class AbstractSQLView(BaseView):
                 pks.append(i.get(column, NotImplemented))
 
             # third: query foreign keys
-            vcls = table_map[column]
+            vcls = self.app.tables[fkdata['table']]
             ability = vcls.permission.request_role(self.current_user, fkdata['role'])
             info2 = ParamsQueryInfo(vcls)
 
@@ -443,7 +448,6 @@ class AbstractSQLView(BaseView):
         if code == RETCODE.SUCCESS:
             data = self._filter_record_by_ability(data)
             if not data: return self.finish(RETCODE.NOT_FOUND)
-
             self._check_handle_result(self.handle_read(data))
             if self.is_finished: return
         self.finish(code, data)
@@ -456,7 +460,7 @@ class AbstractSQLView(BaseView):
         1. cls_or_self.table_name: str
         2. cls_or_self.fields: Dict['column', Any]
         3. cls_or_self.primary_key: str
-        4. cls_or_self.foreign_keys: Dict['column', 'foreign table name']
+        4. cls_or_self.foreign_keys: Dict['column', ['foreign table name']]
 
         :param cls_or_self:
         :return:
