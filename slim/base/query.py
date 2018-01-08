@@ -148,11 +148,11 @@ class ParamsQueryInfo(dict):
                 if table is None:
                     raise ResourceException('Not a foreign key field: %s' % column)
                 if ('table' in data) and (data['table'] is not None):
-                    if data['table'] not in table:
+                    if data['table'] not in self.view.foreign_keys_table_alias:
                         raise ResourceException('Foreign key not match the table: %s -> %s' % (column, data['table']))
-                    table = data['table']
+                    table = self.view.foreign_keys_table_alias[data['table']]
                 else:
-                    table = table[0]  # 取第一个结果，因为外键可能是软外键
+                    table = table[0]  # 取第一个结果（即默认外键）
                 data['table'] = table
                 # 检查表是否存在
                 if table not in self.view.app.tables:
@@ -168,7 +168,7 @@ class ParamsQueryInfo(dict):
                     for i in data:
                         ret.append(solve_data(column, i))
                 else:
-                    ret = solve_data(column, data)
+                    ret = [solve_data(column, data)]
 
                 # 值覆盖
                 value[column] = ret

@@ -13,7 +13,7 @@ from .permission import Permissions, Ability, BaseUser, A
 from .sqlfuncs import AbstractSQLFunctions
 from ..retcode import RETCODE
 from ..utils import MetaClassForInit
-from ..exception import ValueHandleException
+from ..exception import ValueHandleException, SyntaxException
 
 logger = logging.getLogger(__name__)
 
@@ -225,21 +225,31 @@ class AbstractSQLView(BaseView):
 
     fields = {} # :[str, object], key is column, value can be everything
     foreign_keys = {} # :[str, [str]], key is column, value is table names (because of soft foreign keys, multi foreigns on one column is valid)
+    foreign_keys_table_alias = {}  # to hide real table name
     table_name = ''
 
     @classmethod
-    def add_soft_foreign_key(cls, column, table):
+    def add_soft_foreign_key(cls, column, table, alias=None):
         """
         the column stores foreign table's primary key but isn't a foreign key (to avoid constraint)
         warning: if the table not exists, will crash when query with loadfk
         :param column: table's column
         :param table: foreign table name
+        :param alias: table name's alias, avoid exposed table name
         :return: True, None
         """
         if column in cls.fields:
+            if alias:
+                if alias in cls.foreign_keys_table_alias:
+                    logger.warning("This alias of table is already exists, overwritting: %s.%s to %s" %
+                                   (cls.__name__, column, table))
+                cls.foreign_keys_table_alias[alias] = table
             if column not in cls.foreign_keys:
                 cls.foreign_keys[column] = [table]
             else:
+                if not alias:
+                    logger.warning("This soft foreign key is useless, an alias required: %s.%s to %s" %
+                                   (cls.__name__, column, table))
                 cls.foreign_keys[column].append(table)
             return True
 
@@ -261,8 +271,6 @@ class AbstractSQLView(BaseView):
 
         async def func():
             await cls._fetch_fields(cls)
-            # FIX: 这个可能会在并发时串结果啊，有待验证
-            cls._sql = cls._sql_cls(cls)
 
         asyncio.get_event_loop().run_until_complete(func())
 
@@ -273,7 +281,9 @@ class AbstractSQLView(BaseView):
 
     async def _prepare(self):
         await super()._prepare()
-        self._sql.reset()
+        # _sql 里使用了 self.err 存放数据
+        # 那么可以推测在并发中，cls._sql.err 会被多方共用导致出错
+        self._sql = self._sql_cls(self.__class__)
         value = self._request.headers.get('Role')
         if not self.load_role(value):
             self.finish(RETCODE.INVALID_ROLE)
@@ -293,34 +303,37 @@ class AbstractSQLView(BaseView):
         #    table_map[column] = self.app.tables[tbl_name]
 
         # second: get query parameters
-        for column, fkdata in info['loadfk'].items():
-            pks = []
-            for i in items:
-                pks.append(i.get(column, NotImplemented))
+        for column, fkdatas in info['loadfk'].items():
+            for fkdata in fkdatas:
+                pks = []
+                for i in items:
+                    pks.append(i.get(column, NotImplemented))
 
-            # third: query foreign keys
-            vcls = self.app.tables[fkdata['table']]
-            ability = vcls.permission.request_role(self.current_user, fkdata['role'])
-            info2 = ParamsQueryInfo(vcls)
+                # third: query foreign keys
+                vcls = self.app.tables[fkdata['table']]
+                ability = vcls.permission.request_role(self.current_user, fkdata['role'])
+                info2 = ParamsQueryInfo(vcls)
 
-            info2.add_condition(info.PRIMARY_KEY, 'in', pks)
-            info2.set_select(None)
-            info2.check_permission(ability)
+                info2.add_condition(info.PRIMARY_KEY, 'in', pks)
+                info2.set_select(None)
+                info2.check_permission(ability)
 
-            code, data = await vcls._sql.select_paginated_list(info2, -1, 1)
-            pk_values = vcls._sql.convert_list_result(info2['format'], data)
+                # vcls: AbstractSQLView
+                _sql = vcls._sql_cls(vcls)
+                code, data = await _sql.select_paginated_list(info2, -1, 1)
+                pk_values = _sql.convert_list_result(info2['format'], data)
 
-            # TODO: 别忘了！这里还少一个对结果的权限检查！
+                # TODO: 别忘了！这里还少一个对结果的权限检查！
 
-            fk_dict = {}
-            for i in pk_values:
-                fk_dict[i[vcls.primary_key]] = i
+                fk_dict = {}
+                for i in pk_values:
+                    fk_dict[i[vcls.primary_key]] = i
 
-            column_to_set = fkdata.get('as', column) or column
-            for _, item in enumerate(items):
-                k = item.get(column, NotImplemented)
-                if k in fk_dict:
-                    item[column_to_set] = fk_dict[k]
+                column_to_set = fkdata.get('as', column) or column
+                for _, item in enumerate(items):
+                    k = item.get(column, NotImplemented)
+                    if k in fk_dict:
+                        item[column_to_set] = fk_dict[k]
 
         return items
 
