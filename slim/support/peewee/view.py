@@ -251,7 +251,9 @@ class PeeweeView(AbstractSQLView):
             cls._check_view_options()
         if not (cls.__name__ == 'PeeweeView' and AbstractSQLView in cls.__bases__):
             assert cls.model, "%s.model must be specified." % cls.__name__
-        super().cls_init(False)
+
+        AbstractSQLView.cls_init.__func__(cls, False)
+        # super().cls_init(False)
 
     # noinspection PyProtectedMember
     @staticmethod

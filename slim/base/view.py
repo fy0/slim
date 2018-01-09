@@ -53,11 +53,7 @@ class BaseView(metaclass=MetaClassForInit):
 
     @classmethod
     def interface(cls):
-        cls.use('get', 'GET')
-        cls.use_lst('list')
-        cls.use('set', 'POST')
-        cls.use('new', 'POST')
-        cls.use('delete', 'POST')
+        pass
 
     @classmethod
     def permission_init(cls):
@@ -229,6 +225,15 @@ class AbstractSQLView(BaseView):
     table_name = ''
 
     @classmethod
+    def interface(cls):
+        super().interface()
+        cls.use('get', 'GET')
+        cls.use_lst('list')
+        cls.use('set', 'POST')
+        cls.use('new', 'POST')
+        cls.use('delete', 'POST')
+
+    @classmethod
     def add_soft_foreign_key(cls, column, table, alias=None):
         """
         the column stores foreign table's primary key but isn't a foreign key (to avoid constraint)
@@ -288,7 +293,7 @@ class AbstractSQLView(BaseView):
         if not self.load_role(value):
             self.finish(RETCODE.INVALID_ROLE)
 
-    async def load_fk(self, info, items):
+    async def load_fk(self, info, items) -> List:
         """
         :param info:
         :param items: the data got from database and filtered from permission
@@ -363,6 +368,7 @@ class AbstractSQLView(BaseView):
             if not data: return self.finish(RETCODE.NOT_FOUND)
             self._check_handle_result(self.handle_read(data))
             if self.is_finished: return
+            data = (await self.load_fk(info, [data]))[0]
 
         self.finish(code, data)
 
@@ -401,7 +407,7 @@ class AbstractSQLView(BaseView):
             if info['format'] == 'array':
                 item = get_values(item)
 
-            self._check_handle_result(self.handle_read(data))
+            self._check_handle_result(self.handle_read(item))
             if self.is_finished: return
             lst.append(item)
         return lst
@@ -461,6 +467,7 @@ class AbstractSQLView(BaseView):
         if code == RETCODE.SUCCESS:
             data = self._filter_record_by_ability(data)
             if not data: return self.finish(RETCODE.NOT_FOUND)
+            self._after_insert(data)
             self._check_handle_result(self.handle_read(data))
             if self.is_finished: return
         self.finish(code, data)
@@ -487,6 +494,12 @@ class AbstractSQLView(BaseView):
         pass
 
     def handle_insert(self, values: Dict) -> Union[None, tuple]:
+        pass
+
+    def _after_insert(self, values: Dict) -> Union[None, tuple]:
+        return self.after_insert(values)
+
+    def after_insert(self, values: Dict) -> Union[None, tuple]:
         pass
 
     def handle_update(self, values: Dict) -> Union[None, tuple]:

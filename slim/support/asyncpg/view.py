@@ -196,7 +196,8 @@ class AsyncpgView(AbstractSQLView):
         if not (cls.__name__ == 'AsyncpgView' and AbstractSQLView in cls.__bases__):
             assert cls.conn, "%s.conn must be specified." % cls.__name__
             assert cls.table_name, "%s.conn must be specified." % cls.__name__
-        super().cls_init(False)
+        AbstractSQLView.cls_init.__func__(cls, False)
+        # super().cls_init(False)
 
     @staticmethod
     async def _fetch_fields(cls_or_self):
