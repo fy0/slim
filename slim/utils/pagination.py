@@ -1,10 +1,10 @@
 import math
 
 
-def pagination_calc(count_all, page_size, cur_page=1, nearby=2):
+def pagination_calc(items_count, page_size, cur_page=1, nearby=2):
     """
     :param nearby:
-    :param count_all: count of all items
+    :param items_count: count of all items
     :param page_size: size of one page
     :param cur_page: current page number, accept string digit
     :return: num of pages, an iterator
@@ -18,7 +18,7 @@ def pagination_calc(count_all, page_size, cur_page=1, nearby=2):
     else:
         cur_page = 1
 
-    page_count = 1 if page_size == -1 else int(math.ceil(count_all / page_size))
+    page_count = 1 if page_size == -1 else int(math.ceil(items_count / page_size))
     items_length = nearby * 2 + 1
 
     # if first page in page items, first_page is None,
@@ -55,13 +55,11 @@ def pagination_calc(count_all, page_size, cur_page=1, nearby=2):
 
         'first_page': first_page,
         'last_page': last_page,
-
         'page_numbers': list(items),
-        'page_count': page_count,
 
         'info': {
             'page_size': page_size,
-            'page_count': page_count,  # 重复信息，只是防止用户困惑
-            'count_all': count_all,
+            'page_count': page_count,
+            'items_count': items_count,
         }
     }

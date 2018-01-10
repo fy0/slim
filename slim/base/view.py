@@ -164,7 +164,7 @@ class BaseView(metaclass=MetaClassForInit):
             return self._request.cookies.get(name)
         return default
 
-    def set_secure_cookie(self, name, value: bytes, *, max_age=30):
+    def set_secure_cookie(self, name, value: bytes, *, httponly=True, max_age=30):
         #  一般来说是 UTC
         # https://stackoverflow.com/questions/16554887/does-pythons-time-time-return-a-timestamp-in-utc
         timestamp = int(time.time())
@@ -172,7 +172,7 @@ class BaseView(metaclass=MetaClassForInit):
         # assert isinatance(value, (str, list, tuple, bytes, int))
         to_sign = [1, timestamp, name, value]
         secret = self.app.options.cookies_secret
-        self.set_cookie(name, create_signed_value(secret, to_sign), max_age=max_age)
+        self.set_cookie(name, create_signed_value(secret, to_sign), max_age=max_age, httponly=httponly)
 
     def get_secure_cookie(self, name, default=None, max_age_days=31):
         secret = self.app.options.cookies_secret
