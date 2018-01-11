@@ -186,6 +186,7 @@ class AsyncpgViewOptions(ViewOptions):
 
 
 class AsyncpgView(AbstractSQLView):
+    is_base_class = True
     options_cls = AsyncpgViewOptions
     conn = None
     table_name = None
@@ -193,9 +194,16 @@ class AsyncpgView(AbstractSQLView):
     @classmethod
     def cls_init(cls, check_options=True):
         # py3.6: __init_subclass__
-        if not (cls.__name__ == 'AsyncpgView' and AbstractSQLView in cls.__bases__):
-            assert cls.conn, "%s.conn must be specified." % cls.__name__
-            assert cls.table_name, "%s.conn must be specified." % cls.__name__
+
+        skip_check = False
+        if 'is_base_class' in cls.__dict__:
+            skip_check = getattr(cls, 'is_base_class')
+
+        if skip_check:
+            if not (cls.__name__ == 'AsyncpgView' and AbstractSQLView in cls.__bases__):
+                assert cls.conn, "%s.conn must be specified." % cls.__name__
+                assert cls.table_name, "%s.conn must be specified." % cls.__name__
+
         AbstractSQLView.cls_init.__func__(cls, False)
         # super().cls_init(False)
 

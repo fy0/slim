@@ -236,8 +236,10 @@ class PeeweeViewOptions(ViewOptions):
 
 
 class PeeweeView(AbstractSQLView):
+    is_base_class = True
     _sql_cls = PeeweeSQLFunctions
     options_cls = PeeweeViewOptions
+
     model = None
     # fields
     # table_name
@@ -249,8 +251,14 @@ class PeeweeView(AbstractSQLView):
         # py3.6: __init_subclass__
         if check_options:
             cls._check_view_options()
-        if not (cls.__name__ == 'PeeweeView' and AbstractSQLView in cls.__bases__):
-            assert cls.model, "%s.model must be specified." % cls.__name__
+
+        skip_check = False
+        if 'is_base_class' in cls.__dict__:
+            skip_check = getattr(cls, 'is_base_class')
+
+        if not skip_check:
+            if not (cls.__name__ == 'PeeweeView' and AbstractSQLView in cls.__bases__):
+                assert cls.model, "%s.model must be specified." % cls.__name__
 
         AbstractSQLView.cls_init.__func__(cls, False)
         # super().cls_init(False)

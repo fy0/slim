@@ -1,5 +1,4 @@
 import logging
-import asyncio
 from asyncio import iscoroutinefunction, Future
 from typing import Iterable, Type, TYPE_CHECKING
 from aiohttp import web, web_response
@@ -42,7 +41,10 @@ def get_route_middleware(app):
             resp = await func(view_instance) or view_instance.response
             assert isinstance(resp, web_response.StreamResponse), \
                 "Handler {!r} should return response instance, got {!r}".format(handler_name, type(resp), )
+            await view_instance._on_finish()
+            await view_instance.on_finish()
             return resp
+
     return route_middleware
 
 
@@ -54,7 +56,7 @@ def view_bind(app, cls_url, view_cls: Type['BaseView']):
     :param cls_url:
     :return:
     """
-    if view_cls._is_internal_view: return
+    if view_cls._no_route: return
     cls_url = cls_url or view_cls.__class__.__name__.lower()
 
     def add_route(name, route_info, beacon_info):
@@ -122,7 +124,7 @@ class Route:
                 elif issubclass(obj, BaseView):
                     if method is None:
                         # internal view, can't request over http
-                        obj._is_internal_view = True
+                        obj._no_route = True
                     self.views.append((url, obj))
                 else:
                     raise BaseException('Invalid type for router: %r' % type(obj).__name__)

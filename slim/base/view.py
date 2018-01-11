@@ -24,7 +24,7 @@ class BaseView(metaclass=MetaClassForInit):
     并在wrapper函数中进行实例化，传入 request 对象
     """
     _interface = {}
-    _is_internal_view = False
+    _no_route = False
     # permission: Permissions  # 3.6
 
     @classmethod
@@ -96,6 +96,12 @@ class BaseView(metaclass=MetaClassForInit):
         self.session = await session_cls.get_session(self)
 
     async def prepare(self):
+        pass
+
+    async def _on_finish(self):
+        pass
+
+    async def on_finish(self):
         pass
 
     @property
@@ -215,6 +221,8 @@ class ViewOptions:
 # noinspection PyMethodMayBeStatic
 class AbstractSQLView(BaseView):
     _sql_cls = AbstractSQLFunctions
+    is_base_class = True  # skip cls_init check
+
     options_cls = ViewOptions
     LIST_PAGE_SIZE = 20  # list 单次取出的默认大小
     LIST_ACCEPT_SIZE_FROM_CLIENT = False
@@ -454,6 +462,8 @@ class AbstractSQLView(BaseView):
 
         logger.debug('data: %s' % post_data)
         code, data = await self._sql.update(info, post_data)
+        if code == RETCODE.SUCCESS:
+            self._after_update(data)
         self.finish(code, data)
 
     async def new(self):
@@ -503,4 +513,10 @@ class AbstractSQLView(BaseView):
         pass
 
     def handle_update(self, values: Dict) -> Union[None, tuple]:
+        pass
+
+    def _after_update(self, values: Dict):
+        pass
+
+    def after_update(self, values: Dict):
         pass

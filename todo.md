@@ -9,8 +9,6 @@
 
 * 权限部分的测试有依赖dict顺序的实现，解决这个问题
 
-* after_insert 系列事件
-
 * delete 接口
 
 * access_token 支持
@@ -21,6 +19,8 @@
     + 外键
     + 软外键
     + 多外键
+
+* 文档：重载AbstractSQLView，is_base_class
 
 * 文档：Websocket
 
