@@ -123,10 +123,23 @@ class ParamsQueryInfo(dict):
                 new_value[i] = None
             value = new_value
 
+        app = self.view.app
         if isinstance(value, dict):
             roles = self.view.current_user_roles
 
-            def solve_data(column, data):
+            def check_valid(view, value):
+                for column, data in value.items():
+                    if isinstance(data, list):
+                        ret = []
+                        for i in data:
+                            ret.append(solve_data(view, column, i))
+                    else:
+                        ret = [solve_data(view, column, data)]
+
+                    # 值覆盖
+                    value[column] = ret
+
+            def solve_data(view, column, data):
                 # data: str, role name
                 # dict, {'role': <str>, 'as': <str>}
                 if isinstance(data, str):
@@ -141,37 +154,32 @@ class ParamsQueryInfo(dict):
                 if data['role'] not in roles:
                     raise ResourceException('Role not found: %s' % column)
                 # 检查列是否存在
-                if column not in self.view.fields:
+                if column not in view.fields:
                     raise ResourceException('Column not found: %s' % column)
                 # 获取对应表名
-                table = self.view.foreign_keys.get(column, None)
+                table = view.foreign_keys.get(column, None)
                 if table is None:
                     raise ResourceException('Not a foreign key field: %s' % column)
                 if ('table' in data) and (data['table'] is not None):
-                    if data['table'] not in self.view.foreign_keys_table_alias:
+                    if data['table'] not in view.foreign_keys_table_alias:
                         raise ResourceException('Foreign key not match the table: %s -> %s' % (column, data['table']))
-                    table = self.view.foreign_keys_table_alias[data['table']]
+                    table = view.foreign_keys_table_alias[data['table']]
                 else:
                     table = table[0]  # 取第一个结果（即默认外键）
                 data['table'] = table
                 # 检查表是否存在
-                if table not in self.view.app.tables:
+                if table not in app.tables:
                     raise ResourceException('Table not found or not a SQLView: %s' % table)
                 # 检查对应的表的角色是否存在
-                if data['role'] not in self.view.app.permissions[table].roles:
+                if data['role'] not in app.permissions[table].roles:
                     raise ResourceException('Role not found: %s' % column)
+
+                # 递归外键读取
+                if ('loadfk' in data) and (data['loadfk'] is not None):
+                    check_valid(app.tables[table], data['loadfk'])
                 return data
 
-            for column, data in value.items():
-                if isinstance(data, list):
-                    ret = []
-                    for i in data:
-                        ret.append(solve_data(column, i))
-                else:
-                    ret = [solve_data(column, data)]
-
-                # 值覆盖
-                value[column] = ret
+            check_valid(self.view, value)
             return value
         else:
             raise SyntaxException('Invalid value for "loadfk": %s' % value)

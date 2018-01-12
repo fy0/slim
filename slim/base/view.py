@@ -316,38 +316,44 @@ class AbstractSQLView(BaseView):
         #    table_map[column] = self.app.tables[tbl_name]
 
         # second: get query parameters
-        for column, fkdatas in info['loadfk'].items():
-            for fkdata in fkdatas:
-                pks = []
-                for i in items:
-                    pks.append(i.get(column, NotImplemented))
+        async def check(data, items):
+            for column, fkdatas in data.items():
+                for fkdata in fkdatas:
+                    pks = []
+                    for i in items:
+                        pks.append(i.get(column, NotImplemented))
 
-                # third: query foreign keys
-                vcls = self.app.tables[fkdata['table']]
-                ability = vcls.permission.request_role(self.current_user, fkdata['role'])
-                info2 = ParamsQueryInfo(vcls)
+                    # third: query foreign keys
+                    vcls = self.app.tables[fkdata['table']]
+                    ability = vcls.permission.request_role(self.current_user, fkdata['role'])
+                    info2 = ParamsQueryInfo(vcls)
 
-                info2.add_condition(info.PRIMARY_KEY, 'in', pks)
-                info2.set_select(None)
-                info2.check_permission(ability)
+                    info2.add_condition(info.PRIMARY_KEY, 'in', pks)
+                    info2.set_select(None)
+                    info2.check_permission(ability)
 
-                # vcls: AbstractSQLView
-                _sql = vcls._sql_cls(vcls)
-                code, data = await _sql.select_paginated_list(info2, -1, 1)
-                pk_values = _sql.convert_list_result(info2['format'], data)
+                    # vcls: AbstractSQLView
+                    _sql = vcls._sql_cls(vcls)
+                    code, data = await _sql.select_paginated_list(info2, -1, 1)
+                    pk_values = _sql.convert_list_result(info2['format'], data)
 
-                # TODO: 别忘了！这里还少一个对结果的权限检查！
+                    # TODO: 别忘了！这里还少一个对结果的权限检查！
 
-                fk_dict = {}
-                for i in pk_values:
-                    fk_dict[i[vcls.primary_key]] = i
+                    fk_dict = {}
+                    for i in pk_values:
+                        # 主键: 数据
+                        fk_dict[i[vcls.primary_key]] = i
 
-                column_to_set = fkdata.get('as', column) or column
-                for _, item in enumerate(items):
-                    k = item.get(column, NotImplemented)
-                    if k in fk_dict:
-                        item[column_to_set] = fk_dict[k]
+                    column_to_set = fkdata.get('as', column) or column
+                    for _, item in enumerate(items):
+                        k = item.get(column, NotImplemented)
+                        if k in fk_dict:
+                            item[column_to_set] = fk_dict[k]
 
+                    if 'loadfk' in fkdata:
+                        await check(fkdata['loadfk'], pk_values)
+
+        await check(info['loadfk'], items)
         return items
 
     def _filter_record_by_ability(self, record) -> Union[Dict, None]:

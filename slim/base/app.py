@@ -7,6 +7,8 @@ from . import log
 
 
 class SlimTables(JsDict):
+    # key: table_name
+    # value: SQLView
     def __repr__(self):
         return '<SlimTables ' + dict.__repr__(self) + '>'
 
