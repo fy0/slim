@@ -106,6 +106,9 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
                 def conv_func(val):
                     if isinstance(val, memoryview):
                         return val
+                    # FIX: 其实这可能有点问题，因为None是一个合法的值
+                    if val is None:
+                        return val
                     return to_bin(val)
             elif isinstance(tfield, peewee.BooleanField):
                 conv_func = bool_parse

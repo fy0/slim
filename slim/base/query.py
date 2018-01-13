@@ -276,7 +276,7 @@ class ParamsQueryInfo(dict):
         for field_name, op, value in self.conditions:
             from_columns.append((view.table_name, field_name))
         if from_columns and all(ability.cannot(view.current_user, A.QUERY, *from_columns)):
-            raise PermissionDeniedException()
+            raise PermissionDeniedException(A.QUERY, from_columns)
 
         # 读取权限检查，限定被查询的列
         if self['select'] is None:

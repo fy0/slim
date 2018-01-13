@@ -28,6 +28,16 @@ def dict_filter(obj, keys):
     return {k: v for k, v in obj.items() if k in keys}
 
 
+def dict_filter_inplace(obj, keys):
+    to_remove = []
+    for i in obj.keys():
+        if i not in keys:
+            to_remove.append(i)
+
+    for i in to_remove:
+        del obj[i]
+
+
 def time_readable():
     x = time.localtime(time.time())
     return time.strftime('%Y-%m-%d %H:%M:%S', x)

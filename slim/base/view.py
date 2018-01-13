@@ -466,7 +466,7 @@ class AbstractSQLView(BaseView):
         self._check_handle_result(self.handle_update(post_data))
         if self.is_finished: return
 
-        logger.debug('data: %s' % post_data)
+        logger.debug('set data: %s' % post_data)
         code, data = await self._sql.update(info, post_data)
         if code == RETCODE.SUCCESS:
             self._after_update(data)
