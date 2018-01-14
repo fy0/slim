@@ -4,28 +4,18 @@ from typing import Type
 
 class BaseUser:
     """
-    用户数据类应继承于此类，并实现对应接口，举例：
+    用户数据类应继承于此类，举例：
 
     class User(BaseModel, BaseUser):
         id = BlobField(primary_key=True)
         email = CharField(index=True, max_length=128)
         password = BlobField()
 
-        @classmethod
-        def get_by_key(cls, key):
-            try:
-                return cls.get(cls.key == key)
-            except DoesNotExist:
-                return None
-
     """
-    def __init__(self):
-        self.roles = {None}
 
-    @classmethod
-    @abstractmethod
-    def get_by_key(cls, key) -> "BaseUser":
-        pass
+    @property
+    def roles(self):
+        return {None}
 
 
 class BaseUserMixin:
@@ -41,15 +31,49 @@ class BaseUserMixin:
 
     """
 
-    @property
     @abstractmethod
-    def user_cls(self) -> Type[BaseUser]:
+    def get_current_user(self):
+        """Override to determine the current user from, e.g., a cookie."""
         pass
 
+    @abstractmethod
+    def get_user_by_key(self, key):
+        pass
+
+    @abstractmethod
+    def setup_user_key(self, key, expires=30):
+        pass
+
+
+# noinspection PyAbstractClass
+class BaseSecureCookieUserMixin(BaseUserMixin):
     def get_current_user(self):
         try:
             key = self.get_secure_cookie('u')
             if key:
-                return self.user_cls.get_by_key(key)
+                return self.get_user_by_key(key)
         except:
             self.del_cookie('u')
+
+    def setup_user_key(self, key, expires=30):
+        self.set_secure_cookie('u', key, max_age=expires)
+
+
+# noinspection PyAbstractClass
+class BaseAccessTokenUserMixin(BaseUserMixin):
+    def get_current_user(self):
+        access_token = self.headers.get('AccessToken')
+        if access_token: return self.get_user_by_key(access_token)
+
+    def setup_user_key(self, key, expires=30):
+        pass
+
+
+# noinspection PyAbstractClass
+class BaseAccessTokenInParamUserMixin(BaseUserMixin):
+    def get_current_user(self):
+        access_token = self.params.get('AccessToken')
+        if access_token: return self.get_user_by_key(access_token)
+
+    def setup_user_key(self, key, expires=30):
+        pass

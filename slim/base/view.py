@@ -13,7 +13,7 @@ from .permission import Permissions, Ability, BaseUser, A
 from .sqlfuncs import AbstractSQLFunctions
 from ..retcode import RETCODE
 from ..utils import MetaClassForInit
-from ..exception import ValueHandleException, SyntaxException
+from ..exception import ValueHandleException
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +107,10 @@ class BaseView(metaclass=MetaClassForInit):
     @property
     def current_user(self) -> BaseUser:
         if not self._current_user:
-            self._current_user = self.get_current_user()
+            if getattr(self, 'get_current_user'):
+                self._current_user = self.get_current_user()
+            else:
+                self._current_user = None
         return self._current_user
 
     @property
@@ -116,11 +119,6 @@ class BaseView(metaclass=MetaClassForInit):
         if u is None:
             return {None}
         return u.roles
-
-    def get_current_user(self):
-        """Override to determine the current user from, e.g., a cookie.
-        """
-        return None
 
     def finish(self, code, data=NotImplemented):
         if data is NotImplemented:
@@ -139,6 +137,7 @@ class BaseView(metaclass=MetaClassForInit):
             self._cookie_set = []
         self._cookie_set.append(('del', key))
 
+    @property
     def params(self) -> dict:
         if self._params_cache is None:
             self._params_cache = dict(self._request.query)
@@ -189,6 +188,18 @@ class BaseView(metaclass=MetaClassForInit):
             if data and data[2] == name:
                 return data[3]
         return default
+
+    @property
+    def headers(self):
+        return self._request.headers
+
+    @property
+    def route_info(self):
+        """
+        info matched by router
+        :return:
+        """
+        return self._request.match_info
 
     @classmethod
     def _ready(cls):
@@ -297,7 +308,7 @@ class AbstractSQLView(BaseView):
         # _sql 里使用了 self.err 存放数据
         # 那么可以推测在并发中，cls._sql.err 会被多方共用导致出错
         self._sql = self._sql_cls(self.__class__)
-        value = self._request.headers.get('Role')
+        value = self.headers.get('Role')
         if not self.load_role(value):
             self.finish(RETCODE.INVALID_ROLE)
 
@@ -372,7 +383,7 @@ class AbstractSQLView(BaseView):
         raise ValueHandleException('Invalid result type of handle function.')
 
     async def get(self):
-        info = ParamsQueryInfo.new(self, self.params(), self.ability)
+        info = ParamsQueryInfo.new(self, self.params, self.ability)
         self._check_handle_result(self.handle_query(info))
         if self.is_finished: return
         code, data = await self._sql.select_one(info)
@@ -387,14 +398,14 @@ class AbstractSQLView(BaseView):
         self.finish(code, data)
 
     def _get_list_page_and_size(self) -> Tuple[Union[int, None], Union[int, None]]:
-        page = self._request.match_info.get('page', '1')
+        page = self.route_info.get('page', '1')
 
         if not page.isdigit():
             self.finish(RETCODE.INVALID_HTTP_PARAMS)
             return None, None
         page = int(page)
 
-        size = self._request.match_info.get('size', None)
+        size = self.route_info.get('size', None)
         if self.LIST_ACCEPT_SIZE_FROM_CLIENT:
             if size:
                 if size == '-1':  # size is infinite
@@ -429,7 +440,7 @@ class AbstractSQLView(BaseView):
     async def list(self):
         page, size = self._get_list_page_and_size()
         if self.is_finished: return
-        info = ParamsQueryInfo.new(self, self.params(), self.ability)
+        info = ParamsQueryInfo.new(self, self.params, self.ability)
         self._check_handle_result(self.handle_query(info))
         if self.is_finished: return
 
@@ -457,7 +468,7 @@ class AbstractSQLView(BaseView):
         return data
 
     async def set(self):
-        info = ParamsQueryInfo.new(self, self.params(), self.ability)
+        info = ParamsQueryInfo.new(self, self.params, self.ability)
         self._check_handle_result(self.handle_query(info))
         if self.is_finished: return
 
