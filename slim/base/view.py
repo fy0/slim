@@ -107,7 +107,7 @@ class BaseView(metaclass=MetaClassForInit):
     @property
     def current_user(self) -> BaseUser:
         if not self._current_user:
-            if getattr(self, 'get_current_user'):
+            if getattr(self, 'get_current_user', None):
                 self._current_user = self.get_current_user()
             else:
                 self._current_user = None

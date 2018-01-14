@@ -42,6 +42,12 @@ class BaseUserMixin:
 
     @abstractmethod
     def setup_user_key(self, key, expires=30):
+        """ setup user key for server """
+        pass
+
+    @abstractmethod
+    def teardown_user_key(self):
+        """ teardown user key for server, make the token invalid here"""
         pass
 
 
@@ -57,6 +63,9 @@ class BaseSecureCookieUserMixin(BaseUserMixin):
 
     def setup_user_key(self, key, expires=30):
         self.set_secure_cookie('u', key, max_age=expires)
+
+    def teardown_user_key(self):
+        self.del_cookie('u')
 
 
 # noinspection PyAbstractClass
