@@ -64,7 +64,7 @@ class ParamsQueryInfo(dict):
         ]
         """
         orders = []
-        for i in text.split(','):
+        for i in map(str.strip, text.split(',')):
             items = i.split('.', 2)
 
             if len(items) == 1: column, order = items[0], 'default'
@@ -86,7 +86,7 @@ class ParamsQueryInfo(dict):
         :param text: col1, col2
         :return: None or [col1, col2]
         """
-        info = set(text.split(','))
+        info = set(map(str.strip, text.split(',')))
         if '*' in info:
             return None
         else:
@@ -102,6 +102,7 @@ class ParamsQueryInfo(dict):
 
     @classmethod
     def add_load_foreign_key(cls, column, data):
+        # TODO: 这是什么来着？
         pass
 
     def _parse_load_fk(self, value: str):

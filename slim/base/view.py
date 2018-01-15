@@ -265,7 +265,7 @@ class AbstractSQLView(BaseView):
         if column in cls.fields:
             if alias:
                 if alias in cls.foreign_keys_table_alias:
-                    logger.warning("This alias of table is already exists, overwritting: %s.%s to %s" %
+                    logger.warning("This alias of table is already exists, overwriting: %s.%s to %s" %
                                    (cls.__name__, column, table))
                 cls.foreign_keys_table_alias[alias] = table
             if column not in cls.foreign_keys:
