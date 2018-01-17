@@ -191,6 +191,14 @@ class ParamsQueryInfo(dict):
         else:
             self['select'] = field_names
 
+    def add_select(self, column):
+        assert column in self.view.fields
+        if not self['select']:
+            self['select'] = [column]
+        else:
+            if column not in self['select']:
+                self['select'].append(column)
+
     def add_condition(self, field_name, op, value):
         """
         Add a query condition and validate it.
@@ -278,10 +286,10 @@ class ParamsQueryInfo(dict):
         from_columns = []
         for field_name, op, value in self.conditions:
             from_columns.append(field_name)
-        if from_columns and not ability.can_with_columns(view.table_name, from_columns, A.QUERY):
+        if from_columns and not ability.can_with_columns(view.current_user, A.QUERY, view.table_name, from_columns):
             raise PermissionDeniedException(A.QUERY, from_columns)
 
         # 读取权限检查，限定被查询的列
         if self['select'] is None:
             self['select'] = self.view.fields.keys()
-        self['select'] = ability.can_with_columns(view.table_name, self['select'], A.READ)
+        self['select'] = ability.can_with_columns(view.current_user, A.READ, view.table_name, self['select'])

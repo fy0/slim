@@ -146,7 +146,7 @@ class AsyncpgSQLFunctions(AbstractSQLFunctions):
         nargs = self._get_args(info['conditions'])
         if self.err: return self.err
 
-        columns = view.ability.can_with_columns(view.table_name, data.keys(), A.WRITE)
+        columns = view.ability.can_with_columns(None, A.WRITE, view.table_name, data.keys())
         if not columns:
             return RETCODE.PERMISSION_DENIED, NotImplemented
         ndata = self._get_data(dict_filter(data, columns))

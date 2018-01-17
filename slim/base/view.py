@@ -404,7 +404,7 @@ class AbstractSQLView(BaseView):
         if code == RETCODE.SUCCESS:
             data = self._filter_record_by_ability(data)
             if not data: return self.finish(RETCODE.NOT_FOUND)
-            self._check_handle_result(self.handle_read(data))
+            self._check_handle_result(self.after_read(data))
             if self.is_finished: return
             data = (await self.load_fk(info, [data]))[0]
 
@@ -445,7 +445,7 @@ class AbstractSQLView(BaseView):
             if info['format'] == 'array':
                 item = get_values(item)
 
-            self._check_handle_result(self.handle_read(item))
+            self._check_handle_result(self.after_read(item))
             if self.is_finished: return
             lst.append(item)
         return lst
@@ -474,12 +474,12 @@ class AbstractSQLView(BaseView):
 
         if action == A.WRITE:
             code, record = await self._sql.select_one(info)
-            valid = self.ability.can_with_record(self.current_user, action, record, columns=data.keys())
+            valid = self.ability.can_with_record(self.current_user, action, record, available=data.keys())
             info.clear_condition()
             info.set_select([self.primary_key])
             info.add_condition(self.primary_key, '==', record.get(self.primary_key))
         else:
-            valid = self.ability.can_with_columns(self.table_name, data.keys(), action)
+            valid = self.ability.can_with_columns(self.current_user, action, self.table_name, data.keys())
 
         if len(valid) != len(data):
             logger.debug("request permission failed. valid / requested: %r, %r" % (valid, list(data.keys())))
@@ -496,7 +496,7 @@ class AbstractSQLView(BaseView):
 
         post_data = await self._data_convert(info, await self.post_data(), A.WRITE)
         if self.is_finished: return
-        self._check_handle_result(self.handle_update(post_data))
+        self._check_handle_result(self.before_update(post_data))
         if self.is_finished: return
 
         logger.debug('set data: %s' % post_data)
@@ -509,14 +509,14 @@ class AbstractSQLView(BaseView):
         post_data = await self._data_convert(None, await self.post_data(), action=A.CREATE)
         logger.debug('new data: %s' % post_data)
         if self.is_finished: return
-        self._check_handle_result(self.handle_insert(post_data))
+        self._check_handle_result(self.before_insert(post_data))
         if self.is_finished: return
 
         code, data = await self._sql.insert(post_data)
         if code == RETCODE.SUCCESS:
             data = self._filter_record_by_ability(data)
             if not data: return self.finish(RETCODE.NOT_FOUND)
-            self._check_handle_result(self.handle_read(data))
+            self._check_handle_result(self.after_read(data))
             self._check_handle_result(self._after_insert(data))
             if self.is_finished: return
         self.finish(code, data)
@@ -539,10 +539,10 @@ class AbstractSQLView(BaseView):
     def handle_query(self, info: ParamsQueryInfo) -> Union[None, tuple]:
         pass
 
-    def handle_read(self, values: Dict) -> Union[None, tuple]:
+    def after_read(self, values: Dict) -> Union[None, tuple]:
         pass
 
-    def handle_insert(self, values: Dict) -> Union[None, tuple]:
+    def before_insert(self, values: Dict) -> Union[None, tuple]:
         pass
 
     def _after_insert(self, values: Dict) -> Union[None, tuple]:
@@ -552,7 +552,7 @@ class AbstractSQLView(BaseView):
         """ Emitted before finish, no more filter """
         pass
 
-    def handle_update(self, values: Dict) -> Union[None, tuple]:
+    def before_update(self, values: Dict) -> Union[None, tuple]:
         pass
 
     def _after_update(self, values: Dict):
