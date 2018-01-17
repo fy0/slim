@@ -190,13 +190,23 @@ class Ability:
 
         # 逐个过检查
         can = True
+        extensions = set()
         for rule in rules:
-            if not rule[-1](self, user, action, record):
+            ret = rule[-1](self, user, action, record)
+            if ret:
+                if isinstance(ret, (list, tuple, set)):
+                    for i in ret:
+                        extensions.add(i)
+            else:
                 can = False
 
         if can:
             if columns is None:
                 columns = self.can_with_columns(record.table, record.keys(), action)
+            fields = record.keys()
+            for i in extensions:
+                if i not in columns and i in fields:
+                    columns.append(i)
             return columns
 
         return []
