@@ -94,32 +94,19 @@ class Ability:
                         continue
                 self.rules[k] = copy.deepcopy(v)
 
-    def add_record_rule(self, wanted_actions, subject_cls: (AbilityTable, AbilityColumn), *, func):
-        # subject_cls value:
+    def add_record_check(self, actions, table, *, func):
+        # if func return True, use permissions of the role
         # table: 'table_name'
         # column: ('table_name', 'column_name')
-        self.record_rules.append([subject_cls, wanted_actions, func])
+        assert isinstance(table, str), '`table` must be table name'
+        for i in actions:
+            assert i not in (A.QUERY, A.CREATE), "meaningless action check with record: [%s]" % i
+
+        self.record_rules.append([table, actions, func])
 
         """def func(ability, user, cur_action, record: AbilityRecord) -> bool:
             pass
         """
-
-    @staticmethod
-    def _is_rule_match_record(record_rule, action, record: AbilityRecord) -> Tuple[Any, bool]:
-        """
-        检查记录(从数据库查询出的数据的单项)是否匹配对应规则，在查询之后执行
-        :param record_rule:
-        :param action:
-        :param record:
-        :return:
-        """
-        if action in record_rule[1]:
-            obj = record_rule[0]
-            if isinstance(obj, AbilityTable):
-                return 'table', obj.table == record.table
-            elif isinstance(obj, AbilityColumn):
-                return 'column', obj.table == record.table and record.has(obj.column)
-        return None, False
 
     def _parse_permission(self, obj):
         """
@@ -184,53 +171,35 @@ class Ability:
 
         return available
 
-    def can_with_record(self, user, action, record: AbilityRecord, *, available=None):
+    def can_with_record(self, user, action, record: AbilityRecord, *, columns=None):
         """
-        filter record columns by rules and action
-        在查询完成之后，根据规则对记录进行过滤
-        特别解释一下，因为不同orm的Record并不相同，这里只返回可用的数据列的列表
-        自行实现对列的过滤。如果返回值为空表示完全无权或输入数据为空
-        :param user: 
+        进行基于 Record 的权限判定，返回可用列。
+        :param user:
         :param action: 
         :param record:
-        :param available:
+        :param columns:
         :return: 可用列
         """
-        if available is None:
-            # available = record.keys()
-            # 为了避免不必要的麻烦（主要是没有 info['select'] 又需要读出 record 的情况，例如 insert 和 update）
-            # 这里直接再对列做一次过滤
-            available = self.can_with_columns(record.table, record.keys(), action)
+        assert action not in (A.QUERY, A.CREATE), "meaningless action check with record: [%s]" % action
 
         # 先行匹配规则适用范围
-        rules = {'table': [], 'column': []}
+        rules = []
         for rule in self.record_rules:
-            obj_type, exists = self._is_rule_match_record(rule, action, record)
-            if exists:
-                rules[obj_type].append(rule)
+            if record.table == rule[0] and action in rule[1]:
+                rules.append(rule)
 
-        # 若满足条件，逐条检测覆盖表权限
-        for rule in rules['table']:
-            func = rule[-1]
-            ret = func(self, user, action, record)
-            if ret is True:
-                available = list(record.keys())
-            elif ret is False:
-                available = []
+        # 逐个过检查
+        can = True
+        for rule in rules:
+            if not rule[-1](self, user, action, record):
+                can = False
 
-        # 逐条添加列权限
-        for rule in rules['column']:
-            func = rule[-1]
-            column = rule[0].column
-            ret = func(self, user, action, record)
-            if ret is True:
-                if column not in available:
-                    available.append(column)
-            elif ret is False:
-                if column in available:
-                    available.remove(column)
+        if can:
+            if columns is None:
+                columns = self.can_with_columns(record.table, record.keys(), action)
+            return columns
 
-        return available
+        return []
 
 
 class Permissions:
