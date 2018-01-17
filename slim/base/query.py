@@ -4,7 +4,7 @@ from typing import Union, Iterable
 
 from .permission import A
 from ..utils.others import valid_sql_operator
-from ..exception import SyntaxException, ValueHandleException, ResourceException, ParamsException, \
+from ..exception import SyntaxException, ResourceException, ParamsException, \
     PermissionDeniedException
 
 logger = logging.getLogger(__name__)
@@ -230,6 +230,9 @@ class ParamsQueryInfo(dict):
 
         self.conditions.append([field_name, op, value])
 
+    def clear_condition(self):
+        self.conditions.clear()
+
     @classmethod
     def new(cls, view, params, ability) -> Union['ParamsQueryInfo', None]:
         """ parse params to query information """
@@ -270,16 +273,15 @@ class ParamsQueryInfo(dict):
         return query
 
     def check_permission(self, ability):
-        # 查询权限检查
         view = self.view
+        # 查询权限检查
         from_columns = []
-
         for field_name, op, value in self.conditions:
-            from_columns.append((view.table_name, field_name))
-        if from_columns and all(ability.cannot(view.current_user, A.QUERY, *from_columns)):
+            from_columns.append(field_name)
+        if from_columns and not ability.can_with_columns(view.table_name, from_columns, A.QUERY):
             raise PermissionDeniedException(A.QUERY, from_columns)
 
         # 读取权限检查，限定被查询的列
         if self['select'] is None:
             self['select'] = self.view.fields.keys()
-        self['select'] = ability.filter_columns(view.table_name, self['select'], A.READ)
+        self['select'] = ability.can_with_columns(view.table_name, self['select'], A.READ)

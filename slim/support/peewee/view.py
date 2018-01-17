@@ -255,11 +255,7 @@ class PeeweeView(AbstractSQLView):
         if check_options:
             cls._check_view_options()
 
-        skip_check = False
-        if 'is_base_class' in cls.__dict__:
-            skip_check = getattr(cls, 'is_base_class')
-
-        if not skip_check:
+        if not cls._is_skip_check():
             if not (cls.__name__ == 'PeeweeView' and AbstractSQLView in cls.__bases__):
                 assert cls.model, "%s.model must be specified." % cls.__name__
 

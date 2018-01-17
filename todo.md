@@ -9,6 +9,8 @@
 
 * 权限部分的测试有依赖dict顺序的实现，解决这个问题
 
+* 'select' for loadfk
+
 * delete 接口
 
 * access_token 支持

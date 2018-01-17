@@ -5,8 +5,8 @@ from http.cookiejar import CookieJar
 from requests.cookies import morsel_to_cookie, merge_cookies
 from requests.utils import dict_from_cookiejar
 
-from slim import app_init
-from slim.base.helper import create_signed_value, decode_signed_value, _value_decode, _value_encode, Route
+from slim import Application
+from slim.base.helper import create_signed_value, decode_signed_value, _value_decode, _value_encode
 from slim.base.view import BaseView
 from slim.retcode import RETCODE
 
@@ -30,8 +30,7 @@ def test_sign():
     assert decode_data is None
 
 
-route = Route()
-app = app_init(cookies_secret=secret, route=route)
+app = Application(cookies_secret=secret)
 
 
 class FakeRequest:
@@ -39,12 +38,12 @@ class FakeRequest:
     cookies = {}
 
 
-@route('/')
+@app.route('/')
 class CookiesView(BaseView):
     pass
 
 
-cookies_view = CookiesView(FakeRequest())
+cookies_view = CookiesView(app, FakeRequest())
 
 
 def test_app_secure_cookies():

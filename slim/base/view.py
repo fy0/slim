@@ -12,7 +12,7 @@ from .helper import create_signed_value, decode_signed_value
 from .permission import Permissions, Ability, BaseUser, A
 from .sqlfuncs import AbstractSQLFunctions
 from ..retcode import RETCODE
-from ..utils import MetaClassForInit
+from ..utils import MetaClassForInit, dict_filter
 from ..exception import ValueHandleException
 
 logger = logging.getLogger(__name__)
@@ -233,15 +233,23 @@ class ViewOptions:
 class AbstractSQLView(BaseView):
     _sql_cls = AbstractSQLFunctions
     is_base_class = True  # skip cls_init check
+    foreign_keys_table_alias = {}  # to hide real table name
 
     options_cls = ViewOptions
     LIST_PAGE_SIZE = 20  # list 单次取出的默认大小
     LIST_ACCEPT_SIZE_FROM_CLIENT = False
 
     fields = {} # :[str, object], key is column, value can be everything
-    foreign_keys = {} # :[str, [str]], key is column, value is table names (because of soft foreign keys, multi foreigns on one column is valid)
-    foreign_keys_table_alias = {}  # to hide real table name
     table_name = ''
+    primary_key = None
+    foreign_keys = {} # :[str, [str]], key is column, value is table names (because of soft foreign keys, multi foreigns on one column is valid)
+
+    @classmethod
+    def _is_skip_check(cls):
+        skip_check = False
+        if 'is_base_class' in cls.__dict__:
+            skip_check = getattr(cls, 'is_base_class')
+        return skip_check
 
     @classmethod
     def interface(cls):
@@ -295,6 +303,11 @@ class AbstractSQLView(BaseView):
 
         async def func():
             await cls._fetch_fields(cls)
+            if not cls._is_skip_check():
+                assert cls.table_name
+                assert cls.fields
+                # assert cls.primary_key
+                # assert cls.foreign_keys
 
         asyncio.get_event_loop().run_until_complete(func())
 
@@ -368,7 +381,7 @@ class AbstractSQLView(BaseView):
         return items
 
     def _filter_record_by_ability(self, record) -> Union[Dict, None]:
-        available_columns = self.ability.filter_record(self.current_user, A.READ, record)
+        available_columns = self.ability.can_with_record(self.current_user, A.READ, record)
         if not available_columns: return
         return record.to_dict(available_columns)
 
@@ -453,17 +466,26 @@ class AbstractSQLView(BaseView):
         else:
             self.finish(code, data)
 
-    def _data_convert(self, data: Dict[str, object], action=A.WRITE):
+    async def _data_convert(self, info, data: Dict[str, object], action=A.WRITE):
         # 写入/插入权限检查
-        columns = []
-        for k, v in data.items():
-            columns.append((self.table_name, k))
+        data = dict_filter(data, self.fields.keys())
+        if len(data) == 0: return self.finish(RETCODE.INVALID_HTTP_POSTDATA)
+        logger.debug('request permission: [%s] of table %r' % (action, self.table_name))
 
-        if len(columns) == 0:
-            return self.finish(RETCODE.INVALID_HTTP_POSTDATA)
+        if action == A.WRITE:
+            code, record = await self._sql.select_one(info)
+            valid = self.ability.can_with_record(self.current_user, action, record, available=data.keys())
+            info.clear_condition()
+            info.set_select([self.primary_key])
+            info.add_condition(self.primary_key, '==', record.get(self.primary_key))
+        else:
+            valid = self.ability.can_with_columns(self.table_name, data.keys(), action)
 
-        if all(self.ability.cannot(self.current_user, action, *columns)):
+        if len(valid) != len(data):
+            logger.debug("request permission failed. valid / requested: %r, %r" % (valid, list(data.keys())))
             return self.finish(RETCODE.PERMISSION_DENIED)
+        else:
+            logger.debug("request permission successed: %r" % list(data.keys()))
 
         return data
 
@@ -472,7 +494,7 @@ class AbstractSQLView(BaseView):
         self._check_handle_result(self.handle_query(info))
         if self.is_finished: return
 
-        post_data = self._data_convert(await self.post_data())
+        post_data = await self._data_convert(info, await self.post_data(), A.WRITE)
         if self.is_finished: return
         self._check_handle_result(self.handle_update(post_data))
         if self.is_finished: return
@@ -484,8 +506,8 @@ class AbstractSQLView(BaseView):
         self.finish(code, data)
 
     async def new(self):
-        post_data = self._data_convert(await self.post_data(), action=A.CREATE)
-        logger.debug('data: %s' % post_data)
+        post_data = await self._data_convert(None, await self.post_data(), action=A.CREATE)
+        logger.debug('new data: %s' % post_data)
         if self.is_finished: return
         self._check_handle_result(self.handle_insert(post_data))
         if self.is_finished: return
@@ -494,8 +516,8 @@ class AbstractSQLView(BaseView):
         if code == RETCODE.SUCCESS:
             data = self._filter_record_by_ability(data)
             if not data: return self.finish(RETCODE.NOT_FOUND)
-            self._after_insert(data)
             self._check_handle_result(self.handle_read(data))
+            self._check_handle_result(self._after_insert(data))
             if self.is_finished: return
         self.finish(code, data)
 
@@ -527,6 +549,7 @@ class AbstractSQLView(BaseView):
         return self.after_insert(values)
 
     def after_insert(self, values: Dict) -> Union[None, tuple]:
+        """ Emitted before finish, no more filter """
         pass
 
     def handle_update(self, values: Dict) -> Union[None, tuple]:

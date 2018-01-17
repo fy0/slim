@@ -142,58 +142,7 @@ class Ability:
         elif isinstance(obj, dict):
             return self._parse_permission(obj.get('*'))
 
-    def can(self, user, action, *subjects):
-        """
-        can with tables or columns before query
-        :param user:
-        :param action:
-        :param subjects: [('table_name', 'column_name')] or 'table_name'
-        :return:
-        """
-        ret_lst = []
-        global_data = self.rules.get('*')
-        global_actions = self._parse_permission(global_data)
-
-        for i in subjects:
-            ret = False
-
-            if isinstance(i, (tuple, list)):
-                table, column = i
-            else:
-                table, column = i, None
-
-            if global_actions and action in global_actions:
-                ret = True
-
-            table_data = self.rules.get(table)
-            table_actions = self._parse_permission(table_data)
-
-            # table
-            if table_actions and action in table_actions:
-                ret = True
-
-            # column
-            if type(table_data) == dict:
-                column_actions = self._parse_permission(table_data.get(column))
-                if column_actions is not None:
-                    ret = action in column_actions
-
-            ret_lst.append(ret)
-
-        return ret_lst
-
-    def cannot(self, user, action, *subjects):
-        """
-        cannot with tables or columns before query
-        :param user:
-        :param action:
-        :param subjects:
-        :return:
-        """
-        func = lambda x: not x
-        return list(map(func, self.can(user, action, *subjects)))
-
-    def filter_columns(self, table, columns, action):
+    def can_with_columns(self, table, columns, action):
         """
         根据权限进行列过滤
         :param table: 表名
@@ -218,22 +167,24 @@ class Ability:
             available = list(columns)
 
         # column
+        if type(table_data) != dict:
+            return available
+
         for column in columns:
-            if type(table_data) == dict:
-                column_actions = self._parse_permission(table_data.get(column))
-                if column_actions is not None:
-                    if action in column_actions:
-                        # 有权限，试图加入列表
-                        if column not in available:
-                            available.append(column)
-                    else:
-                        # 无权限，从列表剔除
-                        if column in available:
-                            available.remove(column)
+            column_actions = self._parse_permission(table_data.get(column))
+            if column_actions is not None:
+                if action in column_actions:
+                    # 有权限，试图加入列表
+                    if column not in available:
+                        available.append(column)
+                else:
+                    # 无权限，从列表剔除
+                    if column in available:
+                        available.remove(column)
 
         return available
 
-    def filter_record(self, user, action, record: AbilityRecord, *, available=None):
+    def can_with_record(self, user, action, record: AbilityRecord, *, available=None):
         """
         filter record columns by rules and action
         在查询完成之后，根据规则对记录进行过滤
@@ -249,7 +200,7 @@ class Ability:
             # available = record.keys()
             # 为了避免不必要的麻烦（主要是没有 info['select'] 又需要读出 record 的情况，例如 insert 和 update）
             # 这里直接再对列做一次过滤
-            available = self.filter_columns(record.table, record.keys(), action)
+            available = self.can_with_columns(record.table, record.keys(), action)
 
         # 先行匹配规则适用范围
         rules = {'table': [], 'column': []}
