@@ -181,6 +181,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
     async def update(self, info, data):
         nargs = self._get_args(info['conditions'])
         if self.err: return self.err
+        if len(nargs) == 0: return RETCODE.SUCCESS, 0
 
         data = dict_filter(data, self.vcls.fields.keys())
         db = self.vcls.model._meta.database

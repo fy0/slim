@@ -472,9 +472,9 @@ class AbstractSQLView(BaseView):
         if len(data) == 0: return self.finish(RETCODE.INVALID_POSTDATA)
         logger.debug('request permission: [%s] of table %r' % (action, self.table_name))
 
-        if action in A.WRITE:
+        if action == A.WRITE:
             code, record = await self._sql.select_one(info)
-            valid = self.ability.can_with_record(self.current_user, action, record, available=data.keys())
+            valid = self.ability.can_with_record(self.current_user, action, record)
             info.clear_condition()
             info.set_select([self.primary_key])
             info.add_condition(self.primary_key, '==', record.get(self.primary_key))
