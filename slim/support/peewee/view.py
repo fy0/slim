@@ -120,10 +120,10 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
                     else:
                         value = conv_func(value)
                 except binascii.Error:
-                    self.err = RETCODE.INVALID_HTTP_PARAMS, 'Invalid query value for blob: Odd-length string'
+                    self.err = RETCODE.INVALID_PARAMS, 'Invalid query value for blob: Odd-length string'
                     return
                 except ValueError as e:
-                    self.err = RETCODE.INVALID_HTTP_PARAMS, ' '.join(map(str, e.args))
+                    self.err = RETCODE.INVALID_PARAMS, ' '.join(map(str, e.args))
 
             pw_args.append(getattr(field, _peewee_method_map[op])(value))
         return pw_args
@@ -179,31 +179,28 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
         return RETCODE.SUCCESS, pg
 
     async def update(self, info, data):
-        try:
-            q = self._make_select(info)
-            if self.err: return self.err
-            item = q.get()
-            db = self.vcls.model._meta.database
-            with db.atomic():
-                ok = False
-                try:
-                    for k, v in data.items():
-                        if k in self.vcls.fields:
-                            setattr(item, k, v)
-                    item.save()
-                    ok = True
-                except peewee.DatabaseError:
-                    db.rollback()
+        nargs = self._get_args(info['conditions'])
+        if self.err: return self.err
 
-            if ok:
-                return RETCODE.SUCCESS, {'count': 1}
+        data = dict_filter(data, self.vcls.fields.keys())
+        db = self.vcls.model._meta.database
 
-        except self.vcls.model.DoesNotExist:
-            return RETCODE.NOT_FOUND, NotImplemented
+        with db.atomic():
+            try:
+                count = self.vcls.model.update(**data).where(*nargs).execute()
+                return RETCODE.SUCCESS, count
+            except peewee.DatabaseError:
+                db.rollback()
+
+    def delete(self, select_info):
+        nargs = self._get_args(select_info['conditions'])
+        if self.err: return self.err
+        count = self.vcls.model.delete().where(*nargs).execute()
+        return RETCODE.SUCCESS, count
 
     async def insert(self, data):
         if not len(data):
-            return RETCODE.INVALID_HTTP_PARAMS, NotImplemented
+            return RETCODE.INVALID_PARAMS, NotImplemented
         db = self.vcls.model._meta.database
 
         kwargs = {}
@@ -227,7 +224,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
 
 class PeeweeViewOptions(ViewOptions):
     def __init__(self, *, list_page_size=20, list_accept_size_from_client=False, permission: Permissions = None,
-                 model:peewee.Model=None):
+                 model: peewee.Model = None):
         self.model = model
         super().__init__(list_page_size=list_page_size, list_accept_size_from_client=list_accept_size_from_client,
                          permission=permission)
@@ -244,6 +241,7 @@ class PeeweeView(AbstractSQLView):
     options_cls = PeeweeViewOptions
 
     model = None
+
     # fields
     # table_name
     # primary_key

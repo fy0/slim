@@ -36,6 +36,11 @@ class AbstractSQLFunctions:
         raise NotImplementedError()
         # code, record
 
+    @abstractmethod
+    async def delete(self, select_info):
+        raise NotImplementedError()
+        # code, count
+
     @staticmethod
     def convert_list_result(format, data):
         lst = []

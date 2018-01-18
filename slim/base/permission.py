@@ -187,7 +187,13 @@ class Ability:
 
         for check in self.common_checks:
             if check[0] == table and action in check[1]:
-                check[-1](self, user, action, available)
+                ret = check[-1](self, user, action, available)
+                if isinstance(ret, (tuple, set, list)):
+                    available = list(ret)
+                elif ret == '*':
+                    available = list(columns)
+                elif not ret:
+                    available = []
                 if not available: break
 
         return available
@@ -210,12 +216,19 @@ class Ability:
                 rules.append(rule)
 
         # 逐个过检查
-        if available: available = list(available)
-        else: available = self.can_with_columns(user, action, record.table, record.keys())
+        if available is None: available = self.can_with_columns(user, action, record.table, record.keys())
+        else: available = list(available)
+        bak = available.copy()
 
         for rule in rules:
-            rule[-1](self, user, action, record, available)
-            if not available: break
+            ret = rule[-1](self, user, action, record, available)
+            if isinstance(ret, (tuple, set, list)):
+                available = list(ret)
+            elif ret == '*':
+                available = list(bak)
+            elif not ret:
+                available = []
+
         return available
 
 

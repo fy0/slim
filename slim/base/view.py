@@ -414,7 +414,7 @@ class AbstractSQLView(BaseView):
         page = self.route_info.get('page', '1')
 
         if not page.isdigit():
-            self.finish(RETCODE.INVALID_HTTP_PARAMS)
+            self.finish(RETCODE.INVALID_PARAMS)
             return None, None
         page = int(page)
 
@@ -426,7 +426,7 @@ class AbstractSQLView(BaseView):
                 elif size.isdigit():
                     size = int(size or self.LIST_PAGE_SIZE)
                 else:
-                    self.finish(RETCODE.INVALID_HTTP_PARAMS)
+                    self.finish(RETCODE.INVALID_PARAMS)
                     return None, None
             else:
                 size = self.LIST_PAGE_SIZE
@@ -469,10 +469,10 @@ class AbstractSQLView(BaseView):
     async def _data_convert(self, info, data: Dict[str, object], action=A.WRITE):
         # 写入/插入权限检查
         data = dict_filter(data, self.fields.keys())
-        if len(data) == 0: return self.finish(RETCODE.INVALID_HTTP_POSTDATA)
+        if len(data) == 0: return self.finish(RETCODE.INVALID_POSTDATA)
         logger.debug('request permission: [%s] of table %r' % (action, self.table_name))
 
-        if action == A.WRITE:
+        if action in A.WRITE:
             code, record = await self._sql.select_one(info)
             valid = self.ability.can_with_record(self.current_user, action, record, available=data.keys())
             info.clear_condition()
@@ -494,32 +494,65 @@ class AbstractSQLView(BaseView):
         self._check_handle_result(self.handle_query(info))
         if self.is_finished: return
 
-        post_data = await self._data_convert(info, await self.post_data(), A.WRITE)
+        raw_post = await self.post_data()
+        values = await self._data_convert(info, raw_post, A.WRITE)
         if self.is_finished: return
-        self._check_handle_result(self.before_update(post_data))
+        self._check_handle_result(self.before_update(raw_post, values))
         if self.is_finished: return
 
-        logger.debug('set data: %s' % post_data)
-        code, data = await self._sql.update(info, post_data)
+        logger.debug('set data: %s' % values)
+        code, data = await self._sql.update(info, values)
         if code == RETCODE.SUCCESS:
             self._after_update(data)
         self.finish(code, data)
 
     async def new(self):
-        post_data = await self._data_convert(None, await self.post_data(), action=A.CREATE)
-        logger.debug('new data: %s' % post_data)
+        raw_post = await self.post_data()
+        values = await self._data_convert(None, raw_post, action=A.CREATE)
+        logger.debug('new data: %s' % values)
         if self.is_finished: return
-        self._check_handle_result(self.before_insert(post_data))
+        self._check_handle_result(self.before_insert(raw_post, values))
         if self.is_finished: return
 
-        code, data = await self._sql.insert(post_data)
+        code, data = await self._sql.insert(values)
         if code == RETCODE.SUCCESS:
             data = self._filter_record_by_ability(data)
-            if not data: return self.finish(RETCODE.NOT_FOUND)
+            if not data:
+                logger.warning("nothing returns after record created, did you set proper permissions?")
+                return self.finish(RETCODE.SUCCESS, {})
             self._check_handle_result(self.after_read(data))
             self._check_handle_result(self._after_insert(data))
             if self.is_finished: return
         self.finish(code, data)
+
+    def do_delete(self, info: ParamsQueryInfo):
+        """
+        overwrite it if you need
+        :param info:
+        :return:
+        """
+        n = self._sql.delete(info)
+        self.finish(RETCODE.SUCCESS, n)
+
+    async def delete(self):
+        info = ParamsQueryInfo.new(self, self.params, self.ability)
+        self._check_handle_result(self.handle_query(info))
+        if self.is_finished: return
+
+        logger.debug('request permission: [%s] of table %r' % (A.DELETE, self.table_name))
+        code, record = await self._sql.select_one(info)
+        valid = self.ability.can_with_record(self.current_user, A.DELETE, record, available=record.keys())
+        info.clear_condition()
+        info.set_select([self.primary_key])
+        info.add_condition(self.primary_key, '==', record.get(self.primary_key))
+
+        if len(valid) == len(record.keys()):
+            logger.debug("request permission successed: %r" % list(record.keys()))
+            code, data = await self.do_delete(info)
+            self.finish(code, data)
+        else:
+            self.finish(RETCODE.PERMISSION_DENIED)
+            logger.debug("request permission failed. valid / requested: %r, %r" % (valid, list(record.keys())))
 
     @staticmethod
     @abstractmethod
@@ -542,7 +575,7 @@ class AbstractSQLView(BaseView):
     def after_read(self, values: Dict) -> Union[None, tuple]:
         pass
 
-    def before_insert(self, values: Dict) -> Union[None, tuple]:
+    def before_insert(self, raw_post: Dict, values: Dict) -> Union[None, tuple]:
         pass
 
     def _after_insert(self, values: Dict) -> Union[None, tuple]:
@@ -552,7 +585,7 @@ class AbstractSQLView(BaseView):
         """ Emitted before finish, no more filter """
         pass
 
-    def before_update(self, values: Dict) -> Union[None, tuple]:
+    def before_update(self, raw_post: Dict, values: Dict) -> Union[None, tuple]:
         pass
 
     def _after_update(self, values: Dict):

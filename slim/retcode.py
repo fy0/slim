@@ -17,8 +17,8 @@ class RETCODE(StateObject):
     PARAM_REQUIRED = -228  # 需要参数
     POSTDATA_REQUIRED = -227  # 需要参数
 
-    INVALID_HTTP_PARAMS = -219  # 非法参数
-    INVALID_HTTP_POSTDATA = -218  # 非法提交内容
+    INVALID_PARAMS = -219  # 非法参数
+    INVALID_POSTDATA = -218  # 非法提交内容
 
     WS_DONE = 1  # Websocket 请求完成
 
@@ -38,8 +38,8 @@ class RETCODE(StateObject):
         PARAM_REQUIRED: '缺少参数',
         POSTDATA_REQUIRED: '缺少提交内容',
 
-        INVALID_HTTP_PARAMS: '非法参数',
-        INVALID_HTTP_POSTDATA: '非法提交内容',
+        INVALID_PARAMS: '非法参数',
+        INVALID_POSTDATA: '非法提交内容',
 
         WS_DONE: 'Websocket 请求完成'
     }
@@ -60,8 +60,8 @@ class RETCODE(StateObject):
         PARAM_REQUIRED: 'parameter(s) required',
         POSTDATA_REQUIRED: 'post data item(s) required',
 
-        INVALID_HTTP_PARAMS: 'invalid parameter(s)',
-        INVALID_HTTP_POSTDATA: 'invalid post',
+        INVALID_PARAMS: 'invalid parameter(s)',
+        INVALID_POSTDATA: 'invalid post',
 
         WS_DONE: 'Websocket request done'
     }

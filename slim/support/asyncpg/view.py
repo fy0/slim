@@ -77,10 +77,10 @@ class AsyncpgSQLFunctions(AbstractSQLFunctions):
                     else:
                         i[2] = conv_func(i[2])
                 except binascii.Error:
-                    self.err = RETCODE.INVALID_HTTP_PARAMS, 'Invalid query value for blob: Odd-length string'
+                    self.err = RETCODE.INVALID_PARAMS, 'Invalid query value for blob: Odd-length string'
                     return
                 except ValueError as e:
-                    self.err = RETCODE.INVALID_HTTP_PARAMS, ' '.join(map(str, e.args))
+                    self.err = RETCODE.INVALID_PARAMS, ' '.join(map(str, e.args))
 
             nargs.append([*i, type_codec])
         return nargs
