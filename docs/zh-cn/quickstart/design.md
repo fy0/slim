@@ -4,15 +4,17 @@
 ## 概述
 ---
 
-如前文所说，slim 会将数据表封装为一套web接口，而这些接口会遵循一些共同原则。
+如前文所说，slim 默认会将数据表封装为一套web接口，而这些接口遵循一些共同原则。
+
+除了默认的接口之外，可以自行扩展新的接口，也可以重载或者关闭默认接口。
 
 一般来说，我们利用 HTTP 请求附带的参数（params）来进行数据的查询和选择，等价于使用and连接的sql条件语句，同时支持部分运算符。
 
 利用 HTTP POST 请求中可以附加的 body 信息来表示数据被添加或更新的内容。
 
-因此值得注意的是，一些请求可以同时带上这两套参数。
+因此值得注意的是，部分请求可能需要同时带上这两套参数，比如说 set（提交POST请求，使用 params 选择数据，使用 post data 描述数据内容）。
 
-此外，根据开发者在绑定url到服务实例对象上时给出的名字，这一套API会被自动带上如下的前缀：
+根据开发者在绑定url到服务实例对象上时给出的名字，这一套API会被自动带上如下的前缀：
 
 ```
 /api/{name}/{method}
@@ -27,9 +29,8 @@ new
 delete
 ```
 
-那么如何进行绑定，这些接口又有什么用呢？
+预设接口覆盖了常见的增删改查操作。
 
-请继续往下看。
 
 ## 返回值
 ---
@@ -44,22 +45,27 @@ delete
 ```python
 # module: slim.retcode
 
-class RETCODE:
+class RETCODE(StateObject):
     SUCCESS = 0  # 成功
-    TIMEOUT = -244  # 超时
-    CHECK_FAILURE = -245  # 校验失败（文件上传等）
-    PARAM_REQUIRED = -246  # 需要参数
-    FAILED = -247  # 失败
-    TOO_LONG = -248  # 过长（用户名或其他参数）
-    TOO_SHORT = -249  # 过短（用户名或其他参数）
-    INVALID_POSTDATA = -243  # 非法提交内容
-    INVALID_PARAMS = -250  # 非法参数
-    ALREADY_EXISTS = -251  # 已经存在
-    NOT_FOUND = -252  # 未找到
+    FAILED = -255  # 失败
+    TIMEOUT = -254  # 超时
     UNKNOWN = -253  # 未知错误
-    NOT_USER = -254  # 未登录
-    INVALID_ROLE = -246  # 权限申请失败
-    PERMISSION_DENIED = -255  # 无权访问
+
+    NOT_FOUND = -249  # 未找到
+    ALREADY_EXISTS = -248  # 已存在
+
+    PERMISSION_DENIED = -239  # 无权访问
+    INVALID_ROLE = -238  # 权限申请失败
+
+    CHECK_FAILURE = -229  # 校验失败（文件上传等）
+    PARAM_REQUIRED = -228  # 需要参数
+    POSTDATA_REQUIRED = -227  # 需要参数
+
+    INVALID_PARAMS = -219  # 非法参数
+    INVALID_POSTDATA = -218  # 非法提交内容
+
+    WS_DONE = 1  # Websocket 请求完成
+
 ```
 
 
@@ -76,7 +82,7 @@ is 和 isnot 还未彻底完成，但注意，这两个的值都只有 null 一�
 
 一般来说单个接口和单个数据库表是一对一的关系，因此如无特别说明，即存在若干默认接口：
 
-### 单条数据获取接口
+### [GET] 单条数据获取接口
 
 ```
 /api/{name}/get
@@ -111,7 +117,7 @@ is 和 isnot 还未彻底完成，但注意，这两个的值都只有 null 一�
 ```
 
 
-### 列表数据获取接口
+### [LIST] 列表数据获取接口
 ```
 /api/{name}/list/{page}
 /api/{name}/list/{page}/{size}
@@ -150,10 +156,10 @@ is 和 isnot 还未彻底完成，但注意，这两个的值都只有 null 一�
             1,
             2
         ],
-        "page_count": 2,
         "info": {
             "page_size": 20,
-            "count_all": 35
+            "page_count": 2,
+            "items_count": 35
         },
         "items": [
             {
@@ -173,7 +179,7 @@ is 和 isnot 还未彻底完成，但注意，这两个的值都只有 null 一�
 ```
 
 
-### 数据赋值接口
+### [SET] 单条数据赋值接口
 ```
 /api/{name}/set
 ```
@@ -207,7 +213,7 @@ is 和 isnot 还未彻底完成，但注意，这两个的值都只有 null 一�
 }
 ```
 
-### 数据创建接口
+### [NEW] 数据创建接口
 ```
 /api/xxx/new
 ```
@@ -241,7 +247,7 @@ is 和 isnot 还未彻底完成，但注意，这两个的值都只有 null 一�
 }
 ```
 
-### 单条数据删除接口
+### [DEL] 单条数据删除接口
 ```
 /api/{name}/delete
 ```
@@ -270,55 +276,9 @@ is 和 isnot 还未彻底完成，但注意，这两个的值都只有 null 一�
 }
 ```
 
-## 无害化
+## 选择查询列
 ---
 
-Slim 将遵循以下几个原则，或者说是限制：
 
-* 只面向单表，要使用联合查询建议配合使用 sql 中的 view
-
-* 只允许简单逻辑关系，所有查询参数以 and 连接
-
-
-Slim 给了前端较大的自由度去访问和编辑数据。
-
-我们先抛开权限管理不谈（这块内容较多，将在后面用专门一节进行详细阐述），已有的内容似乎就已经十分危险。
-
-比如用户可能会滥用 list 接口去想方设法的弄出他感兴趣的数据，如果设置不当用户有可能一次性抓下整个数据表。
-
-比如我们不希望用户看到表中的一些数据，但当用户拥有高权限（例如他是个管理员）的时候又可以得到更多信息。
-
-再比如更新或删除数据时如果设置错了条件可能会造成极为严重的后果，如果面临 xss 威胁时更是如此。
-
-这些都是我所担心的。我会提供各种配置项让用户对诸如单次获取的最多项，修改或删除的条目数量进行限制。
-
-
-## 其他
+## 跨表查询
 ---
-
-关于 View.post_data() 与 View.params()
-
-注意，尽量不要直接使用 await View.request.post()
-原因是这样的。
-
-
-举例
-```python
-async def new(self):
-    post_data = await self.request.post()
-    post_data['id'] = ObjectID().to_hex()
-    super().new()
-```
-
-当我们希望重载某些预置方法，对一些参数进行干涉处理的时候
-
-```bash
-TypeError: 'multidict._multidict.MultiDictProxy' object does not support item assignment
-```
-
-这样的事情就会发生（修改数据的企图被拒绝了）。
-
-而 View.post_data() 与 View.params() 会使用缓存字典来存放数据。
-
-因此你可以在它们被使用前修改它们以影响默认行为。
-

@@ -1,6 +1,5 @@
 from collections import OrderedDict
 from .cls_init import MetaClassForInit
-# from slim.utils.cls_init import MetaClassForInit
 
 
 class StateObject(metaclass=MetaClassForInit):

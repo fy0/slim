@@ -22,7 +22,7 @@ class CustomID(object):
 
     def _gen_id(self):
         # 0|1|2|3  |   4|5|6|7   |   7|8   | 9|10
-        # 时间戳   |   计数器    |  机器   | PID
+        # 时间戳  |    计数器   |   机器  |  PID
         cls = self.__class__
         cls._index += 1
         cls._index %= 0xFFFFFFFF # 安全阈值：每 1s 2^32 -1 个

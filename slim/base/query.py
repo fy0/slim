@@ -3,7 +3,7 @@ import logging
 from typing import Union, Iterable
 
 from .permission import A
-from ..utils.others import valid_sql_operator
+from ..utils import valid_sql_operator
 from ..exception import SyntaxException, ResourceException, ParamsException, \
     PermissionDeniedException
 

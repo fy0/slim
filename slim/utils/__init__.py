@@ -49,3 +49,23 @@ def bool_parse(val):
     if not (is_true or is_false):
         raise ValueError("Invalid boolean value: %r" % val)
     return is_true
+
+valid_sql_operator = {
+    '=': '=',
+    '==': '=',
+    '!=': '!=',
+    '<>': '<>',
+    '<': '<',
+    '<=': '<=',
+    '>': '>',
+    '>=': '>=',
+    'eq': '=',
+    'ne': '!=',
+    'ge': '>=',
+    'gt': '>',
+    'le': '<=',
+    'lt': '<',
+    'in': 'in',
+    'is': 'is',
+    'isnot': 'isnot',
+}
