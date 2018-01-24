@@ -80,21 +80,40 @@ class Ability:
         self.role = role
         if based_on:
             self.rules = copy.deepcopy(based_on.rules)
-            self.common_checks = copy.deepcopy(based_on.common_checks)
-            self.record_checks = copy.deepcopy(based_on.record_checks)
         else:
             self.rules = {}
-            self.common_checks = []
-            self.record_checks = []
+
+        self.common_checks = []
+        self.record_checks = []
 
         if data:
             # 权限继承对应到列
+            def convert(val: str):
+                if val == '*': return '*'
+                val = val.upper()
+                ret = []
+                if 'Q' in val: ret.append(A.QUERY)
+                if 'W' in val: ret.append(A.WRITE)
+                if 'R' in val: ret.append(A.READ)
+                if 'C' in val: ret.append(A.CREATE)
+                if 'D' in val: ret.append(A.DELETE)
+                return ret
+
+            def parse(v):
+                ret = copy.deepcopy(v)
+                if ret == str:
+                    ret = convert(ret)
+                elif ret == dict:
+                    for k, v in ret.items():
+                        ret[k] = convert(v)
+                return ret
+
             for k, v in data.items():
                 if isinstance(v, dict):
                     if k in self.rules and isinstance(self.rules[k], dict):
-                        self.rules[k].update(copy.deepcopy(v))
+                        self.rules[k].update(parse(v))
                         continue
-                self.rules[k] = copy.deepcopy(v)
+                self.rules[k] = parse(v)
 
     def add_common_check(self, actions, table, func):
         """
