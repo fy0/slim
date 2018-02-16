@@ -265,8 +265,15 @@ class PeeweeView(AbstractSQLView):
     @staticmethod
     async def _fetch_fields(cls_or_self):
         if cls_or_self.model:
+            pv3 = peewee.__version__[0] == '3'
             model = cls_or_self.model
-            cls_or_self.primary_key = model._meta.primary_key.db_column
+            if pv3:
+                # peewee 3.X
+                # http://docs.peewee-orm.com/en/latest/peewee/changes.html#fields
+                cls_or_self.primary_key = model._meta.primary_key.column_name
+            else:
+                # peewee 2.X
+                cls_or_self.primary_key = model._meta.primary_key.db_column
             cls_or_self.foreign_keys = {}
 
             def wrap(name, field):
@@ -276,4 +283,7 @@ class PeeweeView(AbstractSQLView):
                 return name
 
             cls_or_self.fields = {wrap(k, v): v for k, v in model._meta.fields.items()}
-            cls_or_self.table_name = model._meta.db_table
+            if pv3:
+                cls_or_self.table_name = model._meta.table_name
+            else:
+                cls_or_self.table_name = model._meta.db_table

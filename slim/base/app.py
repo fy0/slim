@@ -60,8 +60,12 @@ class Application:
         })
 
         # Configure CORS on all routes.
+        ws_set = set()
+        for url, wsh in self.route.websockets:
+            ws_set.add(wsh._handle)
+
         for r in list(self._raw_app.router.routes()):
-            if type(r.resource) != StaticResource:
+            if type(r.resource) != StaticResource and r.handler not in ws_set:
                 cors.add(r)
 
         for _, cls in self.route.views:
