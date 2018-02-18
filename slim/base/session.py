@@ -17,6 +17,14 @@ class BaseSession:
     def __setitem__(self, key, value):
         self._data[key] = value
 
+    def __setattr__(self, key, value):
+        if key not in ('_view', '_data'):
+            raise AttributeError("use session[%r] = ... to set value" % key)
+        super().__setattr__(key, value)
+
+    def __contains__(self, item):
+        return item in self._data
+
     async def load(self):
         raise NotImplementedError
 
@@ -30,9 +38,23 @@ class BaseSession:
         return session
 
 
-class SimpleSession(BaseSession):
+class CookieSession(BaseSession):
     async def load(self):
         self._data = self._view.get_secure_cookie('s') or {}
 
     async def save(self):
         self._view.set_secure_cookie('s', self._data)
+
+
+class MemoryTokenSession(BaseSession):
+    data = {}
+
+    def load(self):
+        token = self._view.headers.get('AccessToken')
+        return self.data.get(token)
+
+    def save(self):
+        pass
+
+    def new(self, token):
+        self.data[token] = {}

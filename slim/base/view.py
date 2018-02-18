@@ -99,7 +99,8 @@ class BaseView(metaclass=MetaClassForInit):
         pass
 
     async def _on_finish(self):
-        pass
+        if self.session:
+            await self.session.save()
 
     async def on_finish(self):
         pass

@@ -1,7 +1,7 @@
 from aiohttp import web
 from aiohttp.web_urldispatcher import StaticResource
 from slim.utils.jsdict import JsDict
-from .session import SimpleSession
+from .session import CookieSession
 import aiohttp_cors
 from . import log
 
@@ -21,11 +21,11 @@ class SlimPermissions(JsDict):
 class ApplicationOptions:
     def __init__(self):
         self.cookies_secret = b'use a secret'
-        self.session_cls = SimpleSession
+        self.session_cls = CookieSession
 
 
 class Application:
-    def __init__(self, *, cookies_secret: bytes, enable_log=True, session_cls=SimpleSession):
+    def __init__(self, *, cookies_secret: bytes, enable_log=True, session_cls=CookieSession):
         from .route import get_route_middleware, Route
 
         self.route = Route(self)
