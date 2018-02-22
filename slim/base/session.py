@@ -1,12 +1,14 @@
 import logging
+from abc import abstractmethod
 
 logger = logging.getLogger(__name__)
 
 
 class BaseSession:
     def __init__(self, view):
+        self.key = None
         self._view = view
-        self._data = None
+        self._data = {}
 
     def __delitem__(self, key):
         del self._data[key]
@@ -25,36 +27,59 @@ class BaseSession:
     def __contains__(self, item):
         return item in self._data
 
+    @abstractmethod
+    async def get_key(self):
+        raise NotImplementedError
+
+    @abstractmethod
     async def load(self):
         raise NotImplementedError
 
+    @abstractmethod
     async def save(self):
         raise NotImplementedError
 
     @classmethod
     async def get_session(cls, view):
+        """
+        Every request have a session instance
+        :param view:
+        :return:
+        """
         session = cls(view)
-        await session.load()
+        session.key = await session.get_key()
+        session._data = await session.load()
         return session
 
 
 class CookieSession(BaseSession):
+    async def get_key(self):
+        pass
+
     async def load(self):
-        self._data = self._view.get_secure_cookie('s') or {}
+        return self._view.get_secure_cookie('s') or {}
 
     async def save(self):
         self._view.set_secure_cookie('s', self._data)
 
 
-class MemoryTokenSession(BaseSession):
-    data = {}
+class BaseHeaderSession(BaseSession):
+    async def get_key(self):
+        return self._view.headers.get('Session', None)
 
-    def load(self):
-        token = self._view.headers.get('AccessToken')
-        return self.data.get(token)
-
-    def save(self):
+    @abstractmethod
+    async def new(self, key, expire=30):
         pass
 
-    def new(self, token):
-        self.data[token] = {}
+
+class MemoryHeaderSession(BaseHeaderSession):
+    data = {}
+
+    async def new(self, key, expire=30):
+        MemoryHeaderSession.data[key] = {}
+
+    async def load(self):
+        return self.data.get(self.key, None)
+
+    async def save(self):
+        pass
