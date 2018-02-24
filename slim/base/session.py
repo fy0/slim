@@ -17,10 +17,12 @@ class BaseSession:
         return self._data.get(key)
 
     def __setitem__(self, key, value):
+        if self.key is None:
+            raise AttributeError("Use `session.create` to set a key before store value")
         self._data[key] = value
 
     def __setattr__(self, key, value):
-        if key not in ('_view', '_data'):
+        if key not in ('_view', '_data', 'key'):
             raise AttributeError("use session[%r] = ... to set value" % key)
         super().__setattr__(key, value)
 
@@ -48,7 +50,7 @@ class BaseSession:
         """
         session = cls(view)
         session.key = await session.get_key()
-        session._data = await session.load()
+        session._data = await session.load() or {}
         return session
 
 
@@ -75,11 +77,13 @@ class BaseHeaderSession(BaseSession):
 class MemoryHeaderSession(BaseHeaderSession):
     data = {}
 
-    async def new(self, key, expire=30):
-        MemoryHeaderSession.data[key] = {}
+    def create(self, key, expire=30):
+        if key not in MemoryHeaderSession.data:
+            MemoryHeaderSession.data[key] = {}
+        self.key = key
 
     async def load(self):
         return self.data.get(self.key, None)
 
     async def save(self):
-        pass
+        self.data[self.key] = self._data
