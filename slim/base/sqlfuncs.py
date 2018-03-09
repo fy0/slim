@@ -7,6 +7,14 @@ from slim.base.permission import AbilityRecord
 logger = logging.getLogger(__name__)
 
 
+class UpdateInfo:
+    def __init__(self, key, op, val):
+        assert op in ('incr', 'to')
+        self.key = key
+        self.op = op
+        self.val = val
+
+
 class AbstractSQLFunctions:
     def __init__(self, view_cls):
         self.err = None

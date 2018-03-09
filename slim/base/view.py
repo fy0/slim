@@ -6,11 +6,11 @@ from types import FunctionType
 from typing import Tuple, Union, Dict, Iterable, Type, List, Set
 from aiohttp import web
 
-from slim.base.query import ParamsQueryInfo
+from .query import ParamsQueryInfo
 from .app import Application
 from .helper import create_signed_value, decode_signed_value
 from .permission import Permissions, Ability, BaseUser, A
-from .sqlfuncs import AbstractSQLFunctions
+from .sqlfuncs import AbstractSQLFunctions, UpdateInfo
 from ..retcode import RETCODE
 from ..utils import MetaClassForInit, dict_filter
 from ..exception import ValueHandleException
@@ -89,7 +89,7 @@ class BaseView(metaclass=MetaClassForInit):
 
     @property
     def is_finished(self):
-        return self.response
+        return self.response is not None
 
     async def _prepare(self):
         session_cls = self.app.options.session_cls
@@ -312,18 +312,21 @@ class AbstractSQLView(BaseView):
 
         asyncio.get_event_loop().run_until_complete(func())
 
-    def load_role(self, role_val):
-        role = int(role_val) if role_val and role_val.isdigit() else role_val
+    def _load_role(self, role):
         self.ability = self.permission.request_role(self.current_user, role)
         return self.ability
+
+    @property
+    def current_role(self) -> [int, str]:
+        role_val = self.headers.get('Role')
+        return int(role_val) if role_val and role_val.isdigit() else role_val
 
     async def _prepare(self):
         await super()._prepare()
         # _sql 里使用了 self.err 存放数据
         # 那么可以推测在并发中，cls._sql.err 会被多方共用导致出错
         self._sql = self._sql_cls(self.__class__)
-        value = self.headers.get('Role')
-        if not self.load_role(value):
+        if not self._load_role(self.current_role):
             self.finish(RETCODE.INVALID_ROLE)
 
     async def load_fk(self, info, items) -> List:
@@ -467,23 +470,35 @@ class AbstractSQLView(BaseView):
         else:
             self.finish(code, data)
 
-    async def _data_convert(self, info, data: Dict[str, object], action=A.WRITE):
+    async def _post_data_check(self, info, data: Dict[str, object], action=A.WRITE):
         # 写入/插入权限检查
+        if action == A.WRITE:
+            new_data = {}
+            for k, v in data.items():
+                k: str
+                # k 中要存在. 但排除掉列名就是 xxx.xx 的情况
+                if '.' in k and not k in self.fields:
+                    k, op = k.rsplit('.', 1)
+                    v = UpdateInfo(k, 'incr', v)
+                new_data[k] = v
+            data = new_data
+
         data = dict_filter(data, self.fields.keys())
         if len(data) == 0: return self.finish(RETCODE.INVALID_POSTDATA)
         logger.debug('request permission: [%s] of table %r' % (action, self.table_name))
 
         if action == A.WRITE:
             code, record = await self._sql.select_one(info)
-            valid = self.ability.can_with_record(self.current_user, action, record)
+            valid = self.ability.can_with_record(self.current_user, action, record, available=data.keys())
             info.clear_condition()
             info.set_select([self.primary_key])
             info.add_condition(self.primary_key, '==', record.get(self.primary_key))
         else:
+            # A.CREATE
             valid = self.ability.can_with_columns(self.current_user, action, self.table_name, data.keys())
 
         if len(valid) != len(data):
-            logger.debug("request permission failed. valid / requested: %r, %r" % (valid, list(data.keys())))
+            logger.debug("request permission failed. request / valid: %r, %r" % (list(data.keys()), valid))
             return self.finish(RETCODE.PERMISSION_DENIED)
         else:
             logger.debug("request permission successed: %r" % list(data.keys()))
@@ -496,7 +511,7 @@ class AbstractSQLView(BaseView):
         if self.is_finished: return
 
         raw_post = await self.post_data()
-        values = await self._data_convert(info, raw_post, A.WRITE)
+        values = await self._post_data_check(info, raw_post, A.WRITE)
         if self.is_finished: return
         self._check_handle_result(self.before_update(raw_post, values))
         if self.is_finished: return
@@ -509,7 +524,7 @@ class AbstractSQLView(BaseView):
 
     async def new(self):
         raw_post = await self.post_data()
-        values = await self._data_convert(None, raw_post, action=A.CREATE)
+        values = await self._post_data_check(None, raw_post, action=A.CREATE)
         logger.debug('new data: %s' % values)
         if self.is_finished: return
         self._check_handle_result(self.before_insert(raw_post, values))
@@ -587,6 +602,7 @@ class AbstractSQLView(BaseView):
         pass
 
     def before_update(self, raw_post: Dict, values: Dict) -> Union[None, tuple]:
+        """ raw_post 权限过滤和列过滤前，values 过滤后 """
         pass
 
     def _after_update(self, values: Dict):

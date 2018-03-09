@@ -8,6 +8,7 @@ import peewee
 from playhouse.postgres_ext import BinaryJSONField
 from playhouse.shortcuts import model_to_dict
 
+from slim.base.sqlfuncs import UpdateInfo
 from ...base.permission import AbilityRecord, Permissions, A
 from ...retcode import RETCODE
 from ...utils import to_bin, pagination_calc, dict_filter, bool_parse
@@ -188,6 +189,16 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
 
         with db.atomic():
             try:
+                for k, v in data.items():
+                    if isinstance(v, UpdateInfo):
+                        if v.op == 'to':
+                            data[k] = v.val
+                        elif v.op == 'incr':
+                            field = self.vcls.fields[k]
+                            #to_remove.append(k)
+                            #to_add.append([field, field + v.val])
+                            data[k] = field + v.val
+
                 count = self.vcls.model.update(**data).where(*nargs).execute()
                 return RETCODE.SUCCESS, count
             except peewee.DatabaseError:

@@ -223,7 +223,7 @@ class Ability:
         :param user:
         :param action:
         :param record:
-        :param available:
+        :param available: 限定检查范围
         :return: 可用列
         """
         assert action not in (A.QUERY, A.CREATE), "meaningless action check with record: [%s]" % action
