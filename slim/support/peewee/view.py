@@ -173,7 +173,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
         if self.err: return self.err
         count = q.count()
         pg = pagination_calc(count, size, page)
-        if size == -1: size = count  # get all
+        if size == -1: size = count or 20  # get all, care about crash when count == 0
 
         func = lambda item: PeeweeAbilityRecord(None, item, view=self.vcls, selected=info['select'])
         pg["items"] = list(map(func, q.paginate(page, size)))
