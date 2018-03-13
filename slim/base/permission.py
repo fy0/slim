@@ -83,6 +83,8 @@ class Ability:
         else:
             self.rules = {}
 
+        self.query_conditions = {}
+        self.query_condition_funcs = {}
         self.common_checks = []
         self.record_checks = []
 
@@ -114,6 +116,28 @@ class Ability:
                         self.rules[k].update(parse(v))
                         continue
                 self.rules[k] = parse(v)
+
+    def add_query_condition(self, actions, table, params=None, *, data=None, func=None):
+        if isinstance(actions, str):
+            params = [actions]
+
+        if params or data:
+            self.query_conditions.setdefault(table, [])
+            self.query_conditions[table].append([actions, params, data])
+
+        if func:
+            self.query_condition_funcs.setdefault(table, [])
+            self.query_condition_funcs[table].append([actions, func])
+
+            """def func(ability, user, action):
+                return params, data
+            """
+
+    def get_query_extra(self, action, table):
+        if table in self.query_conditions:
+            actions, params, data = self.query_conditions[table]
+            if action in actions:
+                return params, data
 
     def add_common_check(self, actions, table, func):
         """
