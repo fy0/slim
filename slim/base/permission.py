@@ -83,8 +83,8 @@ class Ability:
         else:
             self.rules = {}
 
-        self.query_conditions = {}
-        self.query_condition_funcs = {}
+        self.query_condition_params = {}
+        self.query_condition_params_funcs = {}
         self.common_checks = []
         self.record_checks = []
 
@@ -117,27 +117,29 @@ class Ability:
                         continue
                 self.rules[k] = parse(v)
 
-    def add_query_condition(self, actions, table, params=None, *, data=None, func=None):
-        if isinstance(actions, str):
-            params = [actions]
-
-        if params or data:
-            self.query_conditions.setdefault(table, [])
-            self.query_conditions[table].append([actions, params, data])
+    def add_query_condition(self, table, params=None, *, func=None):
+        if params:
+            self.query_condition_params.setdefault(table, [])
+            self.query_condition_params[table].append(params)
 
         if func:
-            self.query_condition_funcs.setdefault(table, [])
-            self.query_condition_funcs[table].append([actions, func])
+            self.query_condition_params_funcs.setdefault(table, [])
+            self.query_condition_params_funcs[table].append(func)
 
-            """def func(ability, user, action):
-                return params, data
+            """def func(ability, user, query: 'ParamsQueryInfo'):
+                 pass
             """
 
-    def get_query_extra(self, action, table):
-        if table in self.query_conditions:
-            actions, params, data = self.query_conditions[table]
-            if action in actions:
-                return params, data
+    def setup_extra_query_conditions(self, user, table, query: 'ParamsQueryInfo'):
+        if table in self.query_condition_params:
+            # TODO: Check once
+            for items in self.query_condition_params[table]:
+                for i in items:
+                    query.add_condition(*i)
+
+        if table in self.query_condition_params_funcs:
+            for func in self.query_condition_params_funcs:
+                func(self, user, query)
 
     def add_common_check(self, actions, table, func):
         """
@@ -191,6 +193,9 @@ class Ability:
     def can_with_columns(self, user, action, table, columns):
         """
         根据权限进行列过滤
+        注意一点，只要有一个条件能够通过权限检测，那么过滤后还会有剩余条件，最终就不会报错。
+        如果全部条件都不能过检测，就会爆出权限错误了。
+
         :param user:
         :param action: 行为
         :param table: 表名
@@ -199,6 +204,7 @@ class Ability:
         """
         # TODO: 此过程可以加缓存
         # 全局
+
         global_data = self.rules.get('*')
         global_actions = self._parse_permission(global_data)
         if global_actions and action in global_actions:

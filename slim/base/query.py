@@ -236,7 +236,7 @@ class ParamsQueryInfo(dict):
                     raise ParamsException('Invalid value: %s (must be json)' % value)
             assert isinstance(value, Iterable)
 
-        self.conditions.append([field_name, op, value])
+        self.conditions.append((field_name, op, value))
 
     def clear_condition(self):
         self.conditions.clear()
@@ -275,19 +275,22 @@ class ParamsQueryInfo(dict):
             op = info[1] if len(info) > 1 else '='
             query.add_condition(field_name, op, value)
 
-        logger.debug('query info: %s' % query)
         query.check_permission(ability)
+        # 额外附加的参数跳过权限检查
+        ability.setup_extra_query_conditions(view.current_user, view.table_name, query)
+        logger.debug('query info: %s' % query)
 
         return query
 
     def check_permission(self, ability):
         view = self.view
         # 查询权限检查
-        from_columns = []
+        checking_columns = []
         for field_name, op, value in self.conditions:
-            from_columns.append(field_name)
-        if from_columns and not ability.can_with_columns(view.current_user, A.QUERY, view.table_name, from_columns):
-            raise PermissionDeniedException(A.QUERY, from_columns)
+            checking_columns.append(field_name)
+
+        if checking_columns and not ability.can_with_columns(view.current_user, A.QUERY, view.table_name, checking_columns):
+            raise PermissionDeniedException("None of these columns had permission to %r: %r" % (A.QUERY, checking_columns))
 
         # 读取权限检查，限定被查询的列
         if self['select'] is None:
