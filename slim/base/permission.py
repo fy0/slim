@@ -13,7 +13,7 @@ class A:
     CREATE = 'create'
     DELETE = 'delete'
 
-    ALL = 'query', 'read', 'write', 'create', 'delete'
+    ALL = QUERY, READ, WRITE, CREATE, DELETE
 
 
 class AbilityTable:
@@ -138,7 +138,7 @@ class Ability:
                     query.add_condition(*i)
 
         if table in self.query_condition_params_funcs:
-            for func in self.query_condition_params_funcs:
+            for func in self.query_condition_params_funcs[table]:
                 func(self, user, query)
 
     def add_common_check(self, actions, table, func):

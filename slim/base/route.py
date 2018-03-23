@@ -3,10 +3,8 @@ from asyncio import iscoroutinefunction, Future
 from typing import Iterable, Type, TYPE_CHECKING
 from aiohttp import web, web_response
 from posixpath import join as urljoin
-
-
 from slim.base.ws import WSHandler
-from ..utils import async_run
+from ..utils.async import sync_call
 
 if TYPE_CHECKING:
     from .view import BaseView
@@ -165,10 +163,7 @@ class Route:
         raw_router = app._raw_app.router
 
         for func in self.before_bind:
-            if iscoroutinefunction(func):
-                async_run(func(app))
-            elif callable(func):
-                func(app)
+            sync_call(func, app)
 
         for url, cls in self.views:
             view_bind(app, url, cls)
@@ -187,7 +182,4 @@ class Route:
             raw_router.add_static(prefix, path, **kwargs)
 
         for func in self.after_bind:
-            if iscoroutinefunction(func):
-                async_run(func(app))
-            elif callable(func):
-                func(app)
+            sync_call(func, app)

@@ -2,7 +2,7 @@ import random
 import re
 import string
 import time
-from .async import async_corun, async_run
+from .async import *
 from .binhex import to_bin, to_hex
 from .cls_init import MetaClassForInit
 from .pagination import pagination_calc

@@ -110,6 +110,10 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
                     # FIX: 其实这可能有点问题，因为None是一个合法的值
                     if val is None:
                         return val
+                    # 同样的，NotImplemented 似乎可能是一个非法值
+                    # 很有可能不存在一部分是 NotImplemented 另一部分不是的情况
+                    if val is NotImplemented:
+                        return
                     return to_bin(val)
             elif isinstance(tfield, peewee.BooleanField):
                 conv_func = bool_parse

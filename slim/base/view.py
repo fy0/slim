@@ -12,7 +12,7 @@ from .helper import create_signed_value, decode_signed_value
 from .permission import Permissions, Ability, BaseUser, A
 from .sqlfuncs import AbstractSQLFunctions, UpdateInfo
 from ..retcode import RETCODE
-from ..utils import MetaClassForInit, dict_filter
+from ..utils import MetaClassForInit, dict_filter, sync_call, async_call
 from ..exception import ValueHandleException
 
 logger = logging.getLogger(__name__)
@@ -327,6 +327,7 @@ class AbstractSQLView(BaseView):
         # 那么可以推测在并发中，cls._sql.err 会被多方共用导致出错
         self._sql = self._sql_cls(self.__class__)
         if not self._load_role(self.current_role):
+            logger.debug("load role %r failed, please make sure the user is permitted and the View object inherited a UserMixin." % self.current_role)
             self.finish(RETCODE.INVALID_ROLE)
 
     async def load_fk(self, info, items) -> List:
@@ -348,8 +349,16 @@ class AbstractSQLView(BaseView):
             for column, fkdatas in data.items():
                 for fkdata in fkdatas:
                     pks = []
+                    all_ni = True
                     for i in items:
-                        pks.append(i.get(column, NotImplemented))
+                        val = i.get(column, NotImplemented)
+                        if val != NotImplemented:
+                            all_ni = False
+                        pks.append(val)
+
+                    if all_ni:
+                        logger.debug("load foreign key failed, do you have read permission to the column %r?" % column)
+                        continue
 
                     # third: query foreign keys
                     vcls = self.app.tables[fkdata['table']]
@@ -401,14 +410,14 @@ class AbstractSQLView(BaseView):
 
     async def get(self):
         info = ParamsQueryInfo.new(self, self.params, self.ability)
-        self._check_handle_result(self.handle_query(info))
+        self._check_handle_result(await async_call(self.handle_query, info))
         if self.is_finished: return
         code, data = await self._sql.select_one(info)
 
         if code == RETCODE.SUCCESS:
             data = self._filter_record_by_ability(data)
             if not data: return self.finish(RETCODE.NOT_FOUND)
-            self._check_handle_result(self.after_read(data))
+            self._check_handle_result(await async_call(self.after_read, data))
             if self.is_finished: return
             data = (await self.load_fk(info, [data]))[0]
 
@@ -449,7 +458,7 @@ class AbstractSQLView(BaseView):
             if info['format'] == 'array':
                 item = get_values(item)
 
-            self._check_handle_result(self.after_read(item))
+            self._check_handle_result(await async_call(self.after_read, item))
             if self.is_finished: return
             lst.append(item)
         return lst
@@ -458,7 +467,7 @@ class AbstractSQLView(BaseView):
         page, size = self._get_list_page_and_size()
         if self.is_finished: return
         info = ParamsQueryInfo.new(self, self.params, self.ability)
-        self._check_handle_result(self.handle_query(info))
+        self._check_handle_result(await async_call(self.handle_query, info))
         if self.is_finished: return
 
         code, data = await self._sql.select_paginated_list(info, size, page)
@@ -513,13 +522,13 @@ class AbstractSQLView(BaseView):
         raw_post = await self.post_data()
         values = await self._post_data_check(info, raw_post, A.WRITE)
         if self.is_finished: return
-        self._check_handle_result(self.before_update(raw_post, values))
+        self._check_handle_result(await async_call(self.before_update, raw_post, values))
         if self.is_finished: return
 
         logger.debug('set data: %s' % values)
         code, data = await self._sql.update(info, values)
         if code == RETCODE.SUCCESS:
-            self._after_update(data)
+            await async_call(self.after_update, data)
         self.finish(code, data)
 
     async def new(self):
@@ -536,8 +545,8 @@ class AbstractSQLView(BaseView):
             if not data:
                 logger.warning("nothing returns after record created, did you set proper permissions?")
                 return self.finish(RETCODE.SUCCESS, {})
-            self._check_handle_result(self.after_read(data))
-            self._check_handle_result(self._after_insert(data))
+            self._check_handle_result(await async_call(self.after_read, data))
+            self._check_handle_result(await async_call(self.after_insert, raw_post, data))
             if self.is_finished: return
         self.finish(code, data)
 
@@ -552,7 +561,7 @@ class AbstractSQLView(BaseView):
 
     async def delete(self):
         info = ParamsQueryInfo.new(self, self.params, self.ability)
-        self._check_handle_result(self.handle_query(info))
+        self._check_handle_result(await async_call(self.handle_query, info))
         if self.is_finished: return
 
         logger.debug('request permission: [%s] of table %r' % (A.DELETE, self.table_name))
@@ -585,28 +594,22 @@ class AbstractSQLView(BaseView):
         """
         pass
 
-    def handle_query(self, info: ParamsQueryInfo) -> Union[None, tuple]:
+    async def handle_query(self, info: ParamsQueryInfo) -> Union[None, tuple]:
         pass
 
-    def after_read(self, values: Dict) -> Union[None, tuple]:
+    async def after_read(self, values: Dict) -> Union[None, tuple]:
         pass
 
-    def before_insert(self, raw_post: Dict, values: Dict) -> Union[None, tuple]:
+    async def before_insert(self, raw_post: Dict, values: Dict) -> Union[None, tuple]:
         pass
 
-    def _after_insert(self, values: Dict) -> Union[None, tuple]:
-        return self.after_insert(values)
-
-    def after_insert(self, values: Dict) -> Union[None, tuple]:
+    async def after_insert(self, raw_post: Dict, values: Dict) -> Union[None, tuple]:
         """ Emitted before finish, no more filter """
         pass
 
-    def before_update(self, raw_post: Dict, values: Dict) -> Union[None, tuple]:
+    async def before_update(self, raw_post: Dict, values: Dict) -> Union[None, tuple]:
         """ raw_post 权限过滤和列过滤前，values 过滤后 """
         pass
 
-    def _after_update(self, values: Dict):
-        pass
-
-    def after_update(self, values: Dict):
+    async def after_update(self, values: Dict):
         pass

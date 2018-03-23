@@ -199,6 +199,13 @@ class ParamsQueryInfo(dict):
             if column not in self['select']:
                 self['select'].append(column)
 
+    def remove_select(self, column):
+        if not self['select']:
+            return
+        if column in self['select']:
+            self['select'].remove(column)
+            return True
+
     def add_condition(self, field_name, op, value):
         """
         Add a query condition and validate it.
