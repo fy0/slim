@@ -19,7 +19,7 @@ def long_desc():
 
 setup(
     name='slim',
-    version='0.2.17',
+    version='0.2.18',
 
     description=description(),
     long_description=long_desc(),
@@ -58,7 +58,7 @@ setup(
     platforms='any',
 
     install_requires=['aiohttp', 'aiohttp_cors', 'click'],
-    python_requires='>=3.5',
+    python_requires='>=3.5.3',
 
     extras_require={
         'full': ['peewee', 'asyncpg', 'msgpack'],
