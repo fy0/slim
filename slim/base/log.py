@@ -15,7 +15,7 @@ logger = None
 is_enable = False
 
 
-def enable():
+def enable(level=logging.DEBUG):
     global logger, is_enable
 
     if not is_enable:
@@ -25,7 +25,7 @@ def enable():
         ))
 
         logger = logging.getLogger('slim')
-        logger.setLevel(logging.DEBUG)
+        logger.setLevel(level)
         logger.addHandler(default_handler)
 
         is_enable = True

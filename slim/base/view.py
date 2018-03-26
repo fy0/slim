@@ -13,6 +13,7 @@ from .permission import Permissions, Ability, BaseUser, A
 from .sqlfuncs import AbstractSQLFunctions, UpdateInfo
 from ..retcode import RETCODE
 from ..utils import MetaClassForInit, dict_filter, sync_call, async_call
+from ..utils.json_ex import json_ex_dumps
 from ..exception import ValueHandleException
 
 logger = logging.getLogger(__name__)
@@ -125,7 +126,7 @@ class BaseView(metaclass=MetaClassForInit):
         if data is NotImplemented:
             data = RETCODE.txt_cn.get(code)
         self.ret_val = {'code': code, 'data': data}  # for access in inhreads method
-        self.response = web.json_response(self.ret_val)
+        self.response = web.json_response(self.ret_val, dumps=json_ex_dumps)
         logger.debug('finish: %s' % self.ret_val)
         for i in self._cookie_set or ():
             if i[0] == 'set':

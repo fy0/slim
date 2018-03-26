@@ -1,3 +1,4 @@
+import logging
 from aiohttp import web
 from aiohttp.web_urldispatcher import StaticResource
 from slim.utils.jsdict import JsDict
@@ -25,7 +26,14 @@ class ApplicationOptions:
 
 
 class Application:
-    def __init__(self, *, cookies_secret: bytes, enable_log=True, session_cls=CookieSession):
+    def __init__(self, *, cookies_secret: bytes, enable_log=logging.DEBUG, session_cls=CookieSession,
+                 client_max_size=2*1024*1024):
+        """
+        :param cookies_secret:
+        :param enable_log:
+        :param session_cls:
+        :param client_max_size: 2MB is default client_max_body_size of nginx
+        """
         from .route import get_route_middleware, Route
 
         self.route = Route(self)
@@ -33,12 +41,12 @@ class Application:
         self.permissions = SlimPermissions()
 
         if enable_log:
-            log.enable()
+            log.enable(enable_log)
 
         self.options = ApplicationOptions()
         self.options.cookies_secret = cookies_secret
         self.options.session_cls = session_cls
-        self._raw_app = web.Application(middlewares=[get_route_middleware(self)])
+        self._raw_app = web.Application(middlewares=[get_route_middleware(self)], client_max_size=client_max_size)
 
     def run(self, host, port):
         from .view import AbstractSQLView
