@@ -551,15 +551,6 @@ class AbstractSQLView(BaseView):
             if self.is_finished: return
         self.finish(code, data)
 
-    def do_delete(self, info: ParamsQueryInfo):
-        """
-        overwrite it if you need
-        :param info:
-        :return:
-        """
-        n = self._sql.delete(info)
-        self.finish(RETCODE.SUCCESS, n)
-
     async def delete(self):
         info = ParamsQueryInfo.new(self, self.params, self.ability)
         self._check_handle_result(await async_call(self.handle_query, info))
@@ -567,6 +558,8 @@ class AbstractSQLView(BaseView):
 
         logger.debug('request permission: [%s] of table %r' % (A.DELETE, self.table_name))
         code, record = await self._sql.select_one(info)
+        if record == NotImplemented:
+            return self.finish(RETCODE.NOT_FOUND)
         valid = self.ability.can_with_record(self.current_user, A.DELETE, record, available=record.keys())
         info.clear_condition()
         info.set_select([self.primary_key])
@@ -574,8 +567,11 @@ class AbstractSQLView(BaseView):
 
         if len(valid) == len(record.keys()):
             logger.debug("request permission successed: %r" % list(record.keys()))
-            code, data = await self.do_delete(info)
-            self.finish(code, data)
+            code, count = await self._sql.delete(info)
+            if code == RETCODE.SUCCESS:
+                self.finish(RETCODE.SUCCESS, count)
+            else:
+                self.finish(code)
         else:
             self.finish(RETCODE.PERMISSION_DENIED)
             logger.debug("request permission failed. valid / requested: %r, %r" % (valid, list(record.keys())))

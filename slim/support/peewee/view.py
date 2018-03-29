@@ -208,7 +208,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
             except peewee.DatabaseError:
                 db.rollback()
 
-    def delete(self, select_info):
+    async def delete(self, select_info):
         nargs = self._get_args(select_info['conditions'])
         if self.err: return self.err
         count = self.vcls.model.delete().where(*nargs).execute()

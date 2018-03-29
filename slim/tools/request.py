@@ -81,4 +81,4 @@ class SlimViewRequest:
         return do_request(self.config, 'POST', f'{self.urlPrefix}/new', {}, data, role)
 
     def delete(self, params, role=None):
-        return do_request(self.config, 'POST', f'{self.urlPrefix}/new', params, {}, role)
+        return do_request(self.config, 'POST', f'{self.urlPrefix}/delete', params, {}, role)
