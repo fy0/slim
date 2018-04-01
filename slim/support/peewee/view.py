@@ -230,8 +230,22 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
 
         with db.atomic():
             try:
-                item = self.vcls.model.create(**kwargs)
+                model = self.vcls.model
+                if isinstance(model._meta.database, peewee.PostgresqlDatabase):
+                    # 对 postgres 采信于数据库的返回值，防止一种 default 值覆盖
+                    # https://github.com/coleifer/peewee/issues/1555
+                    ret = model.insert(**kwargs).returning(*model._meta.fields.values()).execute()
+                    item = ret.model(**ret._row_to_dict(ret[0]))
+                else:
+                    item = model.create(**kwargs)
                 return RETCODE.SUCCESS, PeeweeAbilityRecord(None, item, view=self.vcls)
+            except peewee.IntegrityError as e:
+                if e.args[0].startswith('duplicate key'):
+                    return RETCODE.ALREADY_EXISTS, NotImplemented
+                else:
+                    db.rollback()
+                    logger.error("database error", e)
+                    return RETCODE.FAILED, NotImplemented
             except peewee.DatabaseError as e:
                 db.rollback()
                 logger.error("database error", e)

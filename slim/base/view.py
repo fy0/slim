@@ -9,7 +9,7 @@ from aiohttp import web
 from .query import ParamsQueryInfo
 from .app import Application
 from .helper import create_signed_value, decode_signed_value
-from .permission import Permissions, Ability, BaseUser, A
+from .permission import Permissions, Ability, BaseUser, A, AbilityRecord
 from .sqlfuncs import AbstractSQLFunctions, UpdateInfo
 from ..retcode import RETCODE
 from ..utils import MetaClassForInit, dict_filter, sync_call, async_call
@@ -416,9 +416,10 @@ class AbstractSQLView(BaseView):
         code, data = await self._sql.select_one(info)
 
         if code == RETCODE.SUCCESS:
+            dbdata = data
             data = self._filter_record_by_ability(data)
             if not data: return self.finish(RETCODE.NOT_FOUND)
-            self._check_handle_result(await async_call(self.after_read, data))
+            self._check_handle_result(await async_call(self.after_read, dbdata, data))
             if self.is_finished: return
             data = (await self.load_fk(info, [data]))[0]
 
@@ -459,7 +460,7 @@ class AbstractSQLView(BaseView):
             if info['format'] == 'array':
                 item = get_values(item)
 
-            self._check_handle_result(await async_call(self.after_read, item))
+            self._check_handle_result(await async_call(self.after_read, i, item))
             if self.is_finished: return
             lst.append(item)
         return lst
@@ -517,7 +518,7 @@ class AbstractSQLView(BaseView):
 
     async def set(self):
         info = ParamsQueryInfo.new(self, self.params, self.ability)
-        self._check_handle_result(self.handle_query(info))
+        self._check_handle_result(await async_call(self.handle_query, info))
         if self.is_finished: return
 
         raw_post = await self.post_data()
@@ -542,12 +543,13 @@ class AbstractSQLView(BaseView):
 
         code, data = await self._sql.insert(values)
         if code == RETCODE.SUCCESS:
+            dbdata = data
             data = self._filter_record_by_ability(data)
             if not data:
                 logger.warning("nothing returns after record created, did you set proper permissions?")
                 return self.finish(RETCODE.SUCCESS, {})
-            self._check_handle_result(await async_call(self.after_read, data))
-            self._check_handle_result(await async_call(self.after_insert, raw_post, data))
+            self._check_handle_result(await async_call(self.after_read, dbdata, data))
+            self._check_handle_result(await async_call(self.after_insert, raw_post, dbdata, data))
             if self.is_finished: return
         self.finish(code, data)
 
@@ -594,13 +596,13 @@ class AbstractSQLView(BaseView):
     async def handle_query(self, info: ParamsQueryInfo) -> Union[None, tuple]:
         pass
 
-    async def after_read(self, values: Dict) -> Union[None, tuple]:
+    async def after_read(self, dbdata: Dict, values: Dict) -> Union[None, tuple]:
         pass
 
     async def before_insert(self, raw_post: Dict, values: Dict) -> Union[None, tuple]:
         pass
 
-    async def after_insert(self, raw_post: Dict, values: Dict) -> Union[None, tuple]:
+    async def after_insert(self, raw_post: Dict, dbdata: AbilityRecord, values: Dict) -> Union[None, tuple]:
         """ Emitted before finish, no more filter """
         pass
 
