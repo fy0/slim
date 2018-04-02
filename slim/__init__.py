@@ -4,4 +4,4 @@ from . import base
 from . import support
 from . import utils
 
-version = '0.2.24'
+version = '0.2.26'

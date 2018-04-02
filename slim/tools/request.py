@@ -60,25 +60,25 @@ class SlimViewRequest:
     def __init__(self, config, path):
         self.config = config
         self.path = path
-        self.urlPrefix = f"{self.config['remote']['API_SERVER']}/api/{path}"
+        self.urlPrefix = "%s/api/%s" % (self.config['remote']['API_SERVER'], path)
 
     def get(self, params=None, role=None):
         if params and 'loadfk' in params:
             params['loadfk'] = json.loads(params['loadfk'])
-        return do_request(self.config, 'GET', f'{self.urlPrefix}/get', params, role=role)
+        return do_request(self.config, 'GET', self.urlPrefix + '/get', params, role=role)
 
     def list(self, params=None, page=1, size=None, role=None):
         if params and 'loadfk' in params:
             params['loadfk'] = json.loads(params['loadfk'])
-        url = f'{self.urlPrefix}/list/{page}'
-        if size: url += f'/{size}'
+        url = self.urlPrefix + '/list/%s' % page
+        if size: url += '/%s' % size
         return do_request(self.config, 'GET', url, params, role=role)
 
     def set(self, params, data, role=None):
-        return do_request(self.config, 'POST', f'{self.urlPrefix}/get', params, data, role)
+        return do_request(self.config, 'POST', self.urlPrefix + '/get', params, data, role)
 
     def new(self, data, role=None):
-        return do_request(self.config, 'POST', f'{self.urlPrefix}/new', {}, data, role)
+        return do_request(self.config, 'POST', self.urlPrefix + '/new', {}, data, role)
 
     def delete(self, params, role=None):
-        return do_request(self.config, 'POST', f'{self.urlPrefix}/delete', params, {}, role)
+        return do_request(self.config, 'POST', self.urlPrefix + '/delete', params, {}, role)

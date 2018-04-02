@@ -530,7 +530,7 @@ class AbstractSQLView(BaseView):
         logger.debug('set data: %s' % values)
         code, data = await self._sql.update(info, values)
         if code == RETCODE.SUCCESS:
-            await async_call(self.after_update, data)
+            await async_call(self.after_update, values)
         self.finish(code, data)
 
     async def new(self):

@@ -26,11 +26,11 @@ class ApplicationOptions:
 
 
 class Application:
-    def __init__(self, *, cookies_secret: bytes, enable_log=logging.DEBUG, session_cls=CookieSession,
+    def __init__(self, *, cookies_secret: bytes, log_level=logging.DEBUG, session_cls=CookieSession,
                  client_max_size=2*1024*1024):
         """
         :param cookies_secret:
-        :param enable_log:
+        :param log_level:
         :param session_cls:
         :param client_max_size: 2MB is default client_max_body_size of nginx
         """
@@ -40,8 +40,8 @@ class Application:
         self.tables = SlimTables()
         self.permissions = SlimPermissions()
 
-        if enable_log:
-            log.enable(enable_log)
+        if log_level:
+            log.enable(log_level)
 
         self.options = ApplicationOptions()
         self.options.cookies_secret = cookies_secret
