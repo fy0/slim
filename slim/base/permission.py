@@ -238,10 +238,13 @@ class Ability:
             if check[0] == table and action in check[1]:
                 ret = check[-1](self, user, action, available)
                 if isinstance(ret, (tuple, set, list)):
+                    # 返回列表则进行值覆盖
                     available = list(ret)
                 elif ret == '*':
+                    # 返回 * 加上所有可用列
                     available = list(columns)
-                elif not ret:
+                elif ret is False:
+                    # 返回 false 清空
                     available = []
                 if not available: break
 

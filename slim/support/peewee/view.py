@@ -90,45 +90,61 @@ _peewee_method_map = {
 }
 
 
+def conv_func_by_field(field):
+    # 如果是外键，那么转换为外键指向的类型
+    if isinstance(field, peewee.ForeignKeyField):
+        tfield = field.to_field
+    else:
+        tfield = field
+
+    # 说明：我记得 peewee 会自动完成 int/float 的转换，所以不用自己转
+    if isinstance(tfield, peewee.BlobField):
+        def conv_func(val):
+            if isinstance(val, memoryview):
+                return val
+            # FIX: 其实这可能有点问题，因为None是一个合法的值
+            if val is None:
+                return val
+            # 同样的，NotImplemented 似乎可能是一个非法值
+            # 很有可能不存在一部分是 NotImplemented 另一部分不是的情况
+            if val is NotImplemented:
+                return
+            return to_bin(val)
+        return conv_func
+    elif isinstance(tfield, peewee.BooleanField):
+        return bool_parse
+    elif isinstance(field, BinaryJSONField):
+        return json.loads
+
+
+def do_conv(func, errcode):
+    try:
+        return RETCODE.SUCCESS, func()
+    except binascii.Error:
+        return errcode, 'Invalid value for blob: Odd-length string'
+    except json.JSONDecodeError:
+        return errcode, 'Invalid query value for blob: Odd-length string'
+    except ValueError as e:
+        return errcode, ' '.join(map(str, e.args))
+
+
 # noinspection PyProtectedMember,PyArgumentList
 class PeeweeSQLFunctions(AbstractSQLFunctions):
     def _get_args(self, args):
         pw_args = []
         for field_name, op, value in args:
             field = self.vcls.fields[field_name]
-            if isinstance(field, peewee.ForeignKeyField):
-                tfield = field.to_field
-            else:
-                tfield = field
-
-            conv_func = None
-            # 说明：我记得 peewee 会自动完成 int/float 的转换，所以不用自己转
-            if isinstance(tfield, peewee.BlobField):
-                def conv_func(val):
-                    if isinstance(val, memoryview):
-                        return val
-                    # FIX: 其实这可能有点问题，因为None是一个合法的值
-                    if val is None:
-                        return val
-                    # 同样的，NotImplemented 似乎可能是一个非法值
-                    # 很有可能不存在一部分是 NotImplemented 另一部分不是的情况
-                    if val is NotImplemented:
-                        return
-                    return to_bin(val)
-            elif isinstance(tfield, peewee.BooleanField):
-                conv_func = bool_parse
+            conv_func = conv_func_by_field(field)
 
             if conv_func:
-                try:
-                    if op == 'in':
-                        value = list(map(conv_func, value))
-                    else:
-                        value = conv_func(value)
-                except binascii.Error:
-                    self.err = RETCODE.INVALID_PARAMS, 'Invalid query value for blob: Odd-length string'
+                def foo():
+                    if op == 'in': return list(map(conv_func, value))
+                    else: return conv_func(value)
+
+                code, value = do_conv(foo, RETCODE.INVALID_PARAMS)
+                if code != RETCODE.SUCCESS:
+                    self.err = code, value
                     return
-                except ValueError as e:
-                    self.err = RETCODE.INVALID_PARAMS, ' '.join(map(str, e.args))
 
             pw_args.append(getattr(field, _peewee_method_map[op])(value))
         return pw_args
@@ -216,15 +232,21 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
 
     async def insert(self, data):
         if not len(data):
-            return RETCODE.INVALID_PARAMS, NotImplemented
+            return RETCODE.INVALID_POSTDATA, NotImplemented
         db = self.vcls.model._meta.database
 
         kwargs = {}
         for k, v in data.items():
             if k in self.vcls.fields:
                 field = self.vcls.fields[k]
-                if isinstance(field, BinaryJSONField):
-                    kwargs[k] = json.loads(v)
+
+                conv_func = conv_func_by_field(field)
+                if conv_func:
+                    foo = lambda : conv_func(v)
+                    code, value = do_conv(foo, RETCODE.INVALID_POSTDATA)
+                    if code != RETCODE.SUCCESS:
+                        return code, value
+                    kwargs[k] = value
                 else:
                     kwargs[k] = v
 

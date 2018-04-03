@@ -538,7 +538,7 @@ class AbstractSQLView(BaseView):
         values = await self._post_data_check(None, raw_post, action=A.CREATE)
         logger.debug('new data: %s' % values)
         if self.is_finished: return
-        self._check_handle_result(self.before_insert(raw_post, values))
+        self._check_handle_result(await async_call(self.before_insert, raw_post, values))
         if self.is_finished: return
 
         code, data = await self._sql.insert(values)

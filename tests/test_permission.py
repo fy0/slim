@@ -5,33 +5,33 @@ from slim.base.permission import A, Ability, AbilityRecord
 ab = Ability('normal', {
     # 测试不带通配的权限
     'user': {
-        'username': ['query', 'read'],
-        'nickname': ['query', 'read'],
-        'password': ['query', 'read'],
+        'username': (A.QUERY, A.READ),
+        'nickname': (A.QUERY, A.READ),
+        'password': (A.QUERY, A.READ),
     },
 
     # 测试白名单权限，行为应与 user 完全一致
     'account': {
-        'username': ['query', 'read'],
-        'nickname': ['query', 'read'],
-        'password': ['query', 'read'],
+        'username': (A.QUERY, A.READ),
+        'nickname': (A.QUERY, A.READ),
+        'password': (A.QUERY, A.READ),
         '*': [],
     },
 
     # 测试数据表的权限
     # 测试带通配数据表下列的权限，列权限应高于表权限
-    'test': ['query', 'read', 'write', 'create', 'delete'],
+    'test': A.ALL,
     'topic': '*',
     'article': {
-        'title': ['query', 'read'],
+        'title': (A.QUERY, A.READ),
         'user': [],
         'time': '*',
         '*': '*'
     },
 
     # 规则测试
-    'rule_test1': ['delete'],  # columns: a, b, c
-    'rule_test1_1': ['delete'],  # columns: a, b, c
+    'rule_test1': (A.DELETE,),  # columns: a, b, c
+    'rule_test1_1': (A.DELETE,),  # columns: a, b, c
     'rule_test2': [],  # columns: a, b, c
 })
 
