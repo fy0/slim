@@ -100,7 +100,7 @@ def conv_func_by_field(field):
     # 说明：我记得 peewee 会自动完成 int/float 的转换，所以不用自己转
     if isinstance(tfield, peewee.BlobField):
         def conv_func(val):
-            if isinstance(val, memoryview):
+            if isinstance(val, (memoryview, bytes)):
                 return val
             # FIX: 其实这可能有点问题，因为None是一个合法的值
             if val is None:
@@ -109,7 +109,8 @@ def conv_func_by_field(field):
             # 很有可能不存在一部分是 NotImplemented 另一部分不是的情况
             if val is NotImplemented:
                 return
-            return to_bin(val)
+            if isinstance(val, str):
+                return to_bin(val)
         return conv_func
     elif isinstance(tfield, peewee.BooleanField):
         return bool_parse
