@@ -3,7 +3,7 @@ from asyncio import iscoroutinefunction, Future
 from typing import Iterable, Type, TYPE_CHECKING
 from aiohttp import web, web_response
 from posixpath import join as urljoin
-from slim.base.ws import WSHandler
+from slim.base.ws import WSRouter
 from ..utils.async import sync_call
 
 if TYPE_CHECKING:
@@ -115,7 +115,7 @@ class Route:
                 else: methods = list(method)
                 self.funcs.append((url, methods, obj))
             elif isinstance(obj, type):
-                if issubclass(obj, WSHandler):
+                if issubclass(obj, WSRouter):
                     self.websockets.append((url, obj()))
                 elif issubclass(obj, web.View):
                     self.aiohttp_views.append((url, obj))
