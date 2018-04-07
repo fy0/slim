@@ -21,7 +21,7 @@ def enable(level=logging.DEBUG):
     if not is_enable:
         default_handler = logging.StreamHandler()
         default_handler.setFormatter(logging.Formatter(
-            '[%(asctime)s][%(levelname).4s][%(name)s][%(lineno)s] %(message)s'
+            '[%(asctime)s][%(levelname).4s][%(name)s][%(lineno)3s] %(message)s'
         ))
 
         logger = logging.getLogger('slim')
