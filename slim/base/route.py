@@ -103,6 +103,10 @@ class Route:
             return func
         return wrapper
 
+    @staticmethod
+    def discard(name, method='ALL'):
+        pass
+
     def _is_beacon(self, func):
         return func in self._beacons
 

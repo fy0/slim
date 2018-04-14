@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from aiohttp import web
 from aiohttp.web_urldispatcher import StaticResource
 from slim.utils.jsdict import JsDict
@@ -80,3 +81,23 @@ class Application:
             cls._ready()
 
         web.run_app(host=host, port=port, app=self._raw_app)
+
+    def timer(self, interval_seconds, *, exit_when):
+        loop = asyncio.get_event_loop()
+
+        def wrapper(func):
+            def runner():
+                if exit_when and exit_when():
+                    return
+
+                loop.call_later(interval_seconds, runner)
+
+                if asyncio.iscoroutinefunction(func):
+                    asyncio.ensure_future(func())
+                else:
+                    func()
+
+            loop.call_later(interval_seconds, runner)
+            return func
+
+        return wrapper
