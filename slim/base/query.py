@@ -229,9 +229,9 @@ class ParamsQueryInfo(dict):
 
         # is 和 is not 可以确保完成了初步值转换
         if op in ('is', 'isnot'):
-            if value.lower() != 'null':
+            if value not in ('null', None):
                 raise ParamsException('Invalid value: %s (must be null)' % value)
-            if op == 'isnot':
+            elif op in ('isnot', 'is not'):
                 op = 'is not'
             value = None
 

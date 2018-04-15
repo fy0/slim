@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import time
+import json
 from abc import abstractmethod
 from types import FunctionType
 from typing import Tuple, Union, Dict, Iterable, Type, List, Set
@@ -513,6 +514,12 @@ class AbstractSQLView(BaseView):
             return self.finish(RETCODE.PERMISSION_DENIED)
         else:
             logger.debug("request permission successed: %r" % list(data.keys()))
+
+        for k, v in data.items():
+            if isinstance(v, UpdateInfo):
+                v.val = json.loads(v.val)
+            else:
+                data[k] = json.loads(v)
 
         return data
 

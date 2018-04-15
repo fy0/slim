@@ -86,7 +86,8 @@ _peewee_method_map = {
     'lt': '__lt__',
     'in': '__lshift__',  # __lshift__ = _e(OP.IN)
     'is': '__rshift__',  # __rshift__ = _e(OP.IS)
-    'isnot': '__rshift__'
+    'isnot': '__rshift__',
+    'is not': '__rshift__'
 }
 
 
@@ -97,8 +98,13 @@ def conv_func_by_field(field):
     else:
         tfield = field
 
-    # 说明：我记得 peewee 会自动完成 int/float 的转换，所以不用自己转
-    if isinstance(tfield, peewee.BlobField):
+    if isinstance(tfield, peewee.IntegerField):
+        return int
+    elif isinstance(tfield, peewee.FloatField):
+        return float
+    elif isinstance(tfield, peewee._StringField):
+        return str
+    elif isinstance(tfield, peewee.BlobField):
         def conv_func(val):
             if isinstance(val, (memoryview, bytes)):
                 return val
@@ -208,19 +214,39 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
         data = dict_filter(data, self.vcls.fields.keys())
         db = self.vcls.model._meta.database
 
+        kwargs = {}
+        for k, v in data.items():
+            if k in self.vcls.fields:
+                field = self.vcls.fields[k]
+                conv_func = conv_func_by_field(field)
+
+                print(k, field, conv_func)
+                if conv_func:
+                    def foo():
+                        if isinstance(v, UpdateInfo):
+                            if v.op == 'to':
+                                return conv_func(v.val)
+                            elif v.op == 'incr':
+                                # to_remove.append(k)
+                                # to_add.append([field, field + v.val])
+                                return field + conv_func(v.val)
+                        else:
+                            return conv_func(v)
+
+                    code, value = do_conv(foo, RETCODE.INVALID_POSTDATA)
+                    if code != RETCODE.SUCCESS:
+                        return code, value
+                    kwargs[k] = value
+                else:
+                    if isinstance(v, UpdateInfo):
+                        if v.op == 'to': kwargs[k] = v
+                        elif v.op == 'incr':  kwargs[k] = field + conv_func(v.val)
+                    else:
+                        kwargs[k] = v
+
         with db.atomic():
             try:
-                for k, v in data.items():
-                    if isinstance(v, UpdateInfo):
-                        if v.op == 'to':
-                            data[k] = v.val
-                        elif v.op == 'incr':
-                            field = self.vcls.fields[k]
-                            #to_remove.append(k)
-                            #to_add.append([field, field + v.val])
-                            data[k] = field + v.val
-
-                count = self.vcls.model.update(**data).where(*nargs).execute()
+                count = self.vcls.model.update(**kwargs).where(*nargs).execute()
                 return RETCODE.SUCCESS, count
             except peewee.DatabaseError:
                 db.rollback()
