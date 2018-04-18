@@ -1,6 +1,7 @@
 import copy
 import logging
 from typing import Dict, Tuple, Any
+from .sqlfuncs import DataRecord
 from .user import BaseUser
 
 logger = logging.getLogger(__name__)
@@ -40,24 +41,6 @@ class AbilityColumn:
 
     def __repr__(self):
         return '<Column %r.%r>' % (self.table, self.column)
-
-
-class AbilityRecord:
-    def __init__(self, table_name, val):
-        self.table = table_name
-        self.val = val
-
-    def get(self, key):
-        raise NotImplementedError()
-
-    def keys(self):
-        raise NotImplementedError()
-
-    def has(self, key):
-        raise NotImplementedError()
-
-    def to_dict(self, available_columns=None) -> Dict:
-        raise NotImplementedError()
 
 
 class Ability:
@@ -165,7 +148,7 @@ class Ability:
 
         self.record_checks.append([table, actions, func])
 
-        """def func(ability, user, action, record: AbilityRecord, available_columns: list):
+        """def func(ability, user, action, record: DataRecord, available_columns: list):
             pass
         """
 
@@ -250,7 +233,7 @@ class Ability:
 
         return available
 
-    def can_with_record(self, user, action, record: AbilityRecord, *, available=None):
+    def can_with_record(self, user, action, record: DataRecord, *, available=None):
         """
         进行基于 Record 的权限判定，返回可用列。
         :param user:

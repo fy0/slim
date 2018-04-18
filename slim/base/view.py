@@ -7,10 +7,10 @@ from types import FunctionType
 from typing import Tuple, Union, Dict, Iterable, Type, List, Set
 from aiohttp import web
 
-from .query import ParamsQueryInfo
+from .query import SQLQueryInfo
 from .app import Application
 from .helper import create_signed_value, decode_signed_value
-from .permission import Permissions, Ability, BaseUser, A, AbilityRecord
+from .permission import Permissions, Ability, BaseUser, A, DataRecord
 from .sqlfuncs import AbstractSQLFunctions, UpdateInfo
 from ..retcode import RETCODE
 from ..utils import MetaClassForInit, dict_filter, sync_call, async_call
@@ -365,7 +365,7 @@ class AbstractSQLView(BaseView):
                     # third: query foreign keys
                     vcls = self.app.tables[fkdata['table']]
                     ability = vcls.permission.request_role(self.current_user, fkdata['role'])
-                    info2 = ParamsQueryInfo(vcls)
+                    info2 = SQLQueryInfo(vcls)
 
                     info2.add_condition(info.PRIMARY_KEY, 'in', pks)
                     info2.set_select(None)
@@ -411,7 +411,7 @@ class AbstractSQLView(BaseView):
         raise ValueHandleException('Invalid result type of handle function.')
 
     async def get(self):
-        info = ParamsQueryInfo.new(self, self.params, self.ability)
+        info = SQLQueryInfo.new(self, self.params, self.ability)
         self._check_handle_result(await async_call(self.handle_query, info))
         if self.is_finished: return
         code, data = await self._sql.select_one(info)
@@ -469,7 +469,7 @@ class AbstractSQLView(BaseView):
     async def list(self):
         page, size = self._get_list_page_and_size()
         if self.is_finished: return
-        info = ParamsQueryInfo.new(self, self.params, self.ability)
+        info = SQLQueryInfo.new(self, self.params, self.ability)
         self._check_handle_result(await async_call(self.handle_query, info))
         if self.is_finished: return
 
@@ -524,7 +524,7 @@ class AbstractSQLView(BaseView):
         return data
 
     async def set(self):
-        info = ParamsQueryInfo.new(self, self.params, self.ability)
+        info = SQLQueryInfo.new(self, self.params, self.ability)
         self._check_handle_result(await async_call(self.handle_query, info))
         if self.is_finished: return
 
@@ -561,7 +561,7 @@ class AbstractSQLView(BaseView):
         self.finish(code, data)
 
     async def delete(self):
-        info = ParamsQueryInfo.new(self, self.params, self.ability)
+        info = SQLQueryInfo.new(self, self.params, self.ability)
         self._check_handle_result(await async_call(self.handle_query, info))
         if self.is_finished: return
 
@@ -587,20 +587,20 @@ class AbstractSQLView(BaseView):
 
     @staticmethod
     @abstractmethod
-    async def _fetch_fields(cls_or_self):
+    async def _fetch_fields(cls):
         """
         4 values must be set up in this function:
-        1. cls_or_self.table_name: str
-        2. cls_or_self.fields: Dict['column', Any]
-        3. cls_or_self.primary_key: str
-        4. cls_or_self.foreign_keys: Dict['column', ['foreign table name']]
+        1. cls.table_name: str
+        2. cls.primary_key: str
+        3. cls.fields: Dict['column', SQL_TYPE]
+        4. cls.foreign_keys: Dict['column', List[SQLForeignKey]]
 
-        :param cls_or_self:
+        :param cls:
         :return:
         """
         pass
 
-    async def handle_query(self, info: ParamsQueryInfo) -> Union[None, tuple]:
+    async def handle_query(self, info: SQLQueryInfo) -> Union[None, tuple]:
         pass
 
     async def after_read(self, dbdata: Dict, values: Dict) -> Union[None, tuple]:
@@ -609,8 +609,8 @@ class AbstractSQLView(BaseView):
     async def before_insert(self, raw_post: Dict, values: Dict) -> Union[None, tuple]:
         pass
 
-    async def after_insert(self, raw_post: Dict, dbdata: AbilityRecord, values: Dict) -> Union[None, tuple]:
-        """ Emitted before finish, no more filter """
+    async def after_insert(self, raw_post: Dict, dbdata: DataRecord, values: Dict) -> Union[None, tuple]:
+        """ Emitted before finish """
         pass
 
     async def before_update(self, raw_post: Dict, values: Dict) -> Union[None, tuple]:

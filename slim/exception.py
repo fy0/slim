@@ -1,19 +1,31 @@
 
-class SyntaxException(Exception):
+class SlimException(Exception):
     pass
 
 
-class ParamsException(Exception):
+class SyntaxException(SlimException):
     pass
 
 
-class PermissionDeniedException(Exception):
+class ParamsException(SlimException):
     pass
 
 
-class ResourceException(Exception):
+class ColumnNotFound(SlimException):
     pass
 
 
-class ValueHandleException(Exception):
+class ColumnIsNotForeignKey(SlimException):
+    pass
+
+
+class PermissionDeniedException(SlimException):
+    pass
+
+
+class ResourceException(SlimException):
+    pass
+
+
+class ValueHandleException(SlimException):
     pass

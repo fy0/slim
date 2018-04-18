@@ -1,17 +1,48 @@
 import json
 import logging
-from typing import Union, Iterable
-
-from .permission import A
-from ..utils import valid_sql_operator
+from enum import Enum
+from typing import Union, Iterable, List
+from ..utils import blob_converter, json_converter
 from ..exception import SyntaxException, ResourceException, ParamsException, \
-    PermissionDeniedException
+    PermissionDeniedException, ColumnNotFound, ColumnIsNotForeignKey
 
 logger = logging.getLogger(__name__)
 
 
+class SQL_TYPE(Enum):
+    INT = int
+    FLOAT = float
+    STRING = str
+    BOOLEAN = bool
+    BLOB = blob_converter
+    JSON = json_converter
+
+
+class SQLForeignKey:
+    def __init__(self, rel_table: str, rel_field: str, rel_type: SQL_TYPE):
+        self.rel_table = rel_table
+        self.rel_field = rel_field
+        self.rel_type = rel_type
+
+
+class SQL_OP(Enum):
+    EQ = ('eq', '==')
+    NE = ('ne', '!=', '<>')
+    LT = ('lt', '<')
+    LE = ('le', '<=')
+    GE = ('ge', '>=')
+    GT = ('gt', '>')
+    IN = ('in',)
+    IS = ('is',)
+    IS_NOT = ('isnot',)
+    AND = ('and',)
+    OR = ('or',)
+
+    ALL = set(EQ + NE + LT + LE + GE + GT + IN + IS + IS_NOT)
+
+
 class QueryConditions(list):
-    """ 与 list 实际没有太大不同，独立为类型的目的是使其能与list区分开来 """
+    """ 查询条件，这是ParamsQueryInfo的一部分。与 list 实际没有太大不同，独立为类型的目的是使其能与list区分开来 """
     def __contains__(self, item):
         for i in self:
             if i[0] == item:
@@ -23,10 +54,10 @@ class QueryConditions(list):
                 i[:] = func(i)
 
 
-class ParamsQueryInfo(dict):
+class SQLQueryInfo(dict):
+    """ 查询参数。目的同 QueryArguments，即与其他 dict 能够区分 """
     PRIMARY_KEY = object() # for add condition
 
-    """ 目的同 QueryArguments，即与其他 dict 能够区分 """
     @property
     def conditions(self) -> QueryConditions:
         return self['conditions']
@@ -44,7 +75,6 @@ class ParamsQueryInfo(dict):
         self['select'] = None
         self['conditions'] = []
         self['orders'] = []
-        self['format'] = 'dict'
         self['loadfk'] = {}
         super().__init__(**kwargs)
 
@@ -55,7 +85,8 @@ class ParamsQueryInfo(dict):
         """
         self.view = view
 
-    def _parse_order(self, text):
+    @staticmethod
+    def _parse_order(text):
         """
         :param text: order=id.desc, xxx.asc
         :return: [
@@ -72,10 +103,8 @@ class ParamsQueryInfo(dict):
             else: raise SyntaxException("Invalid order syntax")
 
             order = order.lower()
-            if column not in self.view.fields:
-                raise ResourceException('Column not found: %s' % column)
             if order not in ('asc', 'desc', 'default'):
-                raise SyntaxException('Invalid order name: %s' % order)
+                raise SyntaxException('Invalid order mode: %s' % order)
 
             orders.append([column, order])
         return orders
@@ -94,7 +123,7 @@ class ParamsQueryInfo(dict):
             for column in info:
                 if column:
                     if column not in self.view.fields:
-                        raise ResourceException('Column not found: %s' % column)
+                        raise ColumnNotFound(column)
                     selected_columns.append(column)
             if not selected_columns:
                 raise ResourceException("No column(s) selected")
@@ -105,7 +134,8 @@ class ParamsQueryInfo(dict):
         # TODO: 这是什么来着？
         pass
 
-    def _parse_load_fk(self, value: str):
+    @staticmethod
+    def _parse_load_fk(value: str):
         """
         :param value:
         :return: {
@@ -116,74 +146,44 @@ class ParamsQueryInfo(dict):
         try:
             value = json.loads(value) # [List, Dict[str, str]]
         except json.JSONDecodeError:
-            raise SyntaxException("Invalid json syntax for loadfk: %s" % value)
+            raise SyntaxException('Invalid json syntax for "loadfk": %s' % value)
 
-        if isinstance(value, list):
+        if isinstance(value, List):
             new_value = {}
             for i in value:
                 new_value[i] = None
             value = new_value
-
-        app = self.view.app
-        if isinstance(value, dict):
-            roles = self.view.current_user_roles
-
-            def check_valid(view, value):
-                for column, data in value.items():
-                    if isinstance(data, list):
-                        ret = []
-                        for i in data:
-                            ret.append(solve_data(view, column, i))
-                    else:
-                        ret = [solve_data(view, column, data)]
-
-                    # 值覆盖
-                    value[column] = ret
-
-            def solve_data(view, column, data):
-                # data: str, role name
-                # dict, {'role': <str>, 'as': <str>}
-                if isinstance(data, str):
-                    data = {'role': data}
-                elif isinstance(data, dict):
-                    if 'role' not in data:
-                        data['role'] = None
-                else:
-                    data = {'role': data}
-
-                # 当前用户可用此角色？
-                if data['role'] not in roles:
-                    raise ResourceException('Role not found: %s' % column)
-                # 检查列是否存在
-                if column not in view.fields:
-                    raise ResourceException('Column not found: %s' % column)
-                # 获取对应表名
-                table = view.foreign_keys.get(column, None)
-                if table is None:
-                    raise ResourceException('Not a foreign key field: %s' % column)
-                if ('table' in data) and (data['table'] is not None):
-                    if data['table'] not in view.foreign_keys_table_alias:
-                        raise ResourceException('Foreign key not match the table: %s -> %s' % (column, data['table']))
-                    table = view.foreign_keys_table_alias[data['table']]
-                else:
-                    table = table[0]  # 取第一个结果（即默认外键）
-                data['table'] = table
-                # 检查表是否存在
-                if table not in app.tables:
-                    raise ResourceException('Table not found or not a SQLView: %s' % table)
-                # 检查对应的表的角色是否存在
-                if data['role'] not in app.permissions[table].roles:
-                    raise ResourceException('Role not found: %s' % column)
-
-                # 递归外键读取
-                if ('loadfk' in data) and (data['loadfk'] is not None):
-                    check_valid(app.tables[table], data['loadfk'])
-                return data
-
-            check_valid(self.view, value)
-            return value
         else:
-            raise SyntaxException('Invalid value for "loadfk": %s' % value)
+            raise SyntaxException('Invalid syntax for "loadfk": %s' % value)
+
+        # 这里不检查列是否存在了。
+        # 因为在递归读取中，会涉及别的表。
+        def check_and_rebuild(column, data):
+            # data: str, role name
+            # dict, {'role': <str>, 'as': <str>}
+            if isinstance(data, str):
+                data = {'role': data}
+            elif isinstance(data, dict):
+                data = {'role': data.get('role', None)}
+
+            # 递归外键读取
+            if ('loadfk' in data) and (data['loadfk'] is not None):
+                data['loadfk'] = translate(data['loadfk'])
+            return data
+
+        def translate(value):
+            for column, items in value.items():
+                ret = []
+                if not isinstance(items, Iterable):
+                    items = [items]
+
+                for i in items:
+                    ret.append(check_and_rebuild(column, i))
+
+                value[column] = ret
+            return value
+
+        return translate(value)
 
     def set_select(self, field_names):
         if field_names is None:
@@ -222,7 +222,7 @@ class ParamsQueryInfo(dict):
         if field_name not in self.view.fields:
             raise ParamsException('Column not found: %s' % field_name)
 
-        if op not in valid_sql_operator:
+        if op not in SQL_OP:
             raise ParamsException('Invalid operator: %s' % op)
 
         op = valid_sql_operator[op]
@@ -249,47 +249,37 @@ class ParamsQueryInfo(dict):
         self.conditions.clear()
 
     @classmethod
-    def new(cls, view, params, ability) -> Union['ParamsQueryInfo', None]:
+    def new(cls, view) -> 'SQLQueryInfo':
         """ parse params to query information """
         conditions = QueryConditions()
-        query = ParamsQueryInfo(
+        return SQLQueryInfo(
             view=view,
             select=None,
             conditions=conditions,
-            orders=[],
-            format='dict'
+            orders=[]
         )
 
+    def init(self, params):
         for key, value in params.items():
             # xxx.{op}
             info = key.split('.', 1)
 
             field_name = info[0]
             if field_name == 'order':
-                query['orders'] = query._parse_order(value)
+                self['orders'] = self._parse_order(value)
                 continue
             elif field_name == 'select':
-                query['select'] = query._parse_select(value)
+                self['select'] = self._parse_select(value)
                 continue
             elif field_name == 'loadfk':
-                if value:
-                    query['loadfk'] = query._parse_load_fk(value)
-                continue
-            elif field_name == 'data_format':
-                query['format'] = value
+                self['loadfk'] = self._parse_load_fk(value)
                 continue
 
             op = info[1] if len(info) > 1 else '='
-            query.add_condition(field_name, op, value)
-
-        query.check_permission(ability)
-        # 额外附加的参数跳过权限检查
-        ability.setup_extra_query_conditions(view.current_user, view.table_name, query)
-        logger.debug('query info: %s' % query)
-
-        return query
+            self.add_condition(field_name, op, value)
 
     def check_permission(self, ability):
+        from .permission import A
         view = self.view
         # 查询权限检查
         checking_columns = []
@@ -303,3 +293,7 @@ class ParamsQueryInfo(dict):
         if self['select'] is None:
             self['select'] = self.view.fields.keys()
         self['select'] = ability.can_with_columns(view.current_user, A.READ, view.table_name, self['select'])
+
+
+class SQLValuesToWrite(dict):
+    pass

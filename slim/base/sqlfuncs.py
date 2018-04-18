@@ -1,8 +1,8 @@
 import logging
 from abc import abstractmethod
-from typing import Tuple
-
-from slim.base.permission import AbilityRecord
+from enum import Enum
+from typing import Tuple, Dict, Iterable
+from .query import SQLQueryInfo, SQLValuesToWrite
 
 logger = logging.getLogger(__name__)
 
@@ -15,49 +15,50 @@ class UpdateInfo:
         self.val = val
 
 
+class DataRecord:
+    def __init__(self, table_name, val):
+        self.table = table_name
+        self.val = val
+
+    def get(self, key):
+        raise NotImplementedError()
+
+    def keys(self):
+        raise NotImplementedError()
+
+    def has(self, key):
+        raise NotImplementedError()
+
+    def to_dict(self, available_columns=None) -> Dict:
+        raise NotImplementedError()
+
+
 class AbstractSQLFunctions:
     def __init__(self, view_cls):
-        self.err = None
         self.vcls = view_cls
 
-    def reset(self):
-        self.err = None
-
     @abstractmethod
-    async def select_paginated_list(self, info, size, page):
-        """ tips: size == -1 means infinite """
+    async def select(self, info: SQLQueryInfo, size=1, page=1) -> Tuple[DataRecord]:
+        """
+        Select from database
+        :param info:
+        :param size: -1 means infinite
+        :param page:
+        :return:
+        """
         raise NotImplementedError()
-        # code, data with items
 
     @abstractmethod
-    async def select_one(self, select_info) -> Tuple[object, AbilityRecord]:
-        raise NotImplementedError()
-        # code, item
-
-    @abstractmethod
-    async def update(self, select_info, data):
+    async def update(self, records: Iterable[DataRecord], values: SQLValuesToWrite):
         raise NotImplementedError()
         # code, item
 
     @abstractmethod
-    async def insert(self, data) -> Tuple[object, AbilityRecord]:
+    async def insert(self, values: SQLValuesToWrite):
         raise NotImplementedError()
         # code, record
 
     @abstractmethod
-    async def delete(self, select_info):
+    async def delete(self, records: Iterable[DataRecord]):
         raise NotImplementedError()
         # code, count
-
-    @staticmethod
-    def convert_list_result(format, data):
-        lst = []
-        get_values = lambda x: list(x.values())
-        for record in data['items']:
-            item = record.to_dict()
-
-            if format == 'array':
-                item = get_values(item)
-
-            lst.append(item)
-        return lst

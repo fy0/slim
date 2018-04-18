@@ -1,4 +1,4 @@
-from slim.base.permission import A, Ability, AbilityRecord
+from slim.base.permission import A, Ability, DataRecord
 
 visitor = Ability(None, {
     'test': {

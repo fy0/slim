@@ -1,3 +1,4 @@
+import json
 import random
 import re
 import string
@@ -43,29 +44,21 @@ def time_readable():
     return time.strftime('%Y-%m-%d %H:%M:%S', x)
 
 
-def bool_parse(val):
-    is_true = val in ('true', 'True', '1')
-    is_false = val in ('false', 'False', '0')
-    if not (is_true or is_false):
-        raise ValueError("Invalid boolean value: %r" % val)
-    return is_true
+def blob_converter(val):
+    if isinstance(val, (memoryview, bytes)):
+        return val
+    # FIX: 其实这可能有点问题，因为None是一个合法的值
+    if val is None:
+        return val
+    # 同样的，NotImplemented 似乎可能是一个非法值
+    # 很有可能不存在一部分是 NotImplemented 另一部分不是的情况
+    if val is NotImplemented:
+        return
+    if isinstance(val, str):
+        return to_bin(val)
 
-valid_sql_operator = {
-    '=': '=',
-    '==': '=',
-    '!=': '!=',
-    '<>': '<>',
-    '<': '<',
-    '<=': '<=',
-    '>': '>',
-    '>=': '>=',
-    'eq': '=',
-    'ne': '!=',
-    'ge': '>=',
-    'gt': '>',
-    'le': '<=',
-    'lt': '<',
-    'in': 'in',
-    'is': 'is',
-    'isnot': 'isnot',
-}
+
+def json_converter(val):
+    if isinstance(val, str):
+        return json.loads(val)
+    return val

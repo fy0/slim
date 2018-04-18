@@ -5,20 +5,22 @@ from typing import Type
 
 import peewee
 # noinspection PyPackageRequirements
-from playhouse.postgres_ext import BinaryJSONField
+from playhouse.postgres_ext import JSONField as PG_JSONField, BinaryJSONField
+from playhouse.sqlite_ext import JSONField as SQLITE_JSONField
 from playhouse.shortcuts import model_to_dict
 
+from slim.base.query import SQL_TYPE, SQLForeignKey
 from slim.base.sqlfuncs import UpdateInfo
-from ...base.permission import AbilityRecord, Permissions, A
+from ...base.permission import DataRecord, Permissions, A
 from ...retcode import RETCODE
-from ...utils import to_bin, pagination_calc, dict_filter, bool_parse
+from ...utils import to_bin, pagination_calc, dict_filter
 from ...base.view import AbstractSQLView, AbstractSQLFunctions, ViewOptions
 
 logger = logging.getLogger(__name__)
 
 
 # noinspection PyProtectedMember
-class PeeweeAbilityRecord(AbilityRecord):
+class PeeweeDataRecord(DataRecord):
     # noinspection PyMissingConstructor
     def __init__(self, table_name, val: peewee.Model, *, view=None, selected=None):
         self.view = view
@@ -191,7 +193,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
         try:
             q = self._make_select(info)
             if self.err: return self.err
-            return RETCODE.SUCCESS, PeeweeAbilityRecord(None, q.get(), view=self.vcls, selected=info['select'])
+            return RETCODE.SUCCESS, PeeweeDataRecord(None, q.get(), view=self.vcls, selected=info['select'])
         except self.vcls.model.DoesNotExist:
             return RETCODE.NOT_FOUND, NotImplemented
 
@@ -202,7 +204,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
         pg = pagination_calc(count, size, page)
         if size == -1: size = count or 20  # get all, care about crash when count == 0
 
-        func = lambda item: PeeweeAbilityRecord(None, item, view=self.vcls, selected=info['select'])
+        func = lambda item: PeeweeDataRecord(None, item, view=self.vcls, selected=info['select'])
         pg["items"] = list(map(func, q.paginate(page, size)))
         return RETCODE.SUCCESS, pg
 
@@ -287,7 +289,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
                     item = ret.model(**ret._row_to_dict(ret[0]))
                 else:
                     item = model.create(**kwargs)
-                return RETCODE.SUCCESS, PeeweeAbilityRecord(None, item, view=self.vcls)
+                return RETCODE.SUCCESS, PeeweeDataRecord(None, item, view=self.vcls)
             except peewee.IntegrityError as e:
                 if e.args[0].startswith('duplicate key'):
                     return RETCODE.ALREADY_EXISTS, NotImplemented
@@ -312,6 +314,21 @@ class PeeweeViewOptions(ViewOptions):
         if self.model:
             obj.model = self.model
         super().assign(obj)
+
+
+def field_class_to_sql_type(field: peewee.Field) -> SQL_TYPE:
+    if isinstance(field, peewee.IntegerField):
+        return SQL_TYPE.INT
+    elif isinstance(field, peewee.FloatField):
+        return SQL_TYPE.FLOAT
+    elif isinstance(field, peewee._StringField):
+        return SQL_TYPE.STRING
+    elif isinstance(field, peewee.BooleanField):
+        return SQL_TYPE.BOOLEAN
+    elif isinstance(field, peewee.BlobField):
+        return SQL_TYPE.BLOB
+    elif isinstance(field, (PG_JSONField, SQLITE_JSONField)):
+        return SQL_TYPE.JSON
 
 
 class PeeweeView(AbstractSQLView):
@@ -339,29 +356,31 @@ class PeeweeView(AbstractSQLView):
         AbstractSQLView.cls_init.__func__(cls, False)
         # super().cls_init(False)
 
-    # noinspection PyProtectedMember
     @staticmethod
-    async def _fetch_fields(cls_or_self):
-        if cls_or_self.model:
-            pv3 = peewee.__version__[0] == '3'
-            model = cls_or_self.model
-            if pv3:
-                # peewee 3.X
-                # http://docs.peewee-orm.com/en/latest/peewee/changes.html#fields
-                cls_or_self.primary_key = model._meta.primary_key.column_name
-            else:
-                # peewee 2.X
-                cls_or_self.primary_key = model._meta.primary_key.db_column
-            cls_or_self.foreign_keys = {}
+    async def _fetch_fields(cls):
+        if cls.model:
+            pv3 = peewee.__version__[0] >= '3'
 
-            def wrap(name, field):
+            # noinspection PyProtectedMember
+            def get_pk_name(the_model):
+                # http://docs.peewee-orm.com/en/latest/peewee/changes.html#fields
+                pk = the_model._meta.primary_key
+                return pk.column_name if pv3 else pk.db_column
+
+            # noinspection PyProtectedMember
+            def get_table_name(the_model):
+                meta = the_model._meta
+                return meta.table_name if pv3 else meta.db_table
+
+            cls.table_name = get_table_name(cls.model)
+            cls.primary_key = get_pk_name(cls.model)
+            cls.foreign_keys = {}
+
+            def wrap(name, field) -> str:
                 if isinstance(field, peewee.ForeignKeyField):
+                    rm = field.rel_model
                     name = '%s_id' % name
-                    cls_or_self.foreign_keys[name] = [field.rel_model._meta.db_table]
+                    cls.foreign_keys[name] = SQLForeignKey(get_table_name(rm), get_pk_name(rm), field_class_to_sql_type(rm))
                 return name
 
-            cls_or_self.fields = {wrap(k, v): v for k, v in model._meta.fields.items()}
-            if pv3:
-                cls_or_self.table_name = model._meta.table_name
-            else:
-                cls_or_self.table_name = model._meta.db_table
+            cls.fields = {wrap(k, v): field_class_to_sql_type(v) for k, v in cls.model._meta.fields.items()}

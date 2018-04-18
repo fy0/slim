@@ -1,7 +1,7 @@
 import binascii
 from asyncpg import Record, Type
 
-from ...base.permission import A, AbilityRecord, Permissions
+from ...base.permission import A, DataRecord, Permissions
 from ...retcode import RETCODE
 from ...support.asyncpg import query
 from ...utils import to_bin, pagination_calc, dict_filter, bool_parse
@@ -25,7 +25,7 @@ SELECT a.attname, c2.relname
         and a.attnum=ANY(con.conkey); -- 外键位置与具体列对应
 '''
 
-class AsyncpgAbilityRecord(AbilityRecord):
+class AsyncpgDataRecord(DataRecord):
     # noinspection PyMissingConstructor
     def __init__(self, table_name, val: Record):
         self.table = table_name
@@ -116,7 +116,7 @@ class AsyncpgSQLFunctions(AbstractSQLFunctions):
         if not ret: return RETCODE.NOT_FOUND, NotImplemented
 
         if ret:
-            return RETCODE.SUCCESS, AsyncpgAbilityRecord(view.table_name, ret)
+            return RETCODE.SUCCESS, AsyncpgDataRecord(view.table_name, ret)
         else:
             return RETCODE.NOT_FOUND, NotImplemented
 
@@ -137,7 +137,7 @@ class AsyncpgSQLFunctions(AbstractSQLFunctions):
         sql = sc.select(info['select']).from_table(self.vcls.table_name).simple_where_many(nargs) \
             .order_by_many(info['orders']).limit(size).offset(offset).sql()
         ret = await self.vcls.conn.fetch(sql[0], *sql[1])
-        func = lambda item: AsyncpgAbilityRecord(self.vcls.table_name, item)
+        func = lambda item: AsyncpgDataRecord(self.vcls.table_name, item)
         pg["items"] = list(map(func, ret))
         return RETCODE.SUCCESS, pg
 
@@ -166,7 +166,7 @@ class AsyncpgSQLFunctions(AbstractSQLFunctions):
         ic = query.InsertCompiler()
         sql = ic.into_table(self.vcls.table_name).set_values(ndata).returning().sql()
         ret = await self.vcls.conn.fetchrow(sql[0], *sql[1])
-        return RETCODE.SUCCESS, AsyncpgAbilityRecord(self.vcls.table_name, ret)
+        return RETCODE.SUCCESS, AsyncpgDataRecord(self.vcls.table_name, ret)
 
 
 class AsyncpgViewOptions(ViewOptions):

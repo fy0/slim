@@ -1,5 +1,5 @@
 # coding:utf-8
-from slim.base.permission import A, Ability, AbilityRecord
+from slim.base.permission import A, Ability, DataRecord
 
 
 ab = Ability('normal', {
@@ -40,11 +40,11 @@ def rule1_func1(ability, user, action, available_columns: list):
     available_columns.extend(['a', 'b', 'c'])
 
 
-def rule1_func2(ability, user, action, record: AbilityRecord, available_columns: list):
+def rule1_func2(ability, user, action, record: DataRecord, available_columns: list):
     pass
 
 
-def rule1_func3(ability, user, action, record: AbilityRecord, available_columns: list):
+def rule1_func3(ability, user, action, record: DataRecord, available_columns: list):
     available_columns.clear()
 
 
@@ -90,7 +90,7 @@ def test_filter():
     assert ab.can_with_columns(None, A.WRITE, 'topic', ['id', 'title', 'author']) == ['id', 'title', 'author']
 
 
-class DictAbilityRecord(AbilityRecord):
+class DictDataRecord(DataRecord):
     def __init__(self, table_name, val: dict):
         super().__init__(table_name, val)
 
@@ -105,20 +105,20 @@ class DictAbilityRecord(AbilityRecord):
 
 
 def test_record_filter():
-    record1 = DictAbilityRecord('rule_test1', {'a': 'aaa', 'b': 'bbb', 'c': 'ccc'})
+    record1 = DictDataRecord('rule_test1', {'a': 'aaa', 'b': 'bbb', 'c': 'ccc'})
     a1c = ab.can_with_columns(None, A.CREATE, record1.table, record1.keys())
     a1r = ab.can_with_columns(None, A.READ, record1.table, record1.keys())
     a1d = ab.can_with_columns(None, A.DELETE, record1.table, record1.keys())
     assert set(ab.can_with_record(None, A.READ, record1, available=a1r)) == {'a', 'b', 'c'}
     assert ab.can_with_record(None, A.DELETE, record1, available=a1d) == []
-    record1_1 = DictAbilityRecord('rule_test1_1', {'a': 'aaa', 'b': 'bbb', 'c': 'ccc'})
+    record1_1 = DictDataRecord('rule_test1_1', {'a': 'aaa', 'b': 'bbb', 'c': 'ccc'})
     a1_1 = ab.can_with_columns(None, A.DELETE, record1_1.table, record1_1.keys())
     assert set(ab.can_with_record(None, A.DELETE, record1_1, available=a1_1)) == {'a', 'b', 'c'}
     assert set(ab.can_with_record(None, A.READ, record1)) == {'a', 'b', 'c'}
     assert ab.can_with_record(None, A.DELETE, record1) == []
     assert set(ab.can_with_record(None, A.DELETE, record1_1)) == {'a', 'b', 'c'}
 
-    record2 = DictAbilityRecord('rule_test2', {'a': 'aaa', 'b': 'bbb', 'c': 'ccc'})
+    record2 = DictDataRecord('rule_test2', {'a': 'aaa', 'b': 'bbb', 'c': 'ccc'})
     a2r = ab.can_with_columns(None, A.READ, record2.table, record2.keys())
     a2c = ab.can_with_columns(None, A.CREATE, record2.table, record2.keys())
     a2d = ab.can_with_columns(None, A.DELETE, record2.table, record2.keys())
