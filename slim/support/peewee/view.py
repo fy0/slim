@@ -9,7 +9,7 @@ from playhouse.postgres_ext import JSONField as PG_JSONField, BinaryJSONField
 from playhouse.sqlite_ext import JSONField as SQLITE_JSONField
 from playhouse.shortcuts import model_to_dict
 
-from slim.base.query import SQL_TYPE, SQLForeignKey
+from slim.base.sqlquery import SQL_TYPE, SQLForeignKey, SQL_OP
 from slim.base.sqlfuncs import UpdateInfo
 from ...base.permission import DataRecord, Permissions, A
 from ...retcode import RETCODE
@@ -72,24 +72,15 @@ class PeeweeDataRecord(DataRecord):
 _peewee_method_map = {
     # '+': '__pos__',
     # '-': '__neg__',
-    '=': '__eq__',
-    '==': '__eq__',
-    '!=': '__ne__',
-    '<>': '__ne__',
-    '<': '__lt__',
-    '<=': '__le__',
-    '>': '__gt__',
-    '>=': '__ge__',
-    'eq': '__eq__',
-    'ne': '__ne__',
-    'ge': '__ge__',
-    'gt': '__gt__',
-    'le': '__le__',
-    'lt': '__lt__',
-    'in': '__lshift__',  # __lshift__ = _e(OP.IN)
-    'is': '__rshift__',  # __rshift__ = _e(OP.IS)
-    'isnot': '__rshift__',
-    'is not': '__rshift__'
+    SQL_OP.EQ: '__eq__',
+    SQL_OP.NE: '__ne__',
+    SQL_OP.LT: '__lt__',
+    SQL_OP.LE: '__le__',
+    SQL_OP.GE: '__ge__',
+    SQL_OP.GT: '__gt__',
+    SQL_OP.IN: '__lshift__', # __lshift__ = _e(OP.IN)
+    SQL_OP.IS: '__rshift__', # __rshift__ = _e(OP.IS)
+    SQL_OP.IS_NOT: '__rshift__', # __rshift__ = _e(OP.IS)
 }
 
 
@@ -317,6 +308,9 @@ class PeeweeViewOptions(ViewOptions):
 
 
 def field_class_to_sql_type(field: peewee.Field) -> SQL_TYPE:
+    if isinstance(field, peewee.ForeignKeyField):
+        field = field.rel_field
+
     if isinstance(field, peewee.IntegerField):
         return SQL_TYPE.INT
     elif isinstance(field, peewee.FloatField):
@@ -335,13 +329,7 @@ class PeeweeView(AbstractSQLView):
     is_base_class = True
     _sql_cls = PeeweeSQLFunctions
     options_cls = PeeweeViewOptions
-
     model = None
-
-    # fields
-    # table_name
-    # primary_key
-    # foreign_keys
 
     @classmethod
     def cls_init(cls, check_options=True):

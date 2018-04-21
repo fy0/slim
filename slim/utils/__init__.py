@@ -2,6 +2,7 @@ import json
 import random
 import re
 import string
+import sys
 import time
 from .async import *
 from .binhex import to_bin, to_hex
@@ -17,6 +18,7 @@ except ImportError:
     # noinspection SpellCheckingInspection
     from . import umsgpack as msgpack
 
+is_py36 = sys.version_info[0] >= 3 and sys.version_info[1] >= 6
 
 RegexPatternType = type(re.compile(''))
 

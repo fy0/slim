@@ -2,7 +2,7 @@ import logging
 from abc import abstractmethod
 from enum import Enum
 from typing import Tuple, Dict, Iterable
-from .query import SQLQueryInfo, SQLValuesToWrite
+from .sqlquery import SQLQueryInfo, SQLValuesToWrite
 
 logger = logging.getLogger(__name__)
 

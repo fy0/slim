@@ -11,7 +11,23 @@ class ParamsException(SlimException):
     pass
 
 
+class SQLOperatorInvalid(ParamsException):
+    pass
+
+
 class ColumnNotFound(SlimException):
+    pass
+
+
+class RecordNotFound(SlimException):
+    pass
+
+
+class PermissionException(SlimException):
+    pass
+
+
+class RoleNotFound(PermissionException):
     pass
 
 

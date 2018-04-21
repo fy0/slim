@@ -7,15 +7,15 @@ from types import FunctionType
 from typing import Tuple, Union, Dict, Iterable, Type, List, Set
 from aiohttp import web
 
-from .query import SQLQueryInfo
+from .sqlquery import SQLQueryInfo, SQL_TYPE, SQLForeignKey
 from .app import Application
 from .helper import create_signed_value, decode_signed_value
 from .permission import Permissions, Ability, BaseUser, A, DataRecord
 from .sqlfuncs import AbstractSQLFunctions, UpdateInfo
 from ..retcode import RETCODE
-from ..utils import MetaClassForInit, dict_filter, sync_call, async_call
+from ..utils import MetaClassForInit, dict_filter, sync_call, async_call, is_py36
 from ..utils.json_ex import json_ex_dumps
-from ..exception import ValueHandleException
+from ..exception import ValueHandleException, RecordNotFound
 
 logger = logging.getLogger(__name__)
 
@@ -236,16 +236,23 @@ class ViewOptions:
 class AbstractSQLView(BaseView):
     _sql_cls = AbstractSQLFunctions
     is_base_class = True  # skip cls_init check
-    foreign_keys_table_alias = {}  # to hide real table name
 
     options_cls = ViewOptions
     LIST_PAGE_SIZE = 20  # list 单次取出的默认大小
     LIST_ACCEPT_SIZE_FROM_CLIENT = False
 
-    fields = {} # :[str, object], key is column, value can be everything
-    table_name = ''
-    primary_key = None
-    foreign_keys = {} # :[str, [str]], key is column, value is table names (because of soft foreign keys, multi foreigns on one column is valid)
+    if is_py36:
+        table_name: str = None
+        primary_key: str = None
+        fields: Dict[str, SQL_TYPE] = {}
+        foreign_keys: Dict[str, List[SQLForeignKey]] = {}
+        foreign_keys_table_alias: Dict[str, str] = {}  # hide real table name
+    else:
+        table_name = None
+        primary_key = None
+        fields = {}
+        foreign_keys = {}
+        foreign_keys_table_alias = {}
 
     @classmethod
     def _is_skip_check(cls):
@@ -411,20 +418,27 @@ class AbstractSQLView(BaseView):
         raise ValueHandleException('Invalid result type of handle function.')
 
     async def get(self):
-        info = SQLQueryInfo.new(self, self.params, self.ability)
+        info = SQLQueryInfo.new(self.params)
+        info.bind(self)
+
         self._check_handle_result(await async_call(self.handle_query, info))
         if self.is_finished: return
-        code, data = await self._sql.select_one(info)
 
-        if code == RETCODE.SUCCESS:
-            dbdata = data
-            data = self._filter_record_by_ability(data)
-            if not data: return self.finish(RETCODE.NOT_FOUND)
-            self._check_handle_result(await async_call(self.after_read, dbdata, data))
+        # with catch sql exception: ...
+        results = await self._sql.select(info)
+
+        if not results:
+            record = results[0]
+            data_dict = self._filter_record_by_ability(record)
+            if not data_dict: return self.finish(RETCODE.NOT_FOUND)
+
+            self._check_handle_result(await async_call(self.after_read, record, data_dict))
             if self.is_finished: return
-            data = (await self.load_fk(info, [data]))[0]
 
-        self.finish(code, data)
+            data_dict = (await self.load_fk(info, [data_dict]))[0]
+            self.finish(RETCODE.SUCCESS, data_dict)
+        else:
+            return self.finish(RETCODE.NOT_FOUND)
 
     def _get_list_page_and_size(self) -> Tuple[Union[int, None], Union[int, None]]:
         page = self.route_info.get('page', '1')
