@@ -38,7 +38,7 @@ class AbstractSQLFunctions:
         self.vcls = view_cls
 
     @abstractmethod
-    async def select(self, info: SQLQueryInfo, size=1, page=1) -> Tuple[DataRecord]:
+    async def select(self, info: SQLQueryInfo, size=1, page=1) -> (Tuple[DataRecord], int):
         """
         Select from database
         :param info:

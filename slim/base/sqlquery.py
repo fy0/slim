@@ -86,7 +86,7 @@ class SQLQueryInfo:
         self.select = None
         self.conditions = QueryConditions()
         self.orders = []
-        self.loadfk = {}
+        self.loadfk = None
 
     @staticmethod
     def _parse_order(text):
@@ -243,8 +243,6 @@ class SQLQueryInfo:
             self.add_condition(field_name, op, value)
 
     def bind(self, view: "AbstractSQLView"):
-        values = []
-
         def check_column_exists(column):
             if column is self.PRIMARY_KEY:
                 return
@@ -258,6 +256,8 @@ class SQLQueryInfo:
             for i, field_name in enumerate(self.select):
                 check_column_exists(field_name)
                 if field_name == self.PRIMARY_KEY:
+                    if not isinstance(self.select, List):
+                        self.select = list(self.select)
                     self.select[i] = view.primary_key
 
         # where check
@@ -268,7 +268,12 @@ class SQLQueryInfo:
                 i[0] = field_name = view.primary_key
             field_type = view.fields[field_name]
             try:
-                values.append(field_type.value(value))
+                # 注：外键的类型会是其指向的类型，这里不用担心
+                if op in (SQL_OP.IN, ):
+                    assert isinstance(value, Iterable)
+                    i[2] = list(map(field_type.value, value))
+                else:
+                    i[2] = field_type.value(value)
             except:
                 raise SlimException("bad value")
 
@@ -316,7 +321,8 @@ class SQLQueryInfo:
                     if data['loadfk']:
                         check_loadfk_data(app.tables[fk.rel_table], data)
 
-        check_loadfk_data(view, self.loadfk)
+        if self.loadfk:
+            check_loadfk_data(view, self.loadfk)
 
 
 class SQLValuesToWrite(dict):

@@ -1,7 +1,7 @@
 import json
 import binascii
 import logging
-from typing import Type
+from typing import Type, Tuple, List
 
 import peewee
 # noinspection PyPackageRequirements
@@ -9,8 +9,9 @@ from playhouse.postgres_ext import JSONField as PG_JSONField, BinaryJSONField
 from playhouse.sqlite_ext import JSONField as SQLITE_JSONField
 from playhouse.shortcuts import model_to_dict
 
-from slim.base.sqlquery import SQL_TYPE, SQLForeignKey, SQL_OP
+from slim.base.sqlquery import SQL_TYPE, SQLForeignKey, SQL_OP, SQLQueryInfo, SQLQueryOrder
 from slim.base.sqlfuncs import UpdateInfo
+from slim.exception import RecordNotFound
 from ...base.permission import DataRecord, Permissions, A
 from ...retcode import RETCODE
 from ...utils import to_bin, pagination_calc, dict_filter
@@ -78,126 +79,64 @@ _peewee_method_map = {
     SQL_OP.LE: '__le__',
     SQL_OP.GE: '__ge__',
     SQL_OP.GT: '__gt__',
-    SQL_OP.IN: '__lshift__', # __lshift__ = _e(OP.IN)
-    SQL_OP.IS: '__rshift__', # __rshift__ = _e(OP.IS)
-    SQL_OP.IS_NOT: '__rshift__', # __rshift__ = _e(OP.IS)
+    SQL_OP.IN: '__lshift__',  # __lshift__ = _e(OP.IN)
+    SQL_OP.IS: '__rshift__',  # __rshift__ = _e(OP.IS)
+    SQL_OP.IS_NOT: '__rshift__',  # __rshift__ = _e(OP.IS)
 }
-
-
-def conv_func_by_field(field):
-    # 如果是外键，那么转换为外键指向的类型
-    if isinstance(field, peewee.ForeignKeyField):
-        tfield = field.to_field
-    else:
-        tfield = field
-
-    if isinstance(tfield, peewee.IntegerField):
-        return int
-    elif isinstance(tfield, peewee.FloatField):
-        return float
-    elif isinstance(tfield, peewee._StringField):
-        return str
-    elif isinstance(tfield, peewee.BlobField):
-        def conv_func(val):
-            if isinstance(val, (memoryview, bytes)):
-                return val
-            # FIX: 其实这可能有点问题，因为None是一个合法的值
-            if val is None:
-                return val
-            # 同样的，NotImplemented 似乎可能是一个非法值
-            # 很有可能不存在一部分是 NotImplemented 另一部分不是的情况
-            if val is NotImplemented:
-                return
-            if isinstance(val, str):
-                return to_bin(val)
-        return conv_func
-    elif isinstance(tfield, peewee.BooleanField):
-        return bool_parse
-    elif isinstance(field, BinaryJSONField):
-        return json.loads
-
-
-def do_conv(func, errcode):
-    try:
-        return RETCODE.SUCCESS, func()
-    except binascii.Error:
-        return errcode, 'Invalid value for blob: Odd-length string'
-    except json.JSONDecodeError:
-        return errcode, 'Invalid query value for blob: Odd-length string'
-    except ValueError as e:
-        return errcode, ' '.join(map(str, e.args))
 
 
 # noinspection PyProtectedMember,PyArgumentList
 class PeeweeSQLFunctions(AbstractSQLFunctions):
-    def _get_args(self, args):
+    @property
+    def _fields(self):
+        return self.vcls._peewee_field
+
+    @property
+    def _model(self):
+        return self.vcls.model
+
+    def _build_condition(self, args):
         pw_args = []
         for field_name, op, value in args:
-            field = self.vcls.fields[field_name]
-            conv_func = conv_func_by_field(field)
-
-            if conv_func:
-                def foo():
-                    if op == 'in': return list(map(conv_func, value))
-                    else: return conv_func(value)
-
-                code, value = do_conv(foo, RETCODE.INVALID_PARAMS)
-                if code != RETCODE.SUCCESS:
-                    self.err = code, value
-                    return
-
-            pw_args.append(getattr(field, _peewee_method_map[op])(value))
+            pw_args.append(getattr(self._fields[field_name], _peewee_method_map[op])(value))
         return pw_args
 
-    def _get_orders(self, orders):
-        # 注：此时早已经过检查可确认orders中的列存在
+    def _build_orders(self, orders: List[SQLQueryOrder]):
         ret = []
-        fields = self.vcls.fields
-
         for i in orders:
-            if len(i) == 2:
-                # column, order
-                item = fields[i[0]]
-                if i[1] == 'asc': item = item.asc()
-                elif i[1] == 'desc': item = item.desc()
-                ret.append(item)
-
-            elif len(i) == 3:
-                # column, order, table
-                # TODO: 日后再说
-                pass
+            item = self._fields[i.column]
+            if i.order == 'asc':
+                item = item.asc()
+            elif i.order == 'desc':
+                item = item.desc()
+            ret.append(item)
         return ret
 
-    def _make_select(self, info):
-        nargs = self._get_args(info['conditions'])
-        if self.err: return
-        orders = self._get_orders(info['orders'])
-        if self.err: return
+    def _build_select(self, select: List[str]):
+        fields = self._fields
+        return [fields[x] for x in select]
 
-        q = self.vcls.model.select(*[self.vcls.fields[x] for x in info['select']])
-        # peewee 不允许 where 时 args 为空
-        if nargs: q = q.where(*nargs)
+    def _make_select(self, info: SQLQueryInfo):
+        nargs = self._build_condition(info.conditions)
+        orders = self._build_orders(info.orders)
+        q = self._model.select(*self._build_select(info.select))
+
+        if nargs: q = q.where(*nargs)  # peewee 不允许 where 时 args 为空
         if orders: q = q.order_by(*orders)
         return q
 
-    async def select_one(self, info):
-        try:
-            q = self._make_select(info)
-            if self.err: return self.err
-            return RETCODE.SUCCESS, PeeweeDataRecord(None, q.get(), view=self.vcls, selected=info['select'])
-        except self.vcls.model.DoesNotExist:
-            return RETCODE.NOT_FOUND, NotImplemented
-
-    async def select_paginated_list(self, info, size, page):
+    async def select(self, info: SQLQueryInfo, size=1, page=1)-> (Tuple[DataRecord], int):
         q = self._make_select(info)
-        if self.err: return self.err
         count = q.count()
-        pg = pagination_calc(count, size, page)
-        if size == -1: size = count or 20  # get all, care about crash when count == 0
 
-        func = lambda item: PeeweeDataRecord(None, item, view=self.vcls, selected=info['select'])
-        pg["items"] = list(map(func, q.paginate(page, size)))
-        return RETCODE.SUCCESS, pg
+        if size == -1:
+            page, size = 1, count
+
+        func = lambda item: PeeweeDataRecord(None, item, view=self.vcls, selected=info.select)
+        try:
+            return list(map(func, q.paginate(page, size))), count
+        except self._model.DoesNotExist:
+            raise RecordNotFound()
 
     async def update(self, info, data):
         nargs = self._get_args(info['conditions'])
@@ -232,8 +171,10 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
                     kwargs[k] = value
                 else:
                     if isinstance(v, UpdateInfo):
-                        if v.op == 'to': kwargs[k] = v
-                        elif v.op == 'incr':  kwargs[k] = field + conv_func(v.val)
+                        if v.op == 'to':
+                            kwargs[k] = v
+                        elif v.op == 'incr':
+                            kwargs[k] = field + conv_func(v.val)
                     else:
                         kwargs[k] = v
 
@@ -262,7 +203,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
 
                 conv_func = conv_func_by_field(field)
                 if conv_func:
-                    foo = lambda : conv_func(v)
+                    foo = lambda: conv_func(v)
                     code, value = do_conv(foo, RETCODE.INVALID_POSTDATA)
                     if code != RETCODE.SUCCESS:
                         return code, value
@@ -330,6 +271,7 @@ class PeeweeView(AbstractSQLView):
     _sql_cls = PeeweeSQLFunctions
     options_cls = PeeweeViewOptions
     model = None
+    _peewee_field = {}
 
     @classmethod
     def cls_init(cls, check_options=True):
@@ -368,7 +310,10 @@ class PeeweeView(AbstractSQLView):
                 if isinstance(field, peewee.ForeignKeyField):
                     rm = field.rel_model
                     name = '%s_id' % name
-                    cls.foreign_keys[name] = SQLForeignKey(get_table_name(rm), get_pk_name(rm), field_class_to_sql_type(rm))
+                    cls.foreign_keys[name] = SQLForeignKey(get_table_name(rm), get_pk_name(rm),
+                                                           field_class_to_sql_type(rm))
+
+                cls._peewee_field[name] = field
                 return name
 
             cls.fields = {wrap(k, v): field_class_to_sql_type(v) for k, v in cls.model._meta.fields.items()}

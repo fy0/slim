@@ -339,7 +339,7 @@ class AbstractSQLView(BaseView):
             logger.debug("load role %r failed, please make sure the user is permitted and the View object inherited a UserMixin." % self.current_role)
             self.finish(RETCODE.INVALID_ROLE)
 
-    async def load_fk(self, info, items) -> List:
+    async def load_fk(self, info: SQLQueryInfo, items) -> List:
         """
         :param info:
         :param items: the data got from database and filtered from permission
@@ -425,17 +425,17 @@ class AbstractSQLView(BaseView):
         if self.is_finished: return
 
         # with catch sql exception: ...
-        results = await self._sql.select(info)
+        records, count = await self._sql.select(info)
 
-        if not results:
-            record = results[0]
+        if count:
+            record = records[0]
             data_dict = self._filter_record_by_ability(record)
             if not data_dict: return self.finish(RETCODE.NOT_FOUND)
 
             self._check_handle_result(await async_call(self.after_read, record, data_dict))
             if self.is_finished: return
 
-            data_dict = (await self.load_fk(info, [data_dict]))[0]
+            #data_dict = (await self.load_fk(info, [data_dict]))[0]
             self.finish(RETCODE.SUCCESS, data_dict)
         else:
             return self.finish(RETCODE.NOT_FOUND)
