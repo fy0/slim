@@ -418,8 +418,7 @@ class AbstractSQLView(BaseView):
         raise ValueHandleException('Invalid result type of handle function.')
 
     async def get(self):
-        info = SQLQueryInfo.new(self.params)
-        info.bind(self)
+        info = SQLQueryInfo.new(self.params, view=self)
 
         self._check_handle_result(await async_call(self.handle_query, info))
         if self.is_finished: return

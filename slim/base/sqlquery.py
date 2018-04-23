@@ -1,7 +1,7 @@
 import json
 import logging
 from enum import Enum
-from typing import Union, Iterable, List, TYPE_CHECKING, Dict
+from typing import Union, Iterable, List, TYPE_CHECKING, Dict, Set
 
 from ..utils import blob_converter, json_converter, MetaClassForInit, is_py36
 from ..exception import SyntaxException, ResourceException, ParamsException, \
@@ -33,8 +33,17 @@ class SQLForeignKey:
 
 class SQLQueryOrder:
     def __init__(self, column, order):
+        assert order in ('asc', 'desc')
         self.column = column
         self.order = order
+
+    def __eq__(self, other):
+        if isinstance(other, SQLQueryOrder):
+            return self.column == other.column and self.order == other.order
+        return False
+
+    def __repr__(self):
+        return '<SQLQueryOrder %r.%s>' % (self.column, self.order)
 
 
 class SQL_OP(Enum):
@@ -74,22 +83,32 @@ class QueryConditions(list):
 
 
 class SQLQueryInfo:
-    """ 查询参数。目的同 QueryArguments，即与其他 dict 能够区分 """
+    """ SQL查询参数。"""
     PRIMARY_KEY = object() # for add condition
+    ALL_COLUMNS = object()
 
-    def __init__(self):
+    def __init__(self, params=None, view=None):
         if is_py36:
             self.select: List[str]
             self.orders: List[SQLQueryOrder]
             self.loadfk: Dict[str, List[Dict[str, object]]]
 
-        self.select = None
+        self.select = self.ALL_COLUMNS
         self.conditions = QueryConditions()
         self.orders = []
         self.loadfk = None
 
+        if params: self.parse(params)
+        if view: self.bind(view)
+
+    def set_orders(self, orders: List[SQLQueryOrder]):
+        assert isinstance(orders, list)
+        for i in orders:
+            assert isinstance(i, SQLQueryOrder)
+        self.orders = orders.copy()
+
     @staticmethod
-    def _parse_order(text):
+    def parse_order(text):
         """
         :param text: order=id.desc, xxx.asc
         :return: [
@@ -113,23 +132,32 @@ class SQLQueryInfo:
                 orders.append(SQLQueryOrder(column, order))
         return orders
 
-    @staticmethod
-    def _parse_select(text: str):
+    def set_select(self, items):
+        if items == self.ALL_COLUMNS:
+            self.select = self.ALL_COLUMNS
+        elif isinstance(items, Iterable):
+            for i in items:
+                assert isinstance(i, str)
+            self.select = set(items)
+        else:
+            raise SyntaxException('Invalid select')
+
+    @classmethod
+    def parse_select(cls, text: str) -> Set:
         """
         get columns from select text
         :param text: col1, col2
-        :return: None or [col1, col2]
+        :return: ALL_COLUMNS or ['col1', 'col2']
         """
         if text == '*':
-            return None  # None means ALL
-        info = set(map(str.strip, text.split(',')))
-        selected_columns = list(filter(lambda x: x, info))
+            return cls.ALL_COLUMNS  # None means ALL
+        selected_columns = set(filter(lambda x: x, map(str.strip, text.split(','))))
         if not selected_columns:
-            raise ResourceException("No column(s) selected")
+            raise SyntaxException("No column(s) selected")
         return selected_columns
 
     @staticmethod
-    def _parse_load_fk(value: str) -> Dict[str, List[Dict[str, object]]]:
+    def parse_load_fk(value: str) -> Dict[str, List[Dict[str, object]]]:
         """
         :param value:{
             <column>: role,
@@ -216,13 +244,6 @@ class SQLQueryInfo:
     def clear_condition(self):
         self.conditions.clear()
 
-    @classmethod
-    def new(cls, params=None, view=None) -> 'SQLQueryInfo':
-        query = SQLQueryInfo()
-        if params: query.parse(params)
-        if view: query.bind(view)
-        return query
-
     def parse(self, params):
         for key, value in params.items():
             # xxx.{op}
@@ -230,13 +251,13 @@ class SQLQueryInfo:
 
             field_name = info[0]
             if field_name == 'order':
-                self.orders = self._parse_order(value)
+                self.orders = self.parse_order(value)
                 continue
             elif field_name == 'select':
-                self.select = self._parse_select(value)
+                self.select = self.parse_select(value)
                 continue
             elif field_name == 'loadfk':
-                self.loadfk = self._parse_load_fk(value)
+                self.loadfk = self.parse_load_fk(value)
                 continue
 
             op = info[1] if len(info) > 1 else '='
@@ -250,7 +271,7 @@ class SQLQueryInfo:
                 raise ColumnNotFound(field_name)
 
         # select check
-        if self.select is None:
+        if self.select is self.ALL_COLUMNS:
             self.select = view.fields.keys()
         else:
             for i, field_name in enumerate(self.select):
