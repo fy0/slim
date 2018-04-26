@@ -1,23 +1,21 @@
 import asyncio
 import logging
 import time
-import json
 from abc import abstractmethod
 from types import FunctionType
 from typing import Tuple, Union, Dict, Iterable, Type, List, Set
 from aiohttp import web
 
-from slim.utils import pagination_calc
-from .sqlquery import SQLQueryInfo, SQL_TYPE, SQLForeignKey, SQLValuesToWrite
+from .sqlquery import SQLQueryInfo, SQL_TYPE, SQLForeignKey, SQLValuesToWrite, ALL_COLUMNS, PRIMARY_KEY
 from .app import Application
 from .helper import create_signed_value, decode_signed_value
 from .permission import Permissions, Ability, BaseUser, A, DataRecord
 from .sqlfuncs import AbstractSQLFunctions
 from ..retcode import RETCODE
-from ..utils import MetaClassForInit, dict_filter, sync_call, async_call, is_py36
+from ..utils import pagination_calc, MetaClassForInit, async_call, is_py36
 from ..utils.json_ex import json_ex_dumps
-from ..exception import ValueHandleException, RecordNotFound, SyntaxException, ParamsException, SQLOperatorInvalid, \
-    ColumnIsNotForeignKey, ColumnNotFound, RoleNotFound, PermissionDenied, FinishQuitException
+from ..exception import RecordNotFound, SyntaxException, InvalidParams, SQLOperatorInvalid, ColumnIsNotForeignKey,\
+    ColumnNotFound, RoleNotFound, PermissionDenied, FinishQuitException
 
 logger = logging.getLogger(__name__)
 
@@ -271,6 +269,9 @@ class ErrorCatchContext:
         elif isinstance(exc_val, PermissionDenied):
             self.view.finish(RETCODE.PERMISSION_DENIED, exc_val.args[0])
 
+        else: return  # 异常会传递出去
+        return True
+
 
 class AbstractSQLView(BaseView):
     _sql_cls = AbstractSQLFunctions
@@ -379,7 +380,7 @@ class AbstractSQLView(BaseView):
                          " and the View object inherited a UserMixin." % self.current_role)
             self.finish(RETCODE.INVALID_ROLE)
 
-    async def load_fk(self, info: SQLQueryInfo, items: Iterable[DataRecord]) -> Iterable:
+    async def load_fk(self, info: SQLQueryInfo, items: Iterable[DataRecord]) -> Union[List, Tuple]:
         """
         :param info:
         :param items: the data got from database and filtered from permission
@@ -388,10 +389,10 @@ class AbstractSQLView(BaseView):
         # if not items, items is probably [], so return itself.
         if not items: return items
         # first: get tables' instances
-        #table_map = {}
-        #for column in info['loadfk'].keys():
-        #    tbl_name = self.foreign_keys[column][0]
-        #    table_map[column] = self.app.tables[tbl_name]
+        # table_map = {}
+        # for column in info['loadfk'].keys():
+        #     tbl_name = self.foreign_keys[column][0]
+        #     table_map[column] = self.app.tables[tbl_name]
 
         # second: get query parameters
         async def check(data, items):
@@ -413,18 +414,14 @@ class AbstractSQLView(BaseView):
                     vcls = self.app.tables[fkdata['table']]
                     ability = vcls.permission.request_role(self.current_user, fkdata['role'])
                     info2 = SQLQueryInfo()
-                    info2.set_select(SQLQueryInfo.ALL_COLUMNS)
-                    info2.add_condition(info.PRIMARY_KEY, 'in', pks)
+                    info2.set_select(ALL_COLUMNS)
+                    info2.add_condition(PRIMARY_KEY, 'in', pks)
                     info2.check_query_permission_full(self.current_user, fkdata['table'], ability)
 
                     if is_py36: vcls: AbstractSQLView
                     v = vcls()
-                    records, count = await v._sql.select(info2, size=-1)
-                    v.check_records_permission(vcls, records)
-
-                    pk_values = []
-                    for i in records:
-                        pk_values.append(i.to_dict_by_ability())
+                    pk_values, count = await v._sql.select(info2, size=-1)
+                    v.check_records_permission(vcls, pk_values)
 
                     fk_dict = {}
                     for i in pk_values:
@@ -445,35 +442,27 @@ class AbstractSQLView(BaseView):
 
     async def _call_handle(self, func, *args):
         """ call and check result of handle_query/read/insert/update """
-        ret = await async_call(func, *args)
+        await async_call(func, *args)
 
-        if ret is None:
-            return
-
-        if isinstance(ret, Iterable):
-            self.finish(*ret)
+        if self.is_finished:
             raise FinishQuitException()
 
-        raise ValueHandleException('Invalid result type of handle function.')
-
-    def _get_list_page_and_size(self) -> Tuple[Union[int, None], Union[int, None]]:
-        page = self.route_info.get('page', '1')
+    def _get_list_page_and_size(self) -> Tuple[int, int]:
+        page = self.route_info.get('page', '1').strip()
 
         if not page.isdigit():
-            self.finish(RETCODE.INVALID_PARAMS)
-            return None, None
+            raise InvalidParams("`page` is not a number")
         page = int(page)
 
-        size = self.route_info.get('size', None)
+        size = self.route_info.get('size', '').strip()
         if self.LIST_ACCEPT_SIZE_FROM_CLIENT:
             if size:
                 if size == '-1':  # size is infinite
                     size = -1
-                elif size.isdigit():
+                elif size.isdigit():  # isdigit means size >= 0
                     size = int(size or self.LIST_PAGE_SIZE)
                 else:
-                    self.finish(RETCODE.INVALID_PARAMS)
-                    return None, None
+                    raise InvalidParams("`size` is not a number")
             else:
                 size = self.LIST_PAGE_SIZE
         else:
@@ -481,9 +470,9 @@ class AbstractSQLView(BaseView):
 
         return page, size
 
-    async def check_records_permission(self, records):
+    async def check_records_permission(self, info, records):
         for record in records:
-            columns = record.set_ability(self.ability, self.current_user)
+            columns = record.set_info(info, self.ability, self.current_user)
             if not columns: raise RecordNotFound()
         await self._call_handle(self.after_read, records)
 
@@ -492,11 +481,11 @@ class AbstractSQLView(BaseView):
             info = SQLQueryInfo(self.params, view=self)
             await self._call_handle(self.before_query, info)
             records, count = await self._sql.select(info, size=1)
-            await self.check_records_permission(records)
+            await self.check_records_permission(info, records)
 
             if count:
-                data_dict = (await self.load_fk(info, records))[0]
-                self.finish(RETCODE.SUCCESS, data_dict)
+                data_dict = await self.load_fk(info, records)
+                self.finish(RETCODE.SUCCESS, data_dict[0])
             else:
                 self.finish(RETCODE.NOT_FOUND)
 
@@ -506,15 +495,15 @@ class AbstractSQLView(BaseView):
             info = SQLQueryInfo(self.params, view=self)
             await self._call_handle(self.before_query, info)
             records, count = await self._sql.select(info, size, page)
-            await self.check_records_permission(records)
+            await self.check_records_permission(info, records)
 
             if count:
                 if size == -1: size = count
                 pg = pagination_calc(count, size, page)
-                records_dict = await self.load_fk(info, records_dict)
-                pg["items"] = records_dict
+                records = await self.load_fk(info, records)
+                pg["items"] = records
 
-                self.finish(RETCODE.SUCCESS, records_dict)
+                self.finish(RETCODE.SUCCESS, pg)
             else:
                 self.finish(RETCODE.NOT_FOUND)
 
@@ -544,7 +533,7 @@ class AbstractSQLView(BaseView):
             logger.debug('set data: %s' % values)
             await self._call_handle(self.before_insert, raw_post, values)
             records = await self._sql.insert(values)
-            await self.check_records_permission(records)
+            await self.check_records_permission(None, records)
             await self._call_handle(self.after_insert, raw_post, values, records)
 
     async def delete(self):
@@ -565,9 +554,9 @@ class AbstractSQLView(BaseView):
                             "request permission failed. valid / requested: %r, %r" % (valid, list(record.keys())))
                         return self.finish(RETCODE.PERMISSION_DENIED)
 
-                # await self._call_handle(self.before, raw_post, values, records)
+                await self._call_handle(self.before_delete, records)
                 await self._sql.delete(records)
-                # await self._call_handle(self.after_update, values, records)
+                await self._call_handle(self.after_delete, records)
             else:
                 self.finish(RETCODE.NOT_FOUND)
 
@@ -586,22 +575,28 @@ class AbstractSQLView(BaseView):
         """
         pass
 
-    async def before_query(self, info: SQLQueryInfo) -> Union[None, tuple]:
+    async def before_query(self, info: SQLQueryInfo):
         pass
 
-    async def after_read(self, records: DataRecord) -> Union[None, tuple]:
+    async def after_read(self, records: List[DataRecord]):
         pass
 
-    async def before_insert(self, raw_post: Dict, values: SQLValuesToWrite) -> Union[None, tuple]:
+    async def before_insert(self, raw_post: Dict, values: SQLValuesToWrite):
         pass
 
-    async def after_insert(self, raw_post: Dict, dbdata: DataRecord, values: Dict) -> Union[None, tuple]:
+    async def after_insert(self, raw_post: Dict, values: SQLValuesToWrite, records: List[DataRecord]):
         """ Emitted before finish """
         pass
 
-    async def before_update(self, raw_post: Dict, values: Dict) -> Union[None, tuple]:
+    async def before_update(self, raw_post: Dict, values: SQLValuesToWrite, records: List[DataRecord]):
         """ raw_post 权限过滤和列过滤前，values 过滤后 """
         pass
 
-    async def after_update(self, values: Dict):
+    async def after_update(self, raw_post: Dict, values: SQLValuesToWrite, records: List[DataRecord]):
+        pass
+
+    async def before_delete(self, records: List[DataRecord]):
+        pass
+
+    async def after_delete(self, deleted_records: List[DataRecord]):
         pass

@@ -7,15 +7,15 @@ class SyntaxException(SlimException):
     pass
 
 
-class ParamsException(SlimException):
+class InvalidParams(SlimException):
     pass
 
 
-class SQLOperatorInvalid(ParamsException):
+class SQLOperatorInvalid(InvalidParams):
     pass
 
 
-class ColumnIsNotForeignKey(ParamsException):
+class ColumnIsNotForeignKey(InvalidParams):
     # 外键只有读取一种情况，因此作为 ParamsException 而不是 ResourceException
     pass
 
@@ -49,8 +49,4 @@ class PermissionDenied(SlimException):
 
 
 class FinishQuitException(SlimException):
-    pass
-
-
-class ValueHandleException(SlimException):
     pass

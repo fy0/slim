@@ -1,6 +1,6 @@
 import json
+from ..base.sqlquery import DataRecord
 from .binhex import to_hex
-from json import JSONEncoder
 
 is_patched = False
 
@@ -12,13 +12,15 @@ def json_ex_default(o):
         return to_hex(o)
     elif isinstance(o, set):
         return list(o)
+    elif isinstance(o, DataRecord):
+        return o.to_dict()
 
 
 def json_ex_dumps(obj, **kwargs):
     return json.dumps(obj, default=json_ex_default, **kwargs)
 
 
-class JEncoder(JSONEncoder):
+class JEncoder(json.JSONEncoder):
     def default(self, o):
         if isinstance(o, memoryview):
             return o.hex()

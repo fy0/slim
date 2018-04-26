@@ -9,9 +9,8 @@ from playhouse.postgres_ext import JSONField as PG_JSONField, BinaryJSONField
 from playhouse.sqlite_ext import JSONField as SQLITE_JSONField
 from playhouse.shortcuts import model_to_dict
 
-from slim.base.sqlquery import SQL_TYPE, SQLForeignKey, SQL_OP, SQLQueryInfo, SQLQueryOrder
-from slim.base.sqlfuncs import UpdateInfo
-from slim.exception import RecordNotFound
+from ...base.sqlquery import SQL_TYPE, SQLForeignKey, SQL_OP, SQLQueryInfo, SQLQueryOrder, ALL_COLUMNS
+from ...exception import RecordNotFound
 from ...base.permission import DataRecord, Permissions, A
 from ...retcode import RETCODE
 from ...utils import to_bin, pagination_calc, dict_filter
@@ -22,10 +21,9 @@ logger = logging.getLogger(__name__)
 
 # noinspection PyProtectedMember
 class PeeweeDataRecord(DataRecord):
-    # noinspection PyMissingConstructor
-    def __init__(self, table_name, val: peewee.Model, *, view=None, selected=None):
+    def __init__(self, table_name, val: peewee.Model, *, view=None):
+        super().__init__(table_name, val)
         self.view = view
-        self.selected = selected
         if view:
             # if view exists, get information from View class
             self.table = view.table_name
@@ -45,16 +43,7 @@ class PeeweeDataRecord(DataRecord):
                 self._fields[name] = v
         return self._fields
 
-    def keys(self):
-        return self.fields.keys()
-
-    def get(self, key):
-        return getattr(self.val, key)
-
-    def has(self, key):
-        return hasattr(self.val, key)
-
-    def to_dict(self, available_columns=None):
+    def _to_dict(self):
         data = {}
         fields = self.val._meta.fields
         for name, v in model_to_dict(self.val, recurse=False).items():
@@ -64,8 +53,8 @@ class PeeweeDataRecord(DataRecord):
                 continue
             data[name] = v
 
-        if available_columns:
-            return dict_filter(data, available_columns)
+        if self.available_columns != ALL_COLUMNS:
+            return dict_filter(data, self.available_columns)
 
         return data
 
@@ -133,7 +122,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
             page = 1
             size = count
 
-        func = lambda item: PeeweeDataRecord(None, item, view=self.vcls, selected=info.select)
+        func = lambda item: PeeweeDataRecord(None, item, view=self.vcls)
 
         try:
             return tuple(map(func, q.paginate(page, size))), count

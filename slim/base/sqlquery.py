@@ -4,7 +4,7 @@ from enum import Enum
 from typing import Union, Iterable, List, TYPE_CHECKING, Dict, Set
 
 from ..utils import blob_converter, json_converter, MetaClassForInit, is_py36, dict_filter, dict_filter_inplace
-from ..exception import SyntaxException, ResourceException, ParamsException, \
+from ..exception import SyntaxException, ResourceException, InvalidParams, \
     PermissionDenied, ColumnNotFound, ColumnIsNotForeignKey, SQLOperatorInvalid, RoleNotFound, SlimException, \
     InvalidPostData
 
@@ -34,30 +34,49 @@ class DataRecord:
     def __init__(self, table_name, val):
         self.table = table_name
         self.val = val
+        self.selected = ALL_COLUMNS
         self.available_columns = ALL_COLUMNS
+        self._cache = None
 
-    def get(self, key):
+    def _to_dict(self) -> Dict:
         raise NotImplementedError()
 
-    def keys(self):
-        raise NotImplementedError()
-
-    def has(self, key):
-        raise NotImplementedError()
-
-    def to_dict(self, available_columns=None) -> Dict:
-        raise NotImplementedError()
-
-    def to_dict_by_ability(self):
-        if self.available_columns is ALL_COLUMNS:
-            return self.to_dict()
-        else:
-            return self.to_dict(self.available_columns)
-
-    def set_ability(self, ability: "Ability", user: "BaseUser"):
+    def set_info(self, info: "SQLQueryInfo", ability: "Ability", user: "BaseUser"):
         from .permission import A
+        if info:
+            self.selected = info.select
         self.available_columns = ability.can_with_record(user, A.READ, self)
         return self.available_columns
+
+    @property
+    def cache(self) -> Dict:
+        if self._cache is None:
+            self._cache = self._to_dict()
+        return self._cache
+
+    def get(self, key, default=None):
+        return self.cache.get(key, default)
+
+    def to_dict(self):
+        return self.cache
+
+    def keys(self):
+        return self.cache.keys()
+
+    def pop(self, key):
+        return self.cache.pop(key)
+
+    def __getitem__(self, item):
+        return self.get(item)
+
+    def __setitem__(self, key, value):
+        self.cache[key] = value
+
+    def __delitem__(self, key):
+        self.pop(key)
+
+    def __repr__(self):
+        return self.to_dict().__repr__()
 
 
 class SQLForeignKey:
@@ -273,7 +292,7 @@ class SQLQueryInfo:
         if op_name not in SQL_OP.txt2op:
             raise SQLOperatorInvalid(op_name)
         op = SQL_OP.txt2op.get(op_name)
-        self.conditions.append((field_name, op, value))
+        self.conditions.append([field_name, op, value])  # 注意，必须是list
 
     def clear_condition(self):
         self.conditions.clear()
@@ -297,10 +316,10 @@ class SQLQueryInfo:
             op = info[1] if len(info) > 1 else '='
             self.add_condition(field_name, op, value)
 
-    def check_query_permission(self, view: AbstractSQLView):
+    def check_query_permission(self, view: "AbstractSQLView"):
         return self.check_query_permission_full(view.current_user, view.table_name, view.ability)
 
-    def check_query_permission_full(self, user: BaseUser, table: str, ability: Ability):
+    def check_query_permission_full(self, user: "BaseUser", table: str, ability: "Ability"):
         from .permission import A
 
         # QUERY 权限检查，通不过则报错
@@ -429,10 +448,10 @@ class SQLValuesToWrite(dict):
                 v = UpdateInfo(k, 'incr', v)
             self[k] = v
 
-    def check_query_permission(self, view: AbstractSQLView, action, records=None):
+    def check_query_permission(self, view: "AbstractSQLView", action, records=None):
         return self.check_query_permission_full(view.current_user, view.table_name, view.ability, action, records)
 
-    def check_query_permission_full(self, user: BaseUser, table: str, ability: Ability, action, records=None):
+    def check_query_permission_full(self, user: "BaseUser", table: str, ability: "Ability", action, records=None):
         from .permission import A
         logger.debug('request permission: [%s] of table %r' % (action, table))
 
