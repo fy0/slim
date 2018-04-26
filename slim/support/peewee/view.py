@@ -125,16 +125,18 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
         if orders: q = q.order_by(*orders)
         return q
 
-    async def select(self, info: SQLQueryInfo, size=1, page=1)-> (Tuple[DataRecord], int):
+    async def select(self, info: SQLQueryInfo, size=1, page=1)-> Tuple[Tuple[DataRecord, ...], int]:
         q = self._make_select(info)
         count = q.count()
 
         if size == -1:
-            page, size = 1, count
+            page = 1
+            size = count
 
         func = lambda item: PeeweeDataRecord(None, item, view=self.vcls, selected=info.select)
+
         try:
-            return list(map(func, q.paginate(page, size))), count
+            return tuple(map(func, q.paginate(page, size))), count
         except self._model.DoesNotExist:
             raise RecordNotFound()
 

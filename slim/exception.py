@@ -15,11 +15,24 @@ class SQLOperatorInvalid(ParamsException):
     pass
 
 
-class ColumnNotFound(SlimException):
+class ColumnIsNotForeignKey(ParamsException):
+    # 外键只有读取一种情况，因此作为 ParamsException 而不是 ResourceException
     pass
 
 
-class RecordNotFound(SlimException):
+class InvalidPostData(SlimException):
+    pass
+
+
+class ResourceException(SlimException):
+    pass
+
+
+class ColumnNotFound(ResourceException):
+    pass
+
+
+class RecordNotFound(ResourceException):
     pass
 
 
@@ -31,15 +44,11 @@ class RoleNotFound(PermissionException):
     pass
 
 
-class ColumnIsNotForeignKey(SlimException):
+class PermissionDenied(SlimException):
     pass
 
 
-class PermissionDeniedException(SlimException):
-    pass
-
-
-class ResourceException(SlimException):
+class FinishQuitException(SlimException):
     pass
 
 

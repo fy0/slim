@@ -3,12 +3,15 @@ import logging
 from enum import Enum
 from typing import Union, Iterable, List, TYPE_CHECKING, Dict, Set
 
-from ..utils import blob_converter, json_converter, MetaClassForInit, is_py36
+from ..utils import blob_converter, json_converter, MetaClassForInit, is_py36, dict_filter, dict_filter_inplace
 from ..exception import SyntaxException, ResourceException, ParamsException, \
-    PermissionDeniedException, ColumnNotFound, ColumnIsNotForeignKey, SQLOperatorInvalid, RoleNotFound, SlimException
+    PermissionDenied, ColumnNotFound, ColumnIsNotForeignKey, SQLOperatorInvalid, RoleNotFound, SlimException, \
+    InvalidPostData
 
 if TYPE_CHECKING:
     from .view import AbstractSQLView
+    from .permission import Ability
+    from .user import BaseUser
 
 
 logger = logging.getLogger(__name__)
@@ -21,6 +24,40 @@ class SQL_TYPE(Enum):
     BOOLEAN = bool
     BLOB = blob_converter
     JSON = json_converter
+
+
+PRIMARY_KEY = object() # for add condition
+ALL_COLUMNS = object()
+
+
+class DataRecord:
+    def __init__(self, table_name, val):
+        self.table = table_name
+        self.val = val
+        self.available_columns = ALL_COLUMNS
+
+    def get(self, key):
+        raise NotImplementedError()
+
+    def keys(self):
+        raise NotImplementedError()
+
+    def has(self, key):
+        raise NotImplementedError()
+
+    def to_dict(self, available_columns=None) -> Dict:
+        raise NotImplementedError()
+
+    def to_dict_by_ability(self):
+        if self.available_columns is ALL_COLUMNS:
+            return self.to_dict()
+        else:
+            return self.to_dict(self.available_columns)
+
+    def set_ability(self, ability: "Ability", user: "BaseUser"):
+        from .permission import A
+        self.available_columns = ability.can_with_record(user, A.READ, self)
+        return self.available_columns
 
 
 class SQLForeignKey:
@@ -84,19 +121,16 @@ class QueryConditions(list):
 
 class SQLQueryInfo:
     """ SQL查询参数。"""
-    PRIMARY_KEY = object() # for add condition
-    ALL_COLUMNS = object()
-
     def __init__(self, params=None, view=None):
         if is_py36:
-            self.select: List[str]
+            self.select: Union[List[str], object]
             self.orders: List[SQLQueryOrder]
             self.loadfk: Dict[str, List[Dict[str, object]]]
 
-        self.select = self.ALL_COLUMNS
+        self.select = ALL_COLUMNS
         self.conditions = QueryConditions()
         self.orders = []
-        self.loadfk = None
+        self.loadfk = {}
 
         if params: self.parse(params)
         if view: self.bind(view)
@@ -133,8 +167,8 @@ class SQLQueryInfo:
         return orders
 
     def set_select(self, items):
-        if items == self.ALL_COLUMNS:
-            self.select = self.ALL_COLUMNS
+        if items == ALL_COLUMNS:
+            self.select = ALL_COLUMNS
         elif isinstance(items, Iterable):
             for i in items:
                 assert isinstance(i, str)
@@ -150,7 +184,7 @@ class SQLQueryInfo:
         :return: ALL_COLUMNS or ['col1', 'col2']
         """
         if text == '*':
-            return cls.ALL_COLUMNS  # None means ALL
+            return ALL_COLUMNS  # None means ALL
         selected_columns = set(filter(lambda x: x, map(str.strip, text.split(','))))
         if not selected_columns:
             raise SyntaxException("No column(s) selected")
@@ -208,7 +242,7 @@ class SQLQueryInfo:
                 data = [v for k, v in data.items() if check(k ,v)]
 
             # 递归外键读取
-            if data['loadfk'] is not None:
+            if data['loadfk']:
                 data['loadfk'] = translate(data['loadfk'])
             return data
 
@@ -263,20 +297,42 @@ class SQLQueryInfo:
             op = info[1] if len(info) > 1 else '='
             self.add_condition(field_name, op, value)
 
+    def check_query_permission(self, view: AbstractSQLView):
+        return self.check_query_permission_full(view.current_user, view.table_name, view.ability)
+
+    def check_query_permission_full(self, user: BaseUser, table: str, ability: Ability):
+        from .permission import A
+
+        # QUERY 权限检查，通不过则报错
+        checking_columns = []
+        for field_name, op, value in self.conditions:
+            checking_columns.append(field_name)
+
+        if checking_columns and not ability.can_with_columns(user, A.QUERY, table, checking_columns):
+            raise PermissionDenied("None of these columns had permission to %r: %r" % (A.QUERY, checking_columns))
+
+        # READ 权限检查，通不过时将其过滤
+        checking_columns = self.loadfk.keys()  # 外键过滤
+        new_loadfk = ability.can_with_columns(user, A.READ, table, checking_columns)
+        self.loadfk = dict_filter(self.loadfk, new_loadfk)
+
+        new_select = ability.can_with_columns(user, A.READ, table, self.select)  # select 过滤
+        self.set_select(new_select)
+
     def bind(self, view: "AbstractSQLView"):
         def check_column_exists(column):
-            if column is self.PRIMARY_KEY:
+            if column is PRIMARY_KEY:
                 return
             if field_name not in view.fields:
                 raise ColumnNotFound(field_name)
 
         # select check
-        if self.select is self.ALL_COLUMNS:
+        if self.select is ALL_COLUMNS:
             self.select = view.fields.keys()
         else:
             for i, field_name in enumerate(self.select):
                 check_column_exists(field_name)
-                if field_name == self.PRIMARY_KEY:
+                if field_name == PRIMARY_KEY:
                     if not isinstance(self.select, List):
                         self.select = list(self.select)
                     self.select[i] = view.primary_key
@@ -285,7 +341,7 @@ class SQLQueryInfo:
         for i in self.conditions:
             field_name, op, value = i
             check_column_exists(field_name)
-            if field_name == self.PRIMARY_KEY:
+            if field_name == PRIMARY_KEY:
                 i[0] = field_name = view.primary_key
             field_type = view.fields[field_name]
             try:
@@ -301,16 +357,16 @@ class SQLQueryInfo:
         # order check
         for i, od in enumerate(self.orders):
             check_column_exists(od.column)
-            if od.column == self.PRIMARY_KEY:
+            if od.column == PRIMARY_KEY:
                 self.orders[i] = view.primary_key
 
         # foreign key check
         app = view.app
 
         def check_loadfk_data(the_view, data):
-            if self.PRIMARY_KEY in data:
-                data[the_view.primary_key] = data[self.PRIMARY_KEY]
-                del data[self.PRIMARY_KEY]
+            if PRIMARY_KEY in data:
+                data[the_view.primary_key] = data[PRIMARY_KEY]
+                del data[PRIMARY_KEY]
 
             for field_name, data_lst in data.items():
                 # [{'role': role, 'loadfk': {...}}]
@@ -345,6 +401,75 @@ class SQLQueryInfo:
         if self.loadfk:
             check_loadfk_data(view, self.loadfk)
 
+        # permission check
+        # 是否需要一个 order 权限？
+        if view.ability:
+            self.check_query_permission(view)
+
+
+class UpdateInfo:
+    def __init__(self, key, op, val):
+        assert op in ('incr', 'to')
+        self.key = key
+        self.op = op
+        self.val = val
+
 
 class SQLValuesToWrite(dict):
-    pass
+    def __init__(self, post_data=None):
+        if post_data:
+            self.parse(post_data)
+        super().__init__()
+
+    def parse(self, post_data):
+        self.clear()
+        for k, v in post_data.items():
+            if '.' in k:
+                k, op = k.rsplit('.', 1)
+                v = UpdateInfo(k, 'incr', v)
+            self[k] = v
+
+    def check_query_permission(self, view: AbstractSQLView, action, records=None):
+        return self.check_query_permission_full(view.current_user, view.table_name, view.ability, action, records)
+
+    def check_query_permission_full(self, user: BaseUser, table: str, ability: Ability, action, records=None):
+        from .permission import A
+        logger.debug('request permission: [%s] of table %r' % (action, table))
+
+        if action == A.WRITE:
+            for record in records:
+                valid = ability.can_with_record(user, action, record, available=self.keys())
+                if len(valid) != len(self):
+                    logger.debug("request permission failed. request / valid: %r, %r" % (list(self.keys()), valid))
+                    raise PermissionDenied()
+        elif action == A.CREATE:
+            valid = ability.can_with_columns(user, action, table, self.keys())
+
+            if len(valid) != len(self):
+                logger.debug("request permission failed. request / valid: %r, %r" % (list(self.keys()), valid))
+                raise PermissionDenied()
+        else:
+            raise SlimException("Invalid action to write: %r" % action)
+
+        logger.debug("request permission successed: %r" % list(self.keys()))
+
+    def bind(self, view: "AbstractSQLView", action=None, records=None):
+        dict_filter_inplace(self, view.fields.keys())
+        if len(self) == 0:
+            raise InvalidPostData()
+
+        for k, v in self.items():
+            field_type = view.fields[k]
+            try:
+                if isinstance(v, UpdateInfo):
+                    if v.op == 'to':
+                        self[k] = field_type.value(v)
+                    elif v.op == 'incr':
+                        v.val = field_type.value(v)
+                else:
+                    self[k] = field_type.value(v)
+            except:
+                raise SlimException("bad value")
+
+        if action:
+            self.check_query_permission(view, action, records)
