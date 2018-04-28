@@ -49,7 +49,7 @@ class PeeweeDataRecord(DataRecord):
         for name, v in model_to_dict(self.val, recurse=False).items():
             if isinstance(fields[name], peewee.ForeignKeyField):
                 name = name + '_id'
-            if self.selected and (name not in self.selected):
+            if self.selected != ALL_COLUMNS and (self.selected and (name not in self.selected)):
                 continue
             data[name] = v
 
@@ -78,7 +78,7 @@ _peewee_method_map = {
 class PeeweeSQLFunctions(AbstractSQLFunctions):
     @property
     def _fields(self):
-        return self.vcls._peewee_field
+        return self.vcls._peewee_fields
 
     @property
     def _model(self):
@@ -114,17 +114,24 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
         if orders: q = q.order_by(*orders)
         return q
 
-    async def select(self, info: SQLQueryInfo, size=1, page=1)-> Tuple[Tuple[DataRecord, ...], int]:
+    async def select_one(self, info: SQLQueryInfo) -> DataRecord:
+        try:
+            item = self._make_select(info).get()
+            return PeeweeDataRecord(None, item, view=self.vcls)
+        except self._model.DoesNotExist:
+            raise RecordNotFound()
+
+    async def select_page(self, info: SQLQueryInfo, size=1, page=1) -> Tuple[Tuple[DataRecord, ...], int]:
         q = self._make_select(info)
         count = q.count()
+        if count == 0: raise RecordNotFound()
 
         if size == -1:
             page = 1
             size = count
 
-        func = lambda item: PeeweeDataRecord(None, item, view=self.vcls)
-
         try:
+            func = lambda item: PeeweeDataRecord(None, item, view=self.vcls)
             return tuple(map(func, q.paginate(page, size))), count
         except self._model.DoesNotExist:
             raise RecordNotFound()
@@ -262,7 +269,7 @@ class PeeweeView(AbstractSQLView):
     _sql_cls = PeeweeSQLFunctions
     options_cls = PeeweeViewOptions
     model = None
-    _peewee_field = {}
+    _peewee_fields = {}
 
     @classmethod
     def cls_init(cls, check_options=True):
@@ -296,6 +303,7 @@ class PeeweeView(AbstractSQLView):
             cls.table_name = get_table_name(cls.model)
             cls.primary_key = get_pk_name(cls.model)
             cls.foreign_keys = {}
+            cls._peewee_fields = {}
 
             def wrap(name, field) -> str:
                 if isinstance(field, peewee.ForeignKeyField):
@@ -304,7 +312,7 @@ class PeeweeView(AbstractSQLView):
                     cls.foreign_keys[name] = SQLForeignKey(get_table_name(rm), get_pk_name(rm),
                                                            field_class_to_sql_type(rm))
 
-                cls._peewee_field[name] = field
+                cls._peewee_fields[name] = field
                 return name
 
             cls.fields = {wrap(k, v): field_class_to_sql_type(v) for k, v in cls.model._meta.fields.items()}

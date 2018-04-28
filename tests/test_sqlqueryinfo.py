@@ -1,4 +1,4 @@
-from slim.base.sqlquery import SQLQueryInfo, SQLQueryOrder
+from slim.base.sqlquery import SQLQueryInfo, SQLQueryOrder, ALL_COLUMNS
 from slim.exception import SyntaxException
 
 
@@ -48,7 +48,7 @@ def test_select():
     assert SQLQueryInfo.parse_select('aa,bbb') == {'aa', 'bbb'}
     assert SQLQueryInfo.parse_select('aa, bbb') == {'aa', 'bbb'}
     assert SQLQueryInfo.parse_select('aa,  \nbbb') == {'aa', 'bbb'}
-    assert SQLQueryInfo.parse_select('*') == SQLQueryInfo.ALL_COLUMNS
+    assert SQLQueryInfo.parse_select('*') == ALL_COLUMNS
     try:
         SQLQueryInfo.parse_select(',')
         assert False
@@ -73,7 +73,7 @@ def test_select():
     except Exception as e:
         assert isinstance(e, SyntaxException)
 
-    assert sqi.set_select(sqi.ALL_COLUMNS) is None
+    assert sqi.set_select(ALL_COLUMNS) is None
     assert sqi.set_select(['1', '2', '3']) is None
     assert sqi.set_select({'1', '2', '3'}) is None
 

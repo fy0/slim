@@ -14,8 +14,8 @@ from .sqlfuncs import AbstractSQLFunctions
 from ..retcode import RETCODE
 from ..utils import pagination_calc, MetaClassForInit, async_call, is_py36
 from ..utils.json_ex import json_ex_dumps
-from ..exception import RecordNotFound, SyntaxException, InvalidParams, SQLOperatorInvalid, ColumnIsNotForeignKey,\
-    ColumnNotFound, RoleNotFound, PermissionDenied, FinishQuitException
+from ..exception import RecordNotFound, SyntaxException, InvalidParams, SQLOperatorInvalid, ColumnIsNotForeignKey, \
+    ColumnNotFound, RoleNotFound, PermissionDenied, FinishQuitException, SlimException
 
 logger = logging.getLogger(__name__)
 
@@ -246,7 +246,7 @@ class ErrorCatchContext:
 
         # SyntaxException
         elif isinstance(exc_val, SyntaxException):
-            self.view.finish(RETCODE.FAILED, exc_val.args)
+            self.view.finish(RETCODE.FAILED, exc_val.args[0])
 
         # ParamsException
         elif isinstance(exc_val, SQLOperatorInvalid):
@@ -268,6 +268,12 @@ class ErrorCatchContext:
 
         elif isinstance(exc_val, PermissionDenied):
             self.view.finish(RETCODE.PERMISSION_DENIED, exc_val.args[0])
+
+        elif isinstance(exc_val, SlimException):
+            if exc_val.args[0] == 'bad value':
+                self.view.finish(RETCODE.INVALID_PARAMS, exc_val.args[0])
+            else:
+                self.view.finish(RETCODE.FAILED)
 
         else: return  # 异常会传递出去
         return True
@@ -388,6 +394,8 @@ class AbstractSQLView(BaseView):
         """
         # if not items, items is probably [], so return itself.
         if not items: return items
+        fk_reserved = ('role', 'as', 'table', 'loadfk')
+
         # first: get tables' instances
         # table_map = {}
         # for column in info['loadfk'].keys():
@@ -397,6 +405,10 @@ class AbstractSQLView(BaseView):
         # second: get query parameters
         async def check(data, items):
             for column, fkdatas in data.items():
+                if column in fk_reserved:
+                    continue
+
+                print(333, fkdatas)
                 for fkdata in fkdatas:
                     pks = []
                     all_ni = True
@@ -480,11 +492,13 @@ class AbstractSQLView(BaseView):
         with ErrorCatchContext(self):
             info = SQLQueryInfo(self.params, view=self)
             await self._call_handle(self.before_query, info)
-            records, count = await self._sql.select(info, size=1)
-            await self.check_records_permission(info, records)
+            record = await self._sql.select_one(info)
 
-            if count:
+            if record:
+                records = [record]
+                await self.check_records_permission(info, records)
                 data_dict = await self.load_fk(info, records)
+                print(data_dict)
                 self.finish(RETCODE.SUCCESS, data_dict[0])
             else:
                 self.finish(RETCODE.NOT_FOUND)
@@ -494,7 +508,7 @@ class AbstractSQLView(BaseView):
             page, size = self._get_list_page_and_size()
             info = SQLQueryInfo(self.params, view=self)
             await self._call_handle(self.before_query, info)
-            records, count = await self._sql.select(info, size, page)
+            records, count = await self._sql.select_page(info, size, page)
             await self.check_records_permission(info, records)
 
             if count:

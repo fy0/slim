@@ -232,14 +232,33 @@ class SQLQueryInfo:
         """
         try:
             value = json.loads(value) # [List, Dict[str, str]]
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, TypeError):
             raise SyntaxException('Invalid json syntax for "loadfk": %s' % value)
+
+        reserved = ('role', 'as', 'table', 'loadfk')
+        reserved_dict = {'role': None, 'as': None, 'table': None, 'loadfk': None}
+
+        def dict_normalize(data):
+            def check(k, v):
+                if k not in reserved:
+                    return True
+
+                if k == 'role': return v is None or isinstance(v, str)
+                if k == 'as': return v is None or isinstance(v, str)
+                if k == 'table': return v is None or isinstance(v, str)
+                if k == 'loadfk': return v is None or isinstance(v, dict)
+
+            valid = {k: v for k, v in data.items() if check(k, v)}
+            valid.update(reserved_dict)
+            return valid
 
         if isinstance(value, List):
             new_value = {}
             for i in value:
                 new_value[i] = None
             value = new_value
+        elif isinstance(value, Dict):
+            value = dict_normalize(value)
         else:
             raise SyntaxException('Invalid syntax for "loadfk": %s' % value)
 
@@ -248,17 +267,13 @@ class SQLQueryInfo:
             # data: str, role name
             # dict, {'role': <str>, 'as': <str>}
             if isinstance(data, str):
-                data = {'role': data, 'as': None, 'table': None, 'loadfk': None}
+                data = reserved_dict.copy()
             elif isinstance(data, dict):
-                def check(k, v):
-                    if k not in ('role', 'as', 'table', 'loadfk'):
-                        return
-
-                    if k == 'as': return v is None or isinstance(v, str)
-                    if k == 'table': return v is None or isinstance(v, str)
-                    if k == 'loadfk': return v is None or isinstance(v, dict)
-
-                data = [v for k, v in data.items() if check(k ,v)]
+                data = dict_normalize(data)
+            elif data is None:
+                return data
+            else:
+                raise SyntaxException('Invalid syntax for "loadfk"')
 
             # 递归外键读取
             if data['loadfk']:
@@ -267,12 +282,15 @@ class SQLQueryInfo:
 
         def translate(value) -> Dict[str, List[Dict[str, object]]]:
             for column, items in value.items():
+                if column in reserved:
+                    continue
                 ret = []
                 if not isinstance(items, Iterable):
                     items = [items]
 
                 for i in items:
-                    ret.append(rebuild(column, i))
+                    val = rebuild(column, i)
+                    if val: ret.append(val)
 
                 value[column] = ret
             return value
@@ -392,6 +410,8 @@ class SQLQueryInfo:
                 # [{'as': 's24h', 'table': 's24', 'role': role}]
 
                 # 检查列是否存在
+                if field_name in {'role', 'as', 'table', 'loadfk'}:
+                    continue
                 if field_name not in the_view.fields:
                     raise ColumnNotFound(field_name)
 

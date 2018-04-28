@@ -12,12 +12,22 @@ class AbstractSQLFunctions:
         self.vcls = view_cls
 
     @abstractmethod
-    async def select(self, info: SQLQueryInfo, size=1, page=1) -> Tuple[Tuple[DataRecord, ...], int]:
+    async def select_one(self, info: SQLQueryInfo) -> DataRecord:
+        """
+        Select from database
+        :param info:
+        :return: record
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    async def select_page(self, info: SQLQueryInfo, size=1, page=1) -> Tuple[Tuple[DataRecord, ...], int]:
         """
         Select from database
         :param info:
         :param size: -1 means infinite
         :param page:
+        :param need_count: if True, get count as second return value, otherwise -1
         :return: records. count
         """
         raise NotImplementedError()
@@ -27,7 +37,7 @@ class AbstractSQLFunctions:
         raise NotImplementedError()
 
     @abstractmethod
-    async def insert(self, values: SQLValuesToWrite):
+    async def insert(self, values_lst: Iterable[SQLValuesToWrite]) -> Iterable[DataRecord]:
         raise NotImplementedError()
 
     @abstractmethod
