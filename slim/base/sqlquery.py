@@ -409,6 +409,7 @@ class SQLQueryInfo:
                         if values['table'] not in the_view.foreign_keys_table_alias:
                             raise ResourceException('Foreign key not match the table: %r -> %r' % (field_name, values['table']))
                         fk = the_view.foreign_keys_table_alias[values['table']]
+                        values['table'] = fk.rel_table
                     else:
                         fk = fks[0]  # 取第一个结果（即默认外键）
                         values['table'] = fk.rel_table

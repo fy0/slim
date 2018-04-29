@@ -3,7 +3,6 @@ import json
 import pytest
 from unittest import mock
 from aiohttp.test_utils import make_mocked_request
-from multidict import MultiDict
 
 from slim.retcode import RETCODE
 from slim.support.peewee import PeeweeView
@@ -231,26 +230,47 @@ async def test_get_loadfk():
     # 8. failed: load soft link, wrong table name
     request = make_mocked_request('GET', '/api/test3', headers={}, protocol=mock.Mock(), app=app)
     view = ATestView3(app, request)
-    view._params_cache = {'name': 'NameB1', 'loadfk': json.dumps({'id': None})}
+    view._params_cache = {'name': 'NameC1', 'loadfk': json.dumps({'id': None})}
     await view._prepare()
     await view.get()
     assert view.ret_val['code'] == RETCODE.FAILED
 
-    # 8. failed: foreign key not match table
+    # 9. failed: load soft link, wrong table name and wrong condition
     request = make_mocked_request('GET', '/api/test3', headers={}, protocol=mock.Mock(), app=app)
     view = ATestView3(app, request)
-    view._params_cache = {'name': 'NameB1', 'loadfk': json.dumps({'id': {'table': 'test1'}})}
+    view._params_cache = {'name': 'not found', 'loadfk': json.dumps({'id': None})}
     await view._prepare()
     await view.get()
     assert view.ret_val['code'] == RETCODE.FAILED
 
-    # 9. failed: foreign key not match table
+    # 10. failed: foreign key not match table
     request = make_mocked_request('GET', '/api/test3', headers={}, protocol=mock.Mock(), app=app)
     view = ATestView3(app, request)
-    view._params_cache = {'name': 'NameB1', 'loadfk': json.dumps({'id': {'table': 't2'}})}
+    view._params_cache = {'name': 'NameC2', 'loadfk': json.dumps({'id': {'table': 'test1'}})}
     await view._prepare()
     await view.get()
-    #assert view.ret_val['code'] == RETCODE.SUCCESS
+    assert view.ret_val['code'] == RETCODE.FAILED
+
+    # 11. success: soft foreign key
+    request = make_mocked_request('GET', '/api/test3', headers={}, protocol=mock.Mock(), app=app)
+    view = ATestView3(app, request)
+    view._params_cache = {'name': 'NameC2', 'loadfk': json.dumps({'id': {'table': 't2'}})}
+    await view._prepare()
+    await view.get()
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+    assert view.ret_val['data']['id']['id'] == 2
+    assert view.ret_val['data']['id']['name'] == 'NameB2'
+
+    # 12. success: soft foreign key as
+    request = make_mocked_request('GET', '/api/test3', headers={}, protocol=mock.Mock(), app=app)
+    view = ATestView3(app, request)
+    view._params_cache = {'name': 'NameC2', 'loadfk': json.dumps({'id': {'table': 't2', 'as': 't2'}})}
+    await view._prepare()
+    await view.get()
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+    assert view.ret_val['data']['id'] == 2
+    assert view.ret_val['data']['t2']['id'] == 2
+    assert view.ret_val['data']['t2']['name'] == 'NameB2'
 
 
 if __name__ == '__main__':
