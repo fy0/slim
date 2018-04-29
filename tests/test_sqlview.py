@@ -81,6 +81,14 @@ class ATestView2(PeeweeView):
 class ATestView3(PeeweeView):
     model = ATestCModel
 
+    @classmethod
+    def ready(cls):
+        cls.add_soft_foreign_key('id', 'wrong table name')
+        cls.add_soft_foreign_key('id', 'test2', 't2')
+
+
+app._prepare()
+
 
 async def test_bind():
     request = make_mocked_request('GET', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
@@ -187,14 +195,62 @@ async def test_get_loadfk():
     await view.get()
     assert view.ret_val['code'] == RETCODE.FAILED
 
-    #  4. failed: column not found
+    #  4. success: simple load
     request = make_mocked_request('GET', '/api/test2', headers={}, protocol=mock.Mock(), app=app)
     view = ATestView2(app, request)
     view._params_cache = {'name': 'NameB1', 'loadfk': json.dumps({'link_id': None})}
     await view._prepare()
     await view.get()
-    print(view.ret_val)
     assert view.ret_val['code'] == RETCODE.SUCCESS
+    assert view.ret_val['data']['link_id']['id'] == 1
+    assert view.ret_val['data']['link_id']['name'] == 'Name1'
+
+    #  5. success: load as
+    request = make_mocked_request('GET', '/api/test2', headers={}, protocol=mock.Mock(), app=app)
+    view = ATestView2(app, request)
+    view._params_cache = {'name': 'NameB1', 'loadfk': json.dumps({'link_id': {'as': 'link'}})}
+    await view._prepare()
+    await view.get()
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+    assert view.ret_val['data']['link']['id'] == 1
+    assert view.ret_val['data']['link']['name'] == 'Name1'
+
+    # 7. success: recursion load
+    request = make_mocked_request('GET', '/api/test3', headers={}, protocol=mock.Mock(), app=app)
+    view = ATestView3(app, request)
+    view._params_cache = {'name': 'NameC2', 'loadfk': json.dumps({'link_id': {'loadfk': {'link_id': None}}})}
+    await view._prepare()
+    await view.get()
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+    assert view.ret_val['data']['link_id']['id'] == 2
+    assert view.ret_val['data']['link_id']['name'] == 'NameB2'
+    assert view.ret_val['data']['link_id']['link_id']['id'] == 2
+    assert view.ret_val['data']['link_id']['link_id']['name'] == 'Name2'
+    assert view.ret_val['data']['link_id']['link_id']['count'] == 2
+
+    # 8. failed: load soft link, wrong table name
+    request = make_mocked_request('GET', '/api/test3', headers={}, protocol=mock.Mock(), app=app)
+    view = ATestView3(app, request)
+    view._params_cache = {'name': 'NameB1', 'loadfk': json.dumps({'id': None})}
+    await view._prepare()
+    await view.get()
+    assert view.ret_val['code'] == RETCODE.FAILED
+
+    # 8. failed: foreign key not match table
+    request = make_mocked_request('GET', '/api/test3', headers={}, protocol=mock.Mock(), app=app)
+    view = ATestView3(app, request)
+    view._params_cache = {'name': 'NameB1', 'loadfk': json.dumps({'id': {'table': 'test1'}})}
+    await view._prepare()
+    await view.get()
+    assert view.ret_val['code'] == RETCODE.FAILED
+
+    # 9. failed: foreign key not match table
+    request = make_mocked_request('GET', '/api/test3', headers={}, protocol=mock.Mock(), app=app)
+    view = ATestView3(app, request)
+    view._params_cache = {'name': 'NameB1', 'loadfk': json.dumps({'id': {'table': 't2'}})}
+    await view._prepare()
+    await view.get()
+    #assert view.ret_val['code'] == RETCODE.SUCCESS
 
 
 if __name__ == '__main__':

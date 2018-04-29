@@ -309,8 +309,8 @@ class PeeweeView(AbstractSQLView):
                 if isinstance(field, peewee.ForeignKeyField):
                     rm = field.rel_model
                     name = '%s_id' % name
-                    cls.foreign_keys[name] = SQLForeignKey(get_table_name(rm), get_pk_name(rm),
-                                                           field_class_to_sql_type(rm))
+                    cls.foreign_keys[name] = [SQLForeignKey(get_table_name(rm), get_pk_name(rm),
+                                                           field_class_to_sql_type(rm))]
 
                 cls._peewee_fields[name] = field
                 return name

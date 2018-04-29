@@ -28,6 +28,10 @@ class ResourceException(SlimException):
     pass
 
 
+class TableNotFound(ResourceException):
+    pass
+
+
 class ColumnNotFound(ResourceException):
     pass
 

@@ -6,7 +6,7 @@ from types import FunctionType
 from typing import Tuple, Union, Dict, Iterable, Type, List, Set
 from aiohttp import web
 
-from .sqlquery import SQLQueryInfo, SQL_TYPE, SQLForeignKey, SQLValuesToWrite, ALL_COLUMNS, PRIMARY_KEY
+from .sqlquery import SQLQueryInfo, SQL_TYPE, SQLForeignKey, SQLValuesToWrite, ALL_COLUMNS, PRIMARY_KEY, SQL_OP
 from .app import Application
 from .helper import create_signed_value, decode_signed_value
 from .permission import Permissions, Ability, BaseUser, A, DataRecord
@@ -15,7 +15,7 @@ from ..retcode import RETCODE
 from ..utils import pagination_calc, MetaClassForInit, async_call, is_py36
 from ..utils.json_ex import json_ex_dumps
 from ..exception import RecordNotFound, SyntaxException, InvalidParams, SQLOperatorInvalid, ColumnIsNotForeignKey, \
-    ColumnNotFound, RoleNotFound, PermissionDenied, FinishQuitException, SlimException
+    ColumnNotFound, RoleNotFound, PermissionDenied, FinishQuitException, SlimException, TableNotFound, ResourceException
 
 logger = logging.getLogger(__name__)
 
@@ -256,11 +256,17 @@ class ErrorCatchContext:
             self.view.finish(RETCODE.INVALID_PARAMS, "This column is not a foreign key: %r" % exc_val.args[0])
 
         # ResourceException
+        elif isinstance(exc_val, TableNotFound):
+            self.view.finish(RETCODE.FAILED, exc_val.args[0])
+
         elif isinstance(exc_val, ColumnNotFound):
             self.view.finish(RETCODE.FAILED, "Column not found: %r" % exc_val.args[0])
 
         elif isinstance(exc_val, RecordNotFound):
             self.view.finish(RETCODE.NOT_FOUND)
+
+        elif isinstance(exc_val, ResourceException):
+            self.view.finish(RETCODE.FAILED, exc_val.args[0])
 
         # PermissionException
         elif isinstance(exc_val, RoleNotFound):
@@ -317,27 +323,30 @@ class AbstractSQLView(BaseView):
         cls.use('delete', 'POST')
 
     @classmethod
-    def add_soft_foreign_key(cls, column, table, alias=None):
+    def add_soft_foreign_key(cls, column, table_name, alias=None):
         """
         the column stores foreign table's primary key but isn't a foreign key (to avoid constraint)
         warning: if the table not exists, will crash when query with loadfk
         :param column: table's column
-        :param table: foreign table name
-        :param alias: table name's alias, avoid exposed table name
+        :param table_name: foreign table name
+        :param alias: table name's alias, avoid exposed the table name to user. Default is as same as table name.
         :return: True, None
         """
         if column in cls.fields:
+            table = SQLForeignKey(table_name, column, cls.fields[column], True)
+
             if alias:
                 if alias in cls.foreign_keys_table_alias:
                     logger.warning("This alias of table is already exists, overwriting: %s.%s to %s" %
-                                   (cls.__name__, column, table))
+                                   (cls.__name__, column, table_name))
                 cls.foreign_keys_table_alias[alias] = table
+
             if column not in cls.foreign_keys:
                 cls.foreign_keys[column] = [table]
             else:
                 if not alias:
-                    logger.warning("This soft foreign key is useless, an alias required: %s.%s to %s" %
-                                   (cls.__name__, column, table))
+                    logger.warning("The soft foreign key will not work, an alias required: %s.%s to %r" %
+                                   (cls.__name__, column, table_name))
                 cls.foreign_keys[column].append(table)
             return True
 
@@ -386,33 +395,28 @@ class AbstractSQLView(BaseView):
                          " and the View object inherited a UserMixin." % self.current_role)
             self.finish(RETCODE.INVALID_ROLE)
 
-    async def load_fk(self, info: SQLQueryInfo, items: Iterable[DataRecord]) -> Union[List, Tuple]:
+    async def load_fk(self, info: SQLQueryInfo, records: Iterable[DataRecord]) -> Union[List, Tuple]:
         """
         :param info:
-        :param items: the data got from database and filtered from permission
+        :param records: the data got from database and filtered from permission
         :return:
         """
         # if not items, items is probably [], so return itself.
-        if not items: return items
-        fk_reserved = ('role', 'as', 'table', 'loadfk')
+        # if not items: return items
 
-        # first: get tables' instances
+        # 1. get tables' instances
         # table_map = {}
         # for column in info['loadfk'].keys():
         #     tbl_name = self.foreign_keys[column][0]
         #     table_map[column] = self.app.tables[tbl_name]
 
-        # second: get query parameters
-        async def check(data, items):
-            for column, fkdatas in data.items():
-                if column in fk_reserved:
-                    continue
-
-                print(333, fkdatas)
-                for fkdata in fkdatas:
+        # 2. get query parameters
+        async def check(data, records):
+            for column, fkvalues_lst in data.items():
+                for fkvalues in fkvalues_lst:
                     pks = []
                     all_ni = True
-                    for i in items:
+                    for i in records:
                         val = i.get(column, NotImplemented)
                         if val != NotImplemented:
                             all_ni = False
@@ -422,35 +426,40 @@ class AbstractSQLView(BaseView):
                         logger.debug("load foreign key failed, do you have read permission to the column %r?" % column)
                         continue
 
-                    # third: query foreign keys
-                    vcls = self.app.tables[fkdata['table']]
-                    ability = vcls.permission.request_role(self.current_user, fkdata['role'])
+                    # 3. query foreign keys
+                    vcls = self.app.tables[fkvalues['table']]
+                    v = vcls(self.app, self._request)  # fake view
+                    await v._prepare()
                     info2 = SQLQueryInfo()
                     info2.set_select(ALL_COLUMNS)
                     info2.add_condition(PRIMARY_KEY, 'in', pks)
-                    info2.check_query_permission_full(self.current_user, fkdata['table'], ability)
+                    info2.bind(v)
 
-                    if is_py36: vcls: AbstractSQLView
-                    v = vcls()
-                    pk_values, count = await v._sql.select(info2, size=-1)
-                    v.check_records_permission(vcls, pk_values)
+                    # ability = vcls.permission.request_role(self.current_user, fkvalues['role'])
+                    # info2.check_query_permission_full(self.current_user, fktable, ability)
+
+                    fk_record = await v._sql.select_one(info2)
+                    if not fk_record: continue
+
+                    fk_records = [fk_record]
+                    await v.check_records_permission(info2, fk_records)
 
                     fk_dict = {}
-                    for i in pk_values:
+                    for i in fk_records:
                         # 主键: 数据
                         fk_dict[i[vcls.primary_key]] = i
 
-                    column_to_set = fkdata.get('as', column) or column
-                    for _, item in enumerate(items):
-                        k = item.get(column, NotImplemented)
+                    column_to_set = fkvalues.get('as', column) or column
+                    for _, record in enumerate(records):
+                        k = record.get(column, NotImplemented)
                         if k in fk_dict:
-                            item[column_to_set] = fk_dict[k]
+                            record[column_to_set] = fk_dict[k]
 
-                    if 'loadfk' in fkdata:
-                        await check(fkdata['loadfk'], pk_values)
+                    if fkvalues['loadfk']:
+                        await check(fkvalues['loadfk'], fk_records)
 
-        await check(info.loadfk, items)
-        return items
+        await check(info.loadfk, records)
+        return records
 
     async def _call_handle(self, func, *args):
         """ call and check result of handle_query/read/insert/update """
@@ -498,7 +507,6 @@ class AbstractSQLView(BaseView):
                 records = [record]
                 await self.check_records_permission(info, records)
                 data_dict = await self.load_fk(info, records)
-                print(data_dict)
                 self.finish(RETCODE.SUCCESS, data_dict[0])
             else:
                 self.finish(RETCODE.NOT_FOUND)
@@ -528,9 +536,10 @@ class AbstractSQLView(BaseView):
             values = SQLValuesToWrite(raw_post)
 
             await self._call_handle(self.before_query, info)
-            records, count = await self._sql.select(info, size=1)
+            record = await self._sql.select_one(info)
 
-            if count:
+            if record:
+                records = [record]
                 values.bind(self, A.WRITE, records)
                 logger.debug('set data: %s' % values)
                 await self._call_handle(self.before_update, raw_post, values, records)
@@ -554,9 +563,10 @@ class AbstractSQLView(BaseView):
         with ErrorCatchContext(self):
             info = SQLQueryInfo(self.params, self)
             await self._call_handle(self.before_query, info)
-            records, count = await self._sql.select(info, size=1)
+            record = await self._sql.select_one(info)
 
-            if count:
+            if record:
+                records = [record]
                 logger.debug('request permission: [%s] of table %r' % (A.DELETE, self.table_name))
                 for record in records:
                     valid = self.ability.can_with_record(self.current_user, A.DELETE, record, available=record.keys())

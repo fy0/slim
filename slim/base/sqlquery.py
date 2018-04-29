@@ -6,7 +6,7 @@ from typing import Union, Iterable, List, TYPE_CHECKING, Dict, Set
 from ..utils import blob_converter, json_converter, MetaClassForInit, is_py36, dict_filter, dict_filter_inplace
 from ..exception import SyntaxException, ResourceException, InvalidParams, \
     PermissionDenied, ColumnNotFound, ColumnIsNotForeignKey, SQLOperatorInvalid, RoleNotFound, SlimException, \
-    InvalidPostData
+    InvalidPostData, TableNotFound
 
 if TYPE_CHECKING:
     from .view import AbstractSQLView
@@ -26,8 +26,16 @@ class SQL_TYPE(Enum):
     JSON = json_converter
 
 
-PRIMARY_KEY = object() # for add condition
-ALL_COLUMNS = object()
+class NamedObject:
+    def __init__(self, name):
+        self.name = name
+
+    def __repr__(self):
+        return '<Named Object: %s>' % self.name
+
+
+PRIMARY_KEY = NamedObject('Primary Key')  # for add condition
+ALL_COLUMNS = NamedObject('All Columns')
 
 
 class DataRecord:
@@ -209,10 +217,10 @@ class SQLQueryInfo:
             raise SyntaxException("No column(s) selected")
         return selected_columns
 
-    @staticmethod
-    def parse_load_fk(value: str) -> Dict[str, List[Dict[str, object]]]:
+    @classmethod
+    def parse_load_fk(cls, data: Dict[str, List[Dict[str, object]]]) -> Dict[str, List[Dict[str, object]]]:
         """
-        :param value:{
+        :param data:{
             <column>: role,
             <column2>: role,
             <column>: {
@@ -230,72 +238,46 @@ class SQLQueryInfo:
             },
         }
         """
-        try:
-            value = json.loads(value) # [List, Dict[str, str]]
-        except (json.JSONDecodeError, TypeError):
-            raise SyntaxException('Invalid json syntax for "loadfk": %s' % value)
+        default_value_dict = {'role': None, 'as': None, 'table': None, 'loadfk': None}
 
-        reserved = ('role', 'as', 'table', 'loadfk')
-        reserved_dict = {'role': None, 'as': None, 'table': None, 'loadfk': None}
-
-        def dict_normalize(data):
+        def value_normalize_dict(value):
             def check(k, v):
-                if k not in reserved:
-                    return True
+                if k == 'role': return isinstance(v, str)
+                if k == 'as': return isinstance(v, str)
+                if k == 'table': return isinstance(v, str)
+                if k == 'loadfk': return isinstance(v, dict)
 
-                if k == 'role': return v is None or isinstance(v, str)
-                if k == 'as': return v is None or isinstance(v, str)
-                if k == 'table': return v is None or isinstance(v, str)
-                if k == 'loadfk': return v is None or isinstance(v, dict)
-
-            valid = {k: v for k, v in data.items() if check(k, v)}
-            valid.update(reserved_dict)
+            valid = {k: v for k, v in value.items() if check(k, v)}
+            if not valid: return default_value_dict.copy()
+            if 'loadfk' in valid and valid['loadfk']:
+                valid['loadfk'] = cls.parse_load_fk(valid['loadfk'])
+            for k, v in default_value_dict.items():
+                valid.setdefault(k, v)
             return valid
 
-        if isinstance(value, List):
-            new_value = {}
-            for i in value:
-                new_value[i] = None
-            value = new_value
-        elif isinstance(value, Dict):
-            value = dict_normalize(value)
-        else:
-            raise SyntaxException('Invalid syntax for "loadfk": %s' % value)
-
-        # 标准化 loadfk
-        def rebuild(column, data):
-            # data: str, role name
-            # dict, {'role': <str>, 'as': <str>}
-            if isinstance(data, str):
-                data = reserved_dict.copy()
-            elif isinstance(data, dict):
-                data = dict_normalize(data)
-            elif data is None:
-                return data
+        def value_normalize(value, no_list=True):
+            if value is None:
+                return default_value_dict.copy()
+            elif no_list and isinstance(value, List):
+                # <column>: [value1, value2, ...]
+                return list(map(value_normalize, value))
+            elif isinstance(value, str):
+                # <column>: role
+                val = default_value_dict.copy()
+                val['role'] = value
+                return val
+            elif isinstance(value, Dict):
+                # {'role': <str>, 'as': <str>, ...}
+                return value_normalize_dict(value)
             else:
-                raise SyntaxException('Invalid syntax for "loadfk"')
+                raise SyntaxException('Invalid syntax for "loadfk": %s' % value)
 
-            # 递归外键读取
-            if data['loadfk']:
-                data['loadfk'] = translate(data['loadfk'])
-            return data
-
-        def translate(value) -> Dict[str, List[Dict[str, object]]]:
-            for column, items in value.items():
-                if column in reserved:
-                    continue
-                ret = []
-                if not isinstance(items, Iterable):
-                    items = [items]
-
-                for i in items:
-                    val = rebuild(column, i)
-                    if val: ret.append(val)
-
-                value[column] = ret
-            return value
-
-        return translate(value)
+        # 对全部项进行检查
+        new_data = {}
+        for k, v in data.items():
+            nv = value_normalize(v, False)
+            new_data[k] = nv if isinstance(nv, List) else [nv]
+        return new_data
 
     def add_condition(self, field_name, op_name, value):
         """
@@ -328,6 +310,10 @@ class SQLQueryInfo:
                 self.select = self.parse_select(value)
                 continue
             elif field_name == 'loadfk':
+                try:
+                    value = json.loads(value)  # [List, Dict[str, str]]
+                except (json.JSONDecodeError, TypeError):
+                    raise SyntaxException('Invalid json syntax for "loadfk": %s' % value)
                 self.loadfk = self.parse_load_fk(value)
                 continue
 
@@ -405,37 +391,39 @@ class SQLQueryInfo:
                 data[the_view.primary_key] = data[PRIMARY_KEY]
                 del data[PRIMARY_KEY]
 
-            for field_name, data_lst in data.items():
-                # [{'role': role, 'loadfk': {...}}]
-                # [{'as': 's24h', 'table': 's24', 'role': role}]
+            for field_name, values_lst in data.items():
+                # field_name: [{'role': role, 'loadfk': {...}}]
+                # field_name: [{'as': 's24h', 'table': 's24', 'role': role}]
 
                 # 检查列是否存在
-                if field_name in {'role', 'as', 'table', 'loadfk'}:
-                    continue
                 if field_name not in the_view.fields:
                     raise ColumnNotFound(field_name)
 
-                field_type = view.fields[field_name]
                 # 检查列是否是合法的外键列
                 fks = the_view.foreign_keys.get(field_name, None)
                 if not fks: raise ColumnIsNotForeignKey(field_name)
 
-                for data in data_lst:
+                for values in values_lst:
                     # 检查是否采用别名将外键对应到特定表上
-                    if data['table']:
-                        if data['table'] not in the_view.foreign_keys_table_alias:
-                            raise ResourceException('Foreign key not match the table: %s -> %s' % (field_name, data['table']))
-                        fk = the_view.foreign_keys_table_alias[data['table']]
+                    if values['table']:
+                        if values['table'] not in the_view.foreign_keys_table_alias:
+                            raise ResourceException('Foreign key not match the table: %r -> %r' % (field_name, values['table']))
+                        fk = the_view.foreign_keys_table_alias[values['table']]
                     else:
-                        fk = fks[0] # 取第一个结果（即默认外键）
+                        fk = fks[0]  # 取第一个结果（即默认外键）
+                        values['table'] = fk.rel_table
+
+                        # 检查对应的表是否存在
+                        if fk.rel_table not in app.tables:
+                            raise TableNotFound("Foreign key refer to a table not exists: %r -> %r" % (field_name, fk.rel_table))
 
                     # 检查对应的表的角色是否存在
-                    if data['role'] not in app.permissions[fk.rel_table].roles:
-                        raise RoleNotFound('%s of %s' % (data['role'], fk.rel_table))
+                    if values['role'] not in app.permissions[fk.rel_table].roles:
+                        raise RoleNotFound('%s of %s' % (values['role'], fk.rel_table))
 
                     # 递归外键读取
-                    if data['loadfk']:
-                        check_loadfk_data(app.tables[fk.rel_table], data)
+                    if values['loadfk']:
+                        check_loadfk_data(app.tables[fk.rel_table], values['loadfk'])
 
         if self.loadfk:
             check_loadfk_data(view, self.loadfk)

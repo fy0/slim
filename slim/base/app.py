@@ -49,7 +49,7 @@ class Application:
         self.options.session_cls = session_cls
         self._raw_app = web.Application(middlewares=[get_route_middleware(self)], client_max_size=client_max_size)
 
-    def run(self, host, port):
+    def _prepare(self):
         from .view import AbstractSQLView
         self.route.bind()
 
@@ -80,6 +80,8 @@ class Application:
         for _, cls in self.route.views:
             cls._ready()
 
+    def run(self, host, port):
+        self._prepare()
         web.run_app(host=host, port=port, app=self._raw_app)
 
     def timer(self, interval_seconds, *, exit_when):
