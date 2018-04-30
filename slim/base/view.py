@@ -15,7 +15,8 @@ from ..retcode import RETCODE
 from ..utils import pagination_calc, MetaClassForInit, async_call, is_py36
 from ..utils.json_ex import json_ex_dumps
 from ..exception import RecordNotFound, SyntaxException, InvalidParams, SQLOperatorInvalid, ColumnIsNotForeignKey, \
-    ColumnNotFound, RoleNotFound, PermissionDenied, FinishQuitException, SlimException, TableNotFound, ResourceException
+    ColumnNotFound, RoleNotFound, PermissionDenied, FinishQuitException, SlimException, TableNotFound, \
+    ResourceException, NotNullConstraintFailed, AlreadyExists
 
 logger = logging.getLogger(__name__)
 
@@ -265,6 +266,12 @@ class ErrorCatchContext:
         elif isinstance(exc_val, RecordNotFound):
             self.view.finish(RETCODE.NOT_FOUND)
 
+        elif isinstance(exc_val, NotNullConstraintFailed):
+            self.view.finish(RETCODE.INVALID_POSTDATA, 'NOT NULL constraint failed')
+
+        elif isinstance(exc_val, AlreadyExists):
+            self.view.finish(RETCODE.ALREADY_EXISTS)
+
         elif isinstance(exc_val, ResourceException):
             self.view.finish(RETCODE.FAILED, exc_val.args[0])
 
@@ -318,9 +325,11 @@ class AbstractSQLView(BaseView):
         super().interface()
         cls.use('get', 'GET')
         cls.use_lst('list')
-        cls.use('set', 'POST')
+        cls.use('update', 'POST')
         cls.use('new', 'POST')
         cls.use('delete', 'POST')
+        # deprecated
+        cls.use('set', 'POST')
 
     @classmethod
     def add_soft_foreign_key(cls, column, table_name, alias=None):
@@ -529,7 +538,7 @@ class AbstractSQLView(BaseView):
             else:
                 self.finish(RETCODE.NOT_FOUND)
 
-    async def set(self):
+    async def update(self):
         with ErrorCatchContext(self):
             info = SQLQueryInfo(self.params, self)
             raw_post = await self.post_data()
@@ -541,23 +550,34 @@ class AbstractSQLView(BaseView):
             if record:
                 records = [record]
                 values.bind(self, A.WRITE, records)
-                logger.debug('set data: %s' % values)
+                logger.debug('update record(s): %s' % values)
                 await self._call_handle(self.before_update, raw_post, values, records)
                 await self._sql.update(records, values)
-                await self._call_handle(self.after_update, values, records)
+                await self._call_handle(self.after_update, raw_post, values, records)
+                if values.returning:
+                    await self.check_records_permission(None, records)
+                    self.finish(RETCODE.SUCCESS, records)
+                else:
+                    self.finish(RETCODE.SUCCESS, len(records))
             else:
                 self.finish(RETCODE.NOT_FOUND)
+    set = update
 
     async def new(self):
         with ErrorCatchContext(self):
             raw_post = await self.post_data()
             values = SQLValuesToWrite(raw_post)
+            values_lst = [values]
 
-            logger.debug('set data: %s' % values)
-            await self._call_handle(self.before_insert, raw_post, values)
-            records = await self._sql.insert(values)
-            await self.check_records_permission(None, records)
-            await self._call_handle(self.after_insert, raw_post, values, records)
+            logger.debug('insert record(s): %s' % values_lst)
+            await self._call_handle(self.before_insert, raw_post, values_lst)
+            records = await self._sql.insert(values_lst, returning=True)
+            await self._call_handle(self.after_insert, raw_post, values_lst, records)
+            if values.returning:
+                await self.check_records_permission(None, records)
+                self.finish(RETCODE.SUCCESS, records)
+            else:
+                self.finish(RETCODE.SUCCESS, len(records))
 
     async def delete(self):
         with ErrorCatchContext(self):

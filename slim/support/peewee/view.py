@@ -11,7 +11,7 @@ from playhouse.shortcuts import model_to_dict
 
 from ...base.sqlquery import SQL_TYPE, SQLForeignKey, SQL_OP, SQLQueryInfo, SQLQueryOrder, ALL_COLUMNS, \
     SQLValuesToWrite, UpdateInfo
-from ...exception import RecordNotFound, AlreadyExists, ResourceException
+from ...exception import RecordNotFound, AlreadyExists, ResourceException, NotNullConstraintFailed
 from ...base.permission import DataRecord, Permissions, A
 from ...retcode import RETCODE
 from ...utils import to_bin, pagination_calc, dict_filter
@@ -88,11 +88,12 @@ class PeeweeContext:
             db.rollback()
             if exc_val.args[0].startswith('duplicate key'):
                 raise AlreadyExists()
-        elif isinstance(exc_val, Exception):
+            elif exc_val.args[0].startswith('NOT NULL constraint failed'):
+                raise NotNullConstraintFailed()
+        elif isinstance(exc_val, peewee.DatabaseError):
             db.rollback()
             logger.error("database error", exc_val)
             raise ResourceException("database error")
-        return True
 
 
 # noinspection PyProtectedMember,PyArgumentList
@@ -200,7 +201,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
                 to_record = lambda x: PeeweeDataRecord(None, x, view=self.vcls)
                 return list(map(to_record, model.select().where(cond).execute()))
 
-    async def insert(self, values_lst: Iterable[SQLValuesToWrite], returning=False) -> Union[int, Iterable[DataRecord]]:
+    async def insert(self, values_lst: Iterable[SQLValuesToWrite], returning=False) -> Union[int, List[DataRecord]]:
         model = self.vcls.model
         db = model._meta.database
 
@@ -213,7 +214,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
                     ret = q.returning(*model._meta.fields.values()).execute()
                     to_record = lambda x: PeeweeDataRecord(None, ret.model(**ret._row_to_dict(x)), view=self.vcls)
                     items = map(to_record, ret)
-                    return items
+                    return list(items)
                 else:
                     count = q.execute()
                     return count
@@ -221,7 +222,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
                 if returning:
                     items = []
                     for values in values_lst:
-                        item = model.create(values)
+                        item = model.create(**values)
                         items.append(PeeweeDataRecord(None, item, view=self.vcls))
                     return items
                 else:

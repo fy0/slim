@@ -3,7 +3,8 @@ import logging
 from enum import Enum
 from typing import Union, Iterable, List, TYPE_CHECKING, Dict, Set
 
-from ..utils import blob_converter, json_converter, MetaClassForInit, is_py36, dict_filter, dict_filter_inplace
+from ..utils import blob_converter, json_converter, MetaClassForInit, is_py36, dict_filter, dict_filter_inplace, \
+    bool_converter
 from ..exception import SyntaxException, ResourceException, InvalidParams, \
     PermissionDenied, ColumnNotFound, ColumnIsNotForeignKey, SQLOperatorInvalid, RoleNotFound, SlimException, \
     InvalidPostData, TableNotFound
@@ -21,7 +22,7 @@ class SQL_TYPE(Enum):
     INT = int
     FLOAT = float
     STRING = str
-    BOOLEAN = bool
+    BOOLEAN = bool_converter
     BLOB = blob_converter
     JSON = json_converter
 
@@ -445,6 +446,7 @@ class UpdateInfo:
 
 class SQLValuesToWrite(dict):
     def __init__(self, post_data=None):
+        self.returning = False
         if post_data:
             self.parse(post_data)
         super().__init__()
@@ -452,6 +454,8 @@ class SQLValuesToWrite(dict):
     def parse(self, post_data):
         self.clear()
         for k, v in post_data.items():
+            if k == 'returning':
+                self.returning = True
             if '.' in k:
                 k, op = k.rsplit('.', 1)
                 v = UpdateInfo(k, 'incr', v)

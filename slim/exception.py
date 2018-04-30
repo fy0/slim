@@ -44,6 +44,10 @@ class AlreadyExists(ResourceException):
     pass
 
 
+class NotNullConstraintFailed(ResourceException):
+    pass
+
+
 class PermissionException(SlimException):
     pass
 

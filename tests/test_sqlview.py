@@ -273,8 +273,69 @@ async def test_get_loadfk():
     assert view.ret_val['data']['t2']['name'] == 'NameB2'
 
 
+async def test_new():
+    # 1. simple insert
+    request = make_mocked_request('POST', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
+    request._post = dict(name='Name6', binary=b'test6', count=1, json={'q': 1, 'w6': 2})
+    view = ATestView(app, request)
+    await view._prepare()
+    await view.new()
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+    assert view.ret_val['data'] == 1
+
+    # 2. insert and return records
+    request = make_mocked_request('POST', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
+    request._post = dict(name='Name6', binary=b'test6', count=1, json=json.dumps({'q': 1, 'w6': 2}), returning=True)
+    view = ATestView(app, request)
+    await view._prepare()
+    await view.new()
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+    assert isinstance(view.ret_val['data'], list)
+    assert view.ret_val['data'][0]['name'] == 'Name6'
+
+    # 3. insert without necessary parameter
+    request = make_mocked_request('POST', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
+    request._post = dict(name='Name6',count=1)
+    view = ATestView(app, request)
+    await view._prepare()
+    await view.new()
+    assert view.ret_val['code'] == RETCODE.INVALID_POSTDATA
+
+
+async def test_update():
+    a1 = ATestModel.create(name='Name1A', binary=b'test1A', count=1, json={'q': 1, 'w1a': 2})
+    a2 = ATestModel.create(name='Name2A', binary=b'test2A', count=2, json={'q': 1, 'w2a': 2})
+    a3 = ATestModel.create(name='Name3A', binary=b'test3A', count=3, json={'q': 1, 'w3a': 2})
+
+    # 1. simple update
+    request = make_mocked_request('POST', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
+    request._post = dict(name='Name1AA', count='4')
+    view = ATestView(app, request)
+    view._params_cache = {'name': 'Name1A'}
+    await view._prepare()
+    await view.update()
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+    assert view.ret_val['data'] == 1
+
+    val = ATestModel.get(ATestModel.binary==b'test1A')
+    assert val.name == 'Name1AA'
+
+    # 1. simple update with returning
+    request = make_mocked_request('POST', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
+    request._post = dict(name='Name2AA', count='5', returning='true')
+    view = ATestView(app, request)
+    view._params_cache = {'name': 'Name2A'}
+    await view._prepare()
+    await view.update()
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+    assert isinstance(view.ret_val['data'], list)
+    assert view.ret_val['data'][0]['name'] == 'Name2A'
+
+
 if __name__ == '__main__':
     from slim.utils.async import sync_call
     sync_call(test_bind)
     sync_call(test_get)
     sync_call(test_get_loadfk)
+    sync_call(test_new)
+    sync_call(test_update)

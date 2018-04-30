@@ -37,13 +37,13 @@ async def test_post_blob():
     await view.get()
     assert view.ret_val['code'] == RETCODE.NOT_FOUND
 
-    request._post = MultiDict(info='aabbcc')
+    request._post = dict(info='aabbcc')
     view = ATestView(app, request)
     await view._prepare()
     await view.new()
     assert view.ret_val['code'] == RETCODE.SUCCESS
 
-    request._post = MultiDict(info='a')
+    request._post = dict(info='a')
     view = ATestView(app, request)
     await view._prepare()
     await view.new()
