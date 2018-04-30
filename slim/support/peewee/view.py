@@ -1,7 +1,7 @@
 import json
 import binascii
 import logging
-from typing import Type, Tuple, List
+from typing import Type, Tuple, List, Iterable, Union
 
 import peewee
 # noinspection PyPackageRequirements
@@ -9,8 +9,9 @@ from playhouse.postgres_ext import JSONField as PG_JSONField, BinaryJSONField
 from playhouse.sqlite_ext import JSONField as SQLITE_JSONField
 from playhouse.shortcuts import model_to_dict
 
-from ...base.sqlquery import SQL_TYPE, SQLForeignKey, SQL_OP, SQLQueryInfo, SQLQueryOrder, ALL_COLUMNS
-from ...exception import RecordNotFound
+from ...base.sqlquery import SQL_TYPE, SQLForeignKey, SQL_OP, SQLQueryInfo, SQLQueryOrder, ALL_COLUMNS, \
+    SQLValuesToWrite, UpdateInfo
+from ...exception import RecordNotFound, AlreadyExists, ResourceException
 from ...base.permission import DataRecord, Permissions, A
 from ...retcode import RETCODE
 from ...utils import to_bin, pagination_calc, dict_filter
@@ -72,6 +73,26 @@ _peewee_method_map = {
     SQL_OP.IS: '__rshift__',  # __rshift__ = _e(OP.IS)
     SQL_OP.IS_NOT: '__rshift__',  # __rshift__ = _e(OP.IS)
 }
+
+
+class PeeweeContext:
+    def __init__(self, db):
+        self.db = db
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        db = self.db
+        if isinstance(exc_val, peewee.IntegrityError):
+            db.rollback()
+            if exc_val.args[0].startswith('duplicate key'):
+                raise AlreadyExists()
+        elif isinstance(exc_val, Exception):
+            db.rollback()
+            logger.error("database error", exc_val)
+            raise ResourceException("database error")
+        return True
 
 
 # noinspection PyProtectedMember,PyArgumentList
@@ -136,101 +157,83 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
         except self._model.DoesNotExist:
             raise RecordNotFound()
 
-    async def update(self, info, data):
-        nargs = self._get_args(info['conditions'])
-        if self.err: return self.err
-        if len(nargs) == 0: return RETCODE.SUCCESS, 0
+    def _build_write_condition(self, records: Iterable[DataRecord]):
+        records_pk = []
+        for record in records:
+            records_pk.append(record.get(self.vcls.primary_key))
+        pk_field = self.vcls._peewee_fields[self.vcls.primary_key]
+        # where pk_field in records_pk
+        return pk_field << records_pk
 
-        data = dict_filter(data, self.vcls.fields.keys())
+    async def update(self, records: Iterable[DataRecord], values: SQLValuesToWrite, returning=False) -> Union[int, Iterable[DataRecord]]:
+        new_vals = {}
+        model = self.vcls.model
+        db = self.vcls.model._meta.database
+        fields = self.vcls._peewee_fields
+        cond = self._build_write_condition(records)
+
+        for k, v in values.items():
+            if k in fields:
+                field = fields[k]
+
+                if isinstance(v, UpdateInfo):
+                    if v.op == 'incr': v = field + v.val
+                    else: v = v.val
+
+                new_vals[k] = v
+
+        with db.atomic(), PeeweeContext(db):
+            if isinstance(db, peewee.PostgresqlDatabase):
+                q = model.update(**new_vals).where(cond)
+                if returning:
+                    ret = q.returning(*model._meta.fields.values()).execute()
+                    to_record = lambda x: PeeweeDataRecord(None, ret.model(**ret._row_to_dict(x)), view=self.vcls)
+                    items = map(to_record, ret)
+                    return list(items)
+                else:
+                    count = q.execute()
+                    return count
+            else:
+                count = model.update(**new_vals).where(cond).execute()
+                if not returning: return count
+
+                to_record = lambda x: PeeweeDataRecord(None, x, view=self.vcls)
+                return list(map(to_record, model.select().where(cond).execute()))
+
+    async def insert(self, values_lst: Iterable[SQLValuesToWrite], returning=False) -> Union[int, Iterable[DataRecord]]:
+        model = self.vcls.model
+        db = model._meta.database
+
+        with db.atomic(), PeeweeContext(db):
+            if isinstance(db, peewee.PostgresqlDatabase):
+                # 对 postgres 可以直接使用 returning，另外防止一种default的bug
+                # https://github.com/coleifer/peewee/issues/1555
+                q = model.insert_many(values_lst)
+                if returning:
+                    ret = q.returning(*model._meta.fields.values()).execute()
+                    to_record = lambda x: PeeweeDataRecord(None, ret.model(**ret._row_to_dict(x)), view=self.vcls)
+                    items = map(to_record, ret)
+                    return items
+                else:
+                    count = q.execute()
+                    return count
+            else:
+                if returning:
+                    items = []
+                    for values in values_lst:
+                        item = model.create(values)
+                        items.append(PeeweeDataRecord(None, item, view=self.vcls))
+                    return items
+                else:
+                    count = model.insert_many(values_lst).execute()
+                    return count
+
+    async def delete(self, records: Iterable[DataRecord]):
+        cond = self._build_write_condition(records)
         db = self.vcls.model._meta.database
 
-        kwargs = {}
-        for k, v in data.items():
-            if k in self.vcls.fields:
-                field = self.vcls.fields[k]
-                conv_func = conv_func_by_field(field)
-
-                print(k, field, conv_func)
-                if conv_func:
-                    def foo():
-                        if isinstance(v, UpdateInfo):
-                            if v.op == 'to':
-                                return conv_func(v.val)
-                            elif v.op == 'incr':
-                                # to_remove.append(k)
-                                # to_add.append([field, field + v.val])
-                                return field + conv_func(v.val)
-                        else:
-                            return conv_func(v)
-
-                    code, value = do_conv(foo, RETCODE.INVALID_POSTDATA)
-                    if code != RETCODE.SUCCESS:
-                        return code, value
-                    kwargs[k] = value
-                else:
-                    if isinstance(v, UpdateInfo):
-                        if v.op == 'to':
-                            kwargs[k] = v
-                        elif v.op == 'incr':
-                            kwargs[k] = field + conv_func(v.val)
-                    else:
-                        kwargs[k] = v
-
-        with db.atomic():
-            try:
-                count = self.vcls.model.update(**kwargs).where(*nargs).execute()
-                return RETCODE.SUCCESS, count
-            except peewee.DatabaseError:
-                db.rollback()
-
-    async def delete(self, select_info):
-        nargs = self._get_args(select_info['conditions'])
-        if self.err: return self.err
-        count = self.vcls.model.delete().where(*nargs).execute()
-        return RETCODE.SUCCESS, count
-
-    async def insert(self, data):
-        if not len(data):
-            return RETCODE.INVALID_POSTDATA, NotImplemented
-        db = self.vcls.model._meta.database
-
-        kwargs = {}
-        for k, v in data.items():
-            if k in self.vcls.fields:
-                field = self.vcls.fields[k]
-
-                conv_func = conv_func_by_field(field)
-                if conv_func:
-                    foo = lambda: conv_func(v)
-                    code, value = do_conv(foo, RETCODE.INVALID_POSTDATA)
-                    if code != RETCODE.SUCCESS:
-                        return code, value
-                    kwargs[k] = value
-                else:
-                    kwargs[k] = v
-
-        with db.atomic():
-            try:
-                model = self.vcls.model
-                if isinstance(model._meta.database, peewee.PostgresqlDatabase):
-                    # 对 postgres 采信于数据库的返回值，防止一种 default 值覆盖
-                    # https://github.com/coleifer/peewee/issues/1555
-                    ret = model.insert(**kwargs).returning(*model._meta.fields.values()).execute()
-                    item = ret.model(**ret._row_to_dict(ret[0]))
-                else:
-                    item = model.create(**kwargs)
-                return RETCODE.SUCCESS, PeeweeDataRecord(None, item, view=self.vcls)
-            except peewee.IntegrityError as e:
-                if e.args[0].startswith('duplicate key'):
-                    return RETCODE.ALREADY_EXISTS, NotImplemented
-                else:
-                    db.rollback()
-                    logger.error("database error", e)
-                    return RETCODE.FAILED, NotImplemented
-            except peewee.DatabaseError as e:
-                db.rollback()
-                logger.error("database error", e)
-                return RETCODE.FAILED, NotImplemented
+        with db.atomic(), PeeweeContext(db):
+            return self.vcls.model.delete().where(cond).execute()
 
 
 class PeeweeViewOptions(ViewOptions):

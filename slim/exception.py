@@ -40,6 +40,10 @@ class RecordNotFound(ResourceException):
     pass
 
 
+class AlreadyExists(ResourceException):
+    pass
+
+
 class PermissionException(SlimException):
     pass
 

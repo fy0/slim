@@ -395,7 +395,7 @@ class AbstractSQLView(BaseView):
                          " and the View object inherited a UserMixin." % self.current_role)
             self.finish(RETCODE.INVALID_ROLE)
 
-    async def load_fk(self, info: SQLQueryInfo, records: Iterable[DataRecord]) -> Union[List, Tuple]:
+    async def load_fk(self, info: SQLQueryInfo, records: Iterable[DataRecord]) -> Union[List, Iterable]:
         """
         :param info:
         :param records: the data got from database and filtered from permission
