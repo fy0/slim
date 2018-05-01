@@ -15,7 +15,7 @@ from ..retcode import RETCODE
 from ..utils import pagination_calc, MetaClassForInit, async_call, is_py36
 from ..utils.json_ex import json_ex_dumps
 from ..exception import RecordNotFound, SyntaxException, InvalidParams, SQLOperatorInvalid, ColumnIsNotForeignKey, \
-    ColumnNotFound, RoleNotFound, PermissionDenied, FinishQuitException, SlimException, TableNotFound, \
+    ColumnNotFound, InvalidRole, PermissionDenied, FinishQuitException, SlimException, TableNotFound, \
     ResourceException, NotNullConstraintFailed, AlreadyExists
 
 logger = logging.getLogger(__name__)
@@ -226,7 +226,7 @@ class ViewOptions:
         self.list_accept_size_from_client = list_accept_size_from_client
         self.permission = permission
 
-    def assign(self, obj: Type['AbstractSQLView']):
+    def assign(self, obj: Type["AbstractSQLView"]):
         obj.LIST_PAGE_SIZE = self.list_page_size
         obj.LIST_ACCEPT_SIZE_FROM_CLIENT = self.list_accept_size_from_client
         if self.permission:
@@ -234,7 +234,7 @@ class ViewOptions:
 
 
 class ErrorCatchContext:
-    def __init__(self, view: BaseView):
+    def __init__(self, view: "AbstractSQLView"):
         self.view = view
 
     def __enter__(self):
@@ -264,7 +264,11 @@ class ErrorCatchContext:
             self.view.finish(RETCODE.FAILED, "Column not found: %r" % exc_val.args[0])
 
         elif isinstance(exc_val, RecordNotFound):
-            self.view.finish(RETCODE.NOT_FOUND)
+            if len(exc_val.args) > 0:
+                self.view.finish(RETCODE.NOT_FOUND, 'Nothing found from table %r > %r' % (
+                    self.view.table_name, exc_val.args[0]))
+            else:
+                self.view.finish(RETCODE.NOT_FOUND, 'Nothing found from table %r' % self.view.table_name)
 
         elif isinstance(exc_val, NotNullConstraintFailed):
             self.view.finish(RETCODE.INVALID_POSTDATA, 'NOT NULL constraint failed')
@@ -276,7 +280,7 @@ class ErrorCatchContext:
             self.view.finish(RETCODE.FAILED, exc_val.args[0])
 
         # PermissionException
-        elif isinstance(exc_val, RoleNotFound):
+        elif isinstance(exc_val, InvalidRole):
             self.view.finish(RETCODE.INVALID_ROLE, "Invalid role: %r" % exc_val.args[0])
 
         elif isinstance(exc_val, PermissionDenied):
@@ -400,9 +404,10 @@ class AbstractSQLView(BaseView):
         # 那么可以推测在并发中，cls._sql.err 会被多方共用导致出错
         self._sql = self._sql_cls(self.__class__)
         if not self._load_role(self.current_role):
-            logger.debug("load role %r failed, please make sure the user is permitted"
-                         " and the View object inherited a UserMixin." % self.current_role)
-            self.finish(RETCODE.INVALID_ROLE)
+            logger.debug("load role %r failed, please make sure the user is permitted to access the table %r"
+                         " and the View %r inherited from UserMixin." % (type(self).table_name,
+                                                                         self.current_role, type(self).__name__))
+            raise InvalidRole(self.current_role)
 
     async def load_fk(self, info: SQLQueryInfo, records: Iterable[DataRecord]) -> Union[List, Iterable]:
         """
@@ -425,6 +430,8 @@ class AbstractSQLView(BaseView):
                 for fkvalues in fkvalues_lst:
                     pks = []
                     all_ni = True
+                    vcls = self.app.tables[fkvalues['table']]
+
                     for i in records:
                         val = i.get(column, NotImplemented)
                         if val != NotImplemented:
@@ -436,7 +443,6 @@ class AbstractSQLView(BaseView):
                         continue
 
                     # 3. query foreign keys
-                    vcls = self.app.tables[fkvalues['table']]
                     v = vcls(self.app, self._request)  # fake view
                     await v._prepare()
                     info2 = SQLQueryInfo()
@@ -447,10 +453,8 @@ class AbstractSQLView(BaseView):
                     # ability = vcls.permission.request_role(self.current_user, fkvalues['role'])
                     # info2.check_query_permission_full(self.current_user, fktable, ability)
 
-                    fk_record = await v._sql.select_one(info2)
-                    if not fk_record: continue
-
-                    fk_records = [fk_record]
+                    fk_records, count = await v._sql.select_page(info2, size=-1)
+                    if not fk_records: continue
                     await v.check_records_permission(info2, fk_records)
 
                     fk_dict = {}
@@ -503,7 +507,7 @@ class AbstractSQLView(BaseView):
     async def check_records_permission(self, info, records):
         for record in records:
             columns = record.set_info(info, self.ability, self.current_user)
-            if not columns: raise RecordNotFound()
+            if not columns: raise RecordNotFound(self.table_name)
         await self._call_handle(self.after_read, records)
 
     async def get(self):

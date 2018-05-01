@@ -141,12 +141,12 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
             item = self._make_select(info).get()
             return PeeweeDataRecord(None, item, view=self.vcls)
         except self._model.DoesNotExist:
-            raise RecordNotFound()
+            raise RecordNotFound(self.vcls.table_name)
 
     async def select_page(self, info: SQLQueryInfo, size=1, page=1) -> Tuple[Tuple[DataRecord, ...], int]:
         q = self._make_select(info)
         count = q.count()
-        if count == 0: raise RecordNotFound()
+        if count == 0: raise RecordNotFound(self.vcls.table_name)
 
         if size == -1:
             page = 1
@@ -156,7 +156,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
             func = lambda item: PeeweeDataRecord(None, item, view=self.vcls)
             return tuple(map(func, q.paginate(page, size))), count
         except self._model.DoesNotExist:
-            raise RecordNotFound()
+            raise RecordNotFound(self.vcls.table_name)
 
     def _build_write_condition(self, records: Iterable[DataRecord]):
         records_pk = []

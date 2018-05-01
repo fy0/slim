@@ -3,10 +3,10 @@ import logging
 from enum import Enum
 from typing import Union, Iterable, List, TYPE_CHECKING, Dict, Set
 
-from ..utils import blob_converter, json_converter, MetaClassForInit, is_py36, dict_filter, dict_filter_inplace, \
-    bool_converter
+from ..utils import BlobConverter, JSONConverter, MetaClassForInit, is_py36, dict_filter, dict_filter_inplace, \
+    BoolConverter
 from ..exception import SyntaxException, ResourceException, InvalidParams, \
-    PermissionDenied, ColumnNotFound, ColumnIsNotForeignKey, SQLOperatorInvalid, RoleNotFound, SlimException, \
+    PermissionDenied, ColumnNotFound, ColumnIsNotForeignKey, SQLOperatorInvalid, InvalidRole, SlimException, \
     InvalidPostData, TableNotFound
 
 if TYPE_CHECKING:
@@ -22,9 +22,9 @@ class SQL_TYPE(Enum):
     INT = int
     FLOAT = float
     STRING = str
-    BOOLEAN = bool_converter
-    BLOB = blob_converter
-    JSON = json_converter
+    BLOB = BlobConverter
+    BOOLEAN = BoolConverter
+    JSON = JSONConverter
 
 
 class NamedObject:
@@ -259,7 +259,7 @@ class SQLQueryInfo:
         def value_normalize(value, no_list=True):
             if value is None:
                 return default_value_dict.copy()
-            elif no_list and isinstance(value, List):
+            elif not no_list and isinstance(value, List):
                 # <column>: [value1, value2, ...]
                 return list(map(value_normalize, value))
             elif isinstance(value, str):
@@ -333,7 +333,7 @@ class SQLQueryInfo:
             checking_columns.append(field_name)
 
         if checking_columns and not ability.can_with_columns(user, A.QUERY, table, checking_columns):
-            raise PermissionDenied("None of these columns had permission to %r: %r" % (A.QUERY, checking_columns))
+            raise PermissionDenied("None of these columns had permission to %s: %r of %r" % (A.QUERY, checking_columns, table))
 
         # READ 权限检查，通不过时将其过滤
         checking_columns = self.loadfk.keys()  # 外键过滤
@@ -347,8 +347,8 @@ class SQLQueryInfo:
         def check_column_exists(column):
             if column is PRIMARY_KEY:
                 return
-            if field_name not in view.fields:
-                raise ColumnNotFound(field_name)
+            if column not in view.fields:
+                raise ColumnNotFound(column)
 
         # select check
         if self.select is ALL_COLUMNS:
@@ -367,15 +367,15 @@ class SQLQueryInfo:
             check_column_exists(field_name)
             if field_name == PRIMARY_KEY:
                 i[0] = field_name = view.primary_key
-            field_type = view.fields[field_name]
+            field_type = view.fields[field_name].value
             try:
                 # 注：外键的类型会是其指向的类型，这里不用担心
                 if op in (SQL_OP.IN, ):
                     assert isinstance(value, Iterable)
-                    i[2] = list(map(field_type.value, value))
+                    i[2] = list(map(field_type, value))
                 else:
-                    i[2] = field_type.value(value)
-            except:
+                    i[2] = field_type(value)
+            except Exception as e:
                 raise SlimException("bad value")
 
         # order check
@@ -415,13 +415,13 @@ class SQLQueryInfo:
                         fk = fks[0]  # 取第一个结果（即默认外键）
                         values['table'] = fk.rel_table
 
-                        # 检查对应的表是否存在
-                        if fk.rel_table not in app.tables:
-                            raise TableNotFound("Foreign key refer to a table not exists: %r -> %r" % (field_name, fk.rel_table))
+                    # 检查对应的表是否存在
+                    if fk.rel_table not in app.tables:
+                        raise TableNotFound("Foreign key refer to a table not exists: %r -> %r" % (field_name, fk.rel_table))
 
                     # 检查对应的表的角色是否存在
                     if values['role'] not in app.permissions[fk.rel_table].roles:
-                        raise RoleNotFound('%s of %s' % (values['role'], fk.rel_table))
+                        raise InvalidRole('%s of %s' % (values['role'], fk.rel_table))
 
                     # 递归外键读取
                     if values['loadfk']:

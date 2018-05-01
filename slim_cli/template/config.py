@@ -1,4 +1,4 @@
-PROJECT_NAME = 'Slim'
+PROJECT_NAME = 'SlimApplication'
 VERSION = '1.0.0'
 
 HOST = '0.0.0.0'

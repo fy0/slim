@@ -84,6 +84,7 @@ class ATestView3(PeeweeView):
     def ready(cls):
         cls.add_soft_foreign_key('id', 'wrong table name')
         cls.add_soft_foreign_key('id', 'test2', 't2')
+        cls.add_soft_foreign_key('id', 'test', 't1')
 
 
 app._prepare()
@@ -107,7 +108,7 @@ async def test_get():
     # 2. failed: simple statement and not found
     request = make_mocked_request('GET', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
     view = ATestView(app, request)
-    view._params_cache = {'name': 1}
+    view._params_cache = {'name': '1'}
     await view._prepare()
     await view.get()
     assert view.ret_val['code'] == RETCODE.NOT_FOUND
@@ -271,6 +272,29 @@ async def test_get_loadfk():
     assert view.ret_val['data']['id'] == 2
     assert view.ret_val['data']['t2']['id'] == 2
     assert view.ret_val['data']['t2']['name'] == 'NameB2'
+
+    # 13. success: list values
+    request = make_mocked_request('GET', '/api/test3', headers={}, protocol=mock.Mock(), app=app)
+    view = ATestView3(app, request)
+    view._params_cache = {'name': 'NameC2', 'loadfk': json.dumps({'id': [{'table': 't2', 'as': 't2'}]})}
+    await view._prepare()
+    await view.get()
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+    assert view.ret_val['data']['id'] == 2
+    assert view.ret_val['data']['t2']['id'] == 2
+    assert view.ret_val['data']['t2']['name'] == 'NameB2'
+
+    # 13. success: read multi tables with one key
+    request = make_mocked_request('GET', '/api/test3', headers={}, protocol=mock.Mock(), app=app)
+    view = ATestView3(app, request)
+    view._params_cache = {'name': 'NameC2', 'loadfk': json.dumps({'id': [{'table': 't2', 'as': 't2'}, {'table': 't1', 'as': 't1'}]})}
+    await view._prepare()
+    await view.get()
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+    assert view.ret_val['data']['id'] == 2
+    assert view.ret_val['data']['t2']['id'] == 2
+    assert view.ret_val['data']['t2']['name'] == 'NameB2'
+    assert view.ret_val['data']['t1']['name'] == 'Name2'
 
 
 async def test_new():

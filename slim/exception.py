@@ -52,7 +52,7 @@ class PermissionException(SlimException):
     pass
 
 
-class RoleNotFound(PermissionException):
+class InvalidRole(PermissionException):
     pass
 
 
