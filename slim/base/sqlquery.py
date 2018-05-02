@@ -150,10 +150,9 @@ class QueryConditions(list):
 class SQLQueryInfo:
     """ SQL查询参数。"""
     def __init__(self, params=None, view=None):
-        if is_py36:
-            self.select: Union[List[str], object]
-            self.orders: List[SQLQueryOrder]
-            self.loadfk: Dict[str, List[Dict[str, object]]]
+        # self.select: Union[List[str], object]
+        # self.orders: List[SQLQueryOrder]
+        # self.loadfk: Dict[str, List[Dict[str, object]]]
 
         self.select = ALL_COLUMNS
         self.conditions = QueryConditions()

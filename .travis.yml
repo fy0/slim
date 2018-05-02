@@ -16,6 +16,8 @@ install:
   - pip install asyncpg
   - pip install msgpack
   - pip install wtforms
+  - pip install requests
+  - pip install psycopg2
 
 before_script:
   - curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter

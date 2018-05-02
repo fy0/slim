@@ -61,8 +61,8 @@ setup(
     python_requires='>=3.5.3',
 
     extras_require={
-        'full': ['peewee', 'asyncpg', 'msgpack'],
-        'peewee': ['peewee'],
+        'full': ['peewee', 'asyncpg', 'msgpack', 'psycopg2'],
+        'peewee': ['peewee', 'psycopg2'],
         'asyncpg': ['asyncpg']
     },
 

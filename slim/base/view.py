@@ -314,12 +314,11 @@ class AbstractSQLView(BaseView):
     foreign_keys = {}
     foreign_keys_table_alias = {}
 
-    if is_py36:
-        table_name: str = None
-        primary_key: str = None
-        fields: Dict[str, SQL_TYPE] = {}
-        foreign_keys: Dict[str, List[SQLForeignKey]] = {}
-        foreign_keys_table_alias: Dict[str, str] = {}  # hide real table name
+    # table_name: str = None
+    # primary_key: str = None
+    # fields: Dict[str, SQL_TYPE] = {}
+    # foreign_keys: Dict[str, List[SQLForeignKey]] = {}
+    # foreign_keys_table_alias: Dict[str, str] = {}  # hide real table name
 
     @classmethod
     def _is_skip_check(cls):
