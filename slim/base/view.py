@@ -329,7 +329,7 @@ class AbstractSQLView(BaseView):
 
     @classmethod
     def interface(cls):
-        super().interface()
+        # super().interface()  # 3.5, super(): empty __class__ cell
         cls.use('get', 'GET')
         cls.use_lst('list')
         cls.use('update', 'POST')
