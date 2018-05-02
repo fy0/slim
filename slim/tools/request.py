@@ -74,8 +74,8 @@ class SlimViewRequest:
         if size: url += '/%s' % size
         return do_request(self.config, 'GET', url, params, role=role)
 
-    def set(self, params, data, role=None):
-        return do_request(self.config, 'POST', self.urlPrefix + '/set', params, data, role)
+    def update(self, params, data, role=None):
+        return do_request(self.config, 'POST', self.urlPrefix + '/update', params, data, role)
 
     def new(self, data, role=None):
         return do_request(self.config, 'POST', self.urlPrefix + '/new', {}, data, role)

@@ -22,6 +22,7 @@ class ATestModel(Model):
     active = BooleanField(default=False)
     flt = FloatField(default=0)
     json = SQLITE_JSONField()
+    value = IntegerField(null=True)
 
     class Meta:
         db_table = 'test'
@@ -182,7 +183,7 @@ async def test_get_loadfk():
     #  2. failed: syntax
     request = make_mocked_request('GET', '/api/test2', headers={}, protocol=mock.Mock(), app=app)
     view = ATestView2(app, request)
-    view._params_cache = {'name': 'NameB1', 'loadfk': {'aaa': None}}
+    view._params_cache = {'name': 'NameB1', ':loadfk': {'aaa': None}}
     await view._prepare()
     await view.get()
     assert view.ret_val['code'] == RETCODE.FAILED
@@ -190,7 +191,7 @@ async def test_get_loadfk():
     #  3. failed: column not found
     request = make_mocked_request('GET', '/api/test2', headers={}, protocol=mock.Mock(), app=app)
     view = ATestView2(app, request)
-    view._params_cache = {'name': 'NameB1', 'loadfk': json.dumps({'aaa': None})}
+    view._params_cache = {'name': 'NameB1', ':loadfk': json.dumps({'aaa': None})}
     await view._prepare()
     await view.get()
     assert view.ret_val['code'] == RETCODE.FAILED
@@ -198,7 +199,7 @@ async def test_get_loadfk():
     #  4. success: simple load
     request = make_mocked_request('GET', '/api/test2', headers={}, protocol=mock.Mock(), app=app)
     view = ATestView2(app, request)
-    view._params_cache = {'name': 'NameB1', 'loadfk': json.dumps({'link_id': None})}
+    view._params_cache = {'name': 'NameB1', ':loadfk': json.dumps({'link_id': None})}
     await view._prepare()
     await view.get()
     assert view.ret_val['code'] == RETCODE.SUCCESS
@@ -208,7 +209,7 @@ async def test_get_loadfk():
     #  5. success: load as
     request = make_mocked_request('GET', '/api/test2', headers={}, protocol=mock.Mock(), app=app)
     view = ATestView2(app, request)
-    view._params_cache = {'name': 'NameB1', 'loadfk': json.dumps({'link_id': {'as': 'link'}})}
+    view._params_cache = {'name': 'NameB1', ':loadfk': json.dumps({'link_id': {'as': 'link'}})}
     await view._prepare()
     await view.get()
     assert view.ret_val['code'] == RETCODE.SUCCESS
@@ -218,7 +219,7 @@ async def test_get_loadfk():
     # 7. success: recursion load
     request = make_mocked_request('GET', '/api/test3', headers={}, protocol=mock.Mock(), app=app)
     view = ATestView3(app, request)
-    view._params_cache = {'name': 'NameC2', 'loadfk': json.dumps({'link_id': {'loadfk': {'link_id': None}}})}
+    view._params_cache = {'name': 'NameC2', ':loadfk': json.dumps({'link_id': {'loadfk': {'link_id': None}}})}
     await view._prepare()
     await view.get()
     assert view.ret_val['code'] == RETCODE.SUCCESS
@@ -231,7 +232,7 @@ async def test_get_loadfk():
     # 8. failed: load soft link, wrong table name
     request = make_mocked_request('GET', '/api/test3', headers={}, protocol=mock.Mock(), app=app)
     view = ATestView3(app, request)
-    view._params_cache = {'name': 'NameC1', 'loadfk': json.dumps({'id': None})}
+    view._params_cache = {'name': 'NameC1', ':loadfk': json.dumps({'id': None})}
     await view._prepare()
     await view.get()
     assert view.ret_val['code'] == RETCODE.FAILED
@@ -239,7 +240,7 @@ async def test_get_loadfk():
     # 9. failed: load soft link, wrong table name and wrong condition
     request = make_mocked_request('GET', '/api/test3', headers={}, protocol=mock.Mock(), app=app)
     view = ATestView3(app, request)
-    view._params_cache = {'name': 'not found', 'loadfk': json.dumps({'id': None})}
+    view._params_cache = {'name': 'not found', ':loadfk': json.dumps({'id': None})}
     await view._prepare()
     await view.get()
     assert view.ret_val['code'] == RETCODE.FAILED
@@ -247,7 +248,7 @@ async def test_get_loadfk():
     # 10. failed: foreign key not match table
     request = make_mocked_request('GET', '/api/test3', headers={}, protocol=mock.Mock(), app=app)
     view = ATestView3(app, request)
-    view._params_cache = {'name': 'NameC2', 'loadfk': json.dumps({'id': {'table': 'test1'}})}
+    view._params_cache = {'name': 'NameC2', ':loadfk': json.dumps({'id': {'table': 'test1'}})}
     await view._prepare()
     await view.get()
     assert view.ret_val['code'] == RETCODE.FAILED
@@ -255,7 +256,7 @@ async def test_get_loadfk():
     # 11. success: soft foreign key
     request = make_mocked_request('GET', '/api/test3', headers={}, protocol=mock.Mock(), app=app)
     view = ATestView3(app, request)
-    view._params_cache = {'name': 'NameC2', 'loadfk': json.dumps({'id': {'table': 't2'}})}
+    view._params_cache = {'name': 'NameC2', ':loadfk': json.dumps({'id': {'table': 't2'}})}
     await view._prepare()
     await view.get()
     assert view.ret_val['code'] == RETCODE.SUCCESS
@@ -265,7 +266,7 @@ async def test_get_loadfk():
     # 12. success: soft foreign key as
     request = make_mocked_request('GET', '/api/test3', headers={}, protocol=mock.Mock(), app=app)
     view = ATestView3(app, request)
-    view._params_cache = {'name': 'NameC2', 'loadfk': json.dumps({'id': {'table': 't2', 'as': 't2'}})}
+    view._params_cache = {'name': 'NameC2', ':loadfk': json.dumps({'id': {'table': 't2', 'as': 't2'}})}
     await view._prepare()
     await view.get()
     assert view.ret_val['code'] == RETCODE.SUCCESS
@@ -276,7 +277,7 @@ async def test_get_loadfk():
     # 13. success: list values
     request = make_mocked_request('GET', '/api/test3', headers={}, protocol=mock.Mock(), app=app)
     view = ATestView3(app, request)
-    view._params_cache = {'name': 'NameC2', 'loadfk': json.dumps({'id': [{'table': 't2', 'as': 't2'}]})}
+    view._params_cache = {'name': 'NameC2', ':loadfk': json.dumps({'id': [{'table': 't2', 'as': 't2'}]})}
     await view._prepare()
     await view.get()
     assert view.ret_val['code'] == RETCODE.SUCCESS
@@ -287,7 +288,7 @@ async def test_get_loadfk():
     # 13. success: read multi tables with one key
     request = make_mocked_request('GET', '/api/test3', headers={}, protocol=mock.Mock(), app=app)
     view = ATestView3(app, request)
-    view._params_cache = {'name': 'NameC2', 'loadfk': json.dumps({'id': [{'table': 't2', 'as': 't2'}, {'table': 't1', 'as': 't1'}]})}
+    view._params_cache = {'name': 'NameC2', ':loadfk': json.dumps({'id': [{'table': 't2', 'as': 't2'}, {'table': 't1', 'as': 't1'}]})}
     await view._prepare()
     await view.get()
     assert view.ret_val['code'] == RETCODE.SUCCESS
@@ -309,7 +310,8 @@ async def test_new():
 
     # 2. insert and return records
     request = make_mocked_request('POST', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
-    request._post = dict(name='Name6', binary=b'test6', count=1, json=json.dumps({'q': 1, 'w6': 2}), returning=True)
+    request._post = dict(name='Name6', binary=b'test6', count=1, json=json.dumps({'q': 1, 'w6': 2}))
+    request._post[':returning'] = True
     view = ATestView(app, request)
     await view._prepare()
     await view.new()
@@ -346,7 +348,8 @@ async def test_update():
 
     # 1. simple update with returning
     request = make_mocked_request('POST', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
-    request._post = dict(name='Name2AA', count='5', returning='true')
+    request._post = dict(name='Name2AA', count='5')
+    request._post[':returning'] = True
     view = ATestView(app, request)
     view._params_cache = {'name': 'Name2A'}
     await view._prepare()
@@ -356,6 +359,58 @@ async def test_update():
     assert view.ret_val['data'][0]['name'] == 'Name2A'
 
 
+async def test_is():
+    # 1. success: .eq null (sqlite)
+    request = make_mocked_request('GET', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
+    view = ATestView(app, request)
+    view._params_cache = {'value': 'null'}
+    await view._prepare()
+    await view.get()
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+
+    # 2. success: .ne null
+    request = make_mocked_request('GET', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
+    view = ATestView(app, request)
+    view._params_cache = {'value.ne': 'null'}
+    await view._prepare()
+    await view.get()
+    assert view.ret_val['code'] == RETCODE.NOT_FOUND
+
+    # 3. success: .is null
+    request = make_mocked_request('GET', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
+    view = ATestView(app, request)
+    view._params_cache = {'value.is': 'null'}
+    await view._prepare()
+    await view.get()
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+
+    # 4. success: .isnot null
+    request = make_mocked_request('GET', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
+    view = ATestView(app, request)
+    view._params_cache = {'value.isnot': 'null'}
+    await view._prepare()
+    await view.get()
+    assert view.ret_val['code'] == RETCODE.NOT_FOUND
+
+    # 5. success: .is value
+    request = make_mocked_request('GET', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
+    view = ATestView(app, request)
+    view._params_cache = {'name.is': 'Name1'}
+    await view._prepare()
+    await view.get()
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+    assert view.ret_val['data']['binary'] == b'test1'
+
+    # 6. success: .isnot value
+    request = make_mocked_request('GET', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
+    view = ATestView(app, request)
+    view._params_cache = {'name.isnot': 'Name1'}
+    await view._prepare()
+    await view.get()
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+    assert view.ret_val['data']['binary'] == b'test2'
+
+
 if __name__ == '__main__':
     from slim.utils.async import sync_call
     sync_call(test_bind)
@@ -363,3 +418,4 @@ if __name__ == '__main__':
     sync_call(test_get_loadfk)
     sync_call(test_new)
     sync_call(test_update)
+    sync_call(test_is)

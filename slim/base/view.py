@@ -4,6 +4,8 @@ import time
 from abc import abstractmethod
 from types import FunctionType
 from typing import Tuple, Union, Dict, Iterable, Type, List, Set
+from unittest import mock
+
 from aiohttp import web
 
 from .sqlquery import SQLQueryInfo, SQL_TYPE, SQLForeignKey, SQLValuesToWrite, ALL_COLUMNS, PRIMARY_KEY, SQL_OP
@@ -77,9 +79,12 @@ class BaseView(metaclass=MetaClassForInit):
             cls.permission = Permissions()
         cls.permission_init()
 
-    def __init__(self, app: Application, aiohttp_request: web.web_request.Request):
+    def __init__(self, app: Application, aiohttp_request: web.web_request.Request=None):
         self.app = app
-        self._request = aiohttp_request
+        if aiohttp_request is None:
+            self._request = mock.Mock()
+        else:
+            self._request = aiohttp_request
 
         self.ret_val = None
         self.response = None
@@ -265,8 +270,7 @@ class ErrorCatchContext:
 
         elif isinstance(exc_val, RecordNotFound):
             if len(exc_val.args) > 0:
-                self.view.finish(RETCODE.NOT_FOUND, 'Nothing found from table %r > %r' % (
-                    self.view.table_name, exc_val.args[0]))
+                self.view.finish(RETCODE.NOT_FOUND, 'Nothing found from table %r' % exc_val.args[0])
             else:
                 self.view.finish(RETCODE.NOT_FOUND, 'Nothing found from table %r' % self.view.table_name)
 
@@ -570,7 +574,7 @@ class AbstractSQLView(BaseView):
     async def new(self):
         with ErrorCatchContext(self):
             raw_post = await self.post_data()
-            values = SQLValuesToWrite(raw_post)
+            values = SQLValuesToWrite(raw_post, self, A.CREATE)
             values_lst = [values]
 
             logger.debug('insert record(s): %s' % values_lst)

@@ -43,11 +43,11 @@ async def test_post_blob():
     await view.new()
     assert view.ret_val['code'] == RETCODE.SUCCESS
 
-    request._post = dict(info='a')
+    request._post = dict(info='a')  # 0x0A
     view = ATestView(app, request)
     await view._prepare()
     await view.new()
-    assert view.ret_val['code'] == RETCODE.INVALID_POSTDATA
+    assert view.ret_val['code'] == RETCODE.SUCCESS
 
     view = ATestView(app, request)
     await view._prepare()

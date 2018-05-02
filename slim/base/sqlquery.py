@@ -3,8 +3,7 @@ import logging
 from enum import Enum
 from typing import Union, Iterable, List, TYPE_CHECKING, Dict, Set
 
-from ..utils import BlobConverter, JSONConverter, MetaClassForInit, is_py36, dict_filter, dict_filter_inplace, \
-    BoolConverter
+from ..utils import BlobConverter, JSONConverter, is_py36, dict_filter, dict_filter_inplace, BoolConverter
 from ..exception import SyntaxException, ResourceException, InvalidParams, \
     PermissionDenied, ColumnNotFound, ColumnIsNotForeignKey, SQLOperatorInvalid, InvalidRole, SlimException, \
     InvalidPostData, TableNotFound
@@ -119,8 +118,9 @@ class SQL_OP(Enum):
     GE = ('ge', '>=')
     GT = ('gt', '>')
     IN = ('in',)
+    NOT_IN = ('notin', 'not in')
     IS = ('is',)
-    IS_NOT = ('isnot',)
+    IS_NOT = ('isnot', 'is not')
     AND = ('and',)
     OR = ('or',)
 
@@ -304,17 +304,17 @@ class SQLQueryInfo:
             info = key.split('.', 1)
 
             field_name = info[0]
-            if field_name == 'order':
+            if field_name == ':order':
                 self.orders = self.parse_order(value)
                 continue
-            elif field_name == 'select':
+            elif field_name == ':select':
                 self.select = self.parse_select(value)
                 continue
-            elif field_name == 'loadfk':
+            elif field_name == ':loadfk':
                 try:
                     value = json.loads(value)  # [List, Dict[str, str]]
                 except (json.JSONDecodeError, TypeError):
-                    raise SyntaxException('Invalid json syntax for "loadfk": %s' % value)
+                    raise SyntaxException('Invalid json syntax for ":loadfk": %s' % value)
                 self.loadfk = self.parse_load_fk(value)
                 continue
 
@@ -367,14 +367,16 @@ class SQLQueryInfo:
             check_column_exists(field_name)
             if field_name == PRIMARY_KEY:
                 i[0] = field_name = view.primary_key
-            field_type = view.fields[field_name].value
+            field_type = view.fields[field_name]
+            conv = lambda x: None if x in ('null', None) else field_type.value(x)
             try:
                 # 注：外键的类型会是其指向的类型，这里不用担心
-                if op in (SQL_OP.IN, ):
+                if op in (SQL_OP.IN, SQL_OP.NOT_IN):
                     assert isinstance(value, Iterable)
-                    i[2] = list(map(field_type, value))
+                    i[2] = list(map(conv, value))
                 else:
-                    i[2] = field_type(value)
+                    i[2] = conv(value)
+
             except Exception as e:
                 raise SlimException("bad value")
 
@@ -445,26 +447,28 @@ class UpdateInfo:
 
 
 class SQLValuesToWrite(dict):
-    def __init__(self, post_data=None):
+    def __init__(self, post_data=None, view=None, action=None, records=None):
+        super().__init__()
         self.returning = False
+
         if post_data:
             self.parse(post_data)
-        super().__init__()
+            if view: self.bind(view, action, records)
 
     def parse(self, post_data):
         self.clear()
         for k, v in post_data.items():
-            if k == 'returning':
+            if k == ':returning':
                 self.returning = True
             if '.' in k:
                 k, op = k.rsplit('.', 1)
                 v = UpdateInfo(k, 'incr', v)
             self[k] = v
 
-    def check_query_permission(self, view: "AbstractSQLView", action, records=None):
-        return self.check_query_permission_full(view.current_user, view.table_name, view.ability, action, records)
+    def check_write_permission(self, view: "AbstractSQLView", action, records=None):
+        return self.check_write_permission_full(view.current_user, view.table_name, view.ability, action, records)
 
-    def check_query_permission_full(self, user: "BaseUser", table: str, ability: "Ability", action, records=None):
+    def check_write_permission_full(self, user: "BaseUser", table: str, ability: "Ability", action, records=None):
         from .permission import A
         logger.debug('request permission: [%s] of table %r' % (action, table))
 
@@ -492,16 +496,17 @@ class SQLValuesToWrite(dict):
 
         for k, v in self.items():
             field_type = view.fields[k]
+            conv = lambda x: None if x in ('null', None) else field_type.value(x)
             try:
                 if isinstance(v, UpdateInfo):
                     if v.op == 'to':
-                        self[k] = field_type.value(v)
+                        self[k] = conv(v)
                     elif v.op == 'incr':
-                        v.val = field_type.value(v)
+                        v.val = conv(v)
                 else:
-                    self[k] = field_type.value(v)
+                    self[k] = conv(v)
             except:
                 raise SlimException("bad value")
 
         if action:
-            self.check_query_permission(view, action, records)
+            self.check_write_permission(view, action, records)
