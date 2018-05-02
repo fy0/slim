@@ -57,7 +57,7 @@ private.py
 
 simple.py
 _tests.py
-
+.coverage
 
 templates/
 static/

@@ -18,6 +18,8 @@ install:
   - pip install wtforms
   - pip install requests
   - pip install psycopg2
+  - pip install pytest-asyncio
+  - pip install pytest-cov
 
 before_script:
   - curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
@@ -26,7 +28,7 @@ before_script:
   - python setup.py install
 
 script:
-  - pytest
+  - py.test --cov=slim tests
 
 after_script:
   - ./cc-test-reporter after-build --exit-code $TRAVIS_TEST_RESULT
