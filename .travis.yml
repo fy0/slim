@@ -5,8 +5,8 @@ env:
     b24368d982e7d17483440ee59d548d43a1beec3239550002df3f7e5cae20255f
 
 python:
-  - "3.5"
-  - "3.6"
+  - 3.5
+  - 3.6
 
 install:
   - pip install aiohttp
