@@ -304,13 +304,13 @@ class SQLQueryInfo:
             info = key.split('.', 1)
 
             field_name = info[0]
-            if field_name == ':order':
+            if field_name == 'order':
                 self.orders = self.parse_order(value)
                 continue
-            elif field_name == ':select':
+            elif field_name == 'select':
                 self.select = self.parse_select(value)
                 continue
-            elif field_name == ':loadfk':
+            elif field_name == 'loadfk':
                 try:
                     value = json.loads(value)  # [List, Dict[str, str]]
                 except (json.JSONDecodeError, TypeError):
@@ -458,7 +458,7 @@ class SQLValuesToWrite(dict):
     def parse(self, post_data):
         self.clear()
         for k, v in post_data.items():
-            if k == ':returning':
+            if k == 'returning':
                 self.returning = True
             if '.' in k:
                 k, op = k.rsplit('.', 1)

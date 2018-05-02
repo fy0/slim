@@ -1,0 +1,29 @@
+language: python
+
+env:
+  global:
+    b24368d982e7d17483440ee59d548d43a1beec3239550002df3f7e5cae20255f
+
+python:
+  - "3.5"
+  - "3.6"
+
+install:
+  - pip install aiohttp
+  - pip install aiohttp_cors
+  - pip install click
+  - pip install peewee
+  - pip install asyncpg
+  - pip install msgpack
+  - pip install wtforms
+
+before_script:
+  - curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
+  - chmod +x ./cc-test-reporter
+  - ./cc-test-reporter before-build
+
+script:
+  - pytest
+
+after_script:
+  - ./cc-test-reporter after-build --exit-code $TRAVIS_TEST_RESULT
