@@ -2,11 +2,12 @@ language: python
 
 env:
   global:
-    b24368d982e7d17483440ee59d548d43a1beec3239550002df3f7e5cae20255f
+    - CC_TEST_REPORTER_ID=b24368d982e7d17483440ee59d548d43a1beec3239550002df3f7e5cae20255f
 
 python:
   - 3.5
   - 3.6
+  - nightly
 
 install:
   - pip install aiohttp
@@ -24,10 +25,11 @@ install:
 before_script:
   - curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
   - chmod +x ./cc-test-reporter
+  - ./cc-test-reporter before-build
   - python setup.py install
 
 script:
   - py.test --cov=slim tests
 
 after_script:
-  - ./cc-test-reporter --file .coverage
+  - ./cc-test-reporter after-build --file .coverage
