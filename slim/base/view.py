@@ -519,8 +519,7 @@ class AbstractSQLView(BaseView):
         for record in records:
             columns = record.set_info(info, self.ability, self.current_user)
             if not columns: raise RecordNotFound(self.table_name)
-            record.reserve(columns)
-            await self._call_handle(self.after_read, record)
+        await self._call_handle(self.after_read, records)
 
     async def get(self):
         with ErrorCatchContext(self):
@@ -564,18 +563,17 @@ class AbstractSQLView(BaseView):
             record = await self._sql.select_one(info)
 
             if record:
-                # update 只更新一个
                 records = [record]
-                values.bind(self, A.WRITE, record)
+                values.bind(self, A.WRITE, records)
                 logger.debug('update record(s): %s' % values)
-                await self._call_handle(self.before_update, raw_post, values, record)
-                await self._sql.update(records, values)
-                await self._call_handle(self.after_update, raw_post, values, record)
+                await self._call_handle(self.before_update, raw_post, values, records)
+                ret = await self._sql.update(records, values, returning=True)
+                await self._call_handle(self.after_update, raw_post, values, ret)
                 if values.returning:
-                    await self.check_records_permission(None, records)
-                    self.finish(RETCODE.SUCCESS, record)
+                    await self.check_records_permission(None, ret)
+                    self.finish(RETCODE.SUCCESS, ret[0])
                 else:
-                    self.finish(RETCODE.SUCCESS, len(records))
+                    self.finish(RETCODE.SUCCESS, len(ret))
             else:
                 self.finish(RETCODE.NOT_FOUND)
     set = update
@@ -584,11 +582,12 @@ class AbstractSQLView(BaseView):
         with ErrorCatchContext(self):
             raw_post = await self.post_data()
             values = SQLValuesToWrite(raw_post, self, A.CREATE)
+            values_lst = [values]
 
-            logger.debug('insert record(s): %s' % values)
-            await self._call_handle(self.before_insert, raw_post, values)
-            records = await self._sql.insert([values], returning=True)
-            await self._call_handle(self.after_insert, raw_post, values, records[0])
+            logger.debug('insert record(s): %s' % values_lst)
+            await self._call_handle(self.before_insert, raw_post, values_lst)
+            records = await self._sql.insert(values_lst, returning=True)
+            await self._call_handle(self.after_insert, raw_post, values_lst, records)
             if values.returning:
                 await self.check_records_permission(None, records)
                 self.finish(RETCODE.SUCCESS, records[0])
@@ -602,19 +601,21 @@ class AbstractSQLView(BaseView):
             record = await self._sql.select_one(info)
 
             if record:
+                records = [record]
                 logger.debug('request permission: [%s] of table %r' % (A.DELETE, self.table_name))
-                valid = self.ability.can_with_record(self.current_user, A.DELETE, record, available=record.keys())
+                for record in records:
+                    valid = self.ability.can_with_record(self.current_user, A.DELETE, record, available=record.keys())
 
-                if len(valid) == len(record.keys()):
-                    logger.debug("request permission successed: %r" % list(record.keys()))
-                else:
-                    logger.debug(
-                        "request permission failed. valid / requested: %r, %r" % (valid, list(record.keys())))
-                    return self.finish(RETCODE.PERMISSION_DENIED)
+                    if len(valid) == len(record.keys()):
+                        logger.debug("request permission successed: %r" % list(record.keys()))
+                    else:
+                        logger.debug(
+                            "request permission failed. valid / requested: %r, %r" % (valid, list(record.keys())))
+                        return self.finish(RETCODE.PERMISSION_DENIED)
 
-                await self._call_handle(self.before_delete, record)
-                await self._sql.delete(record)
-                await self._call_handle(self.after_delete, record)
+                await self._call_handle(self.before_delete, records)
+                await self._sql.delete(records)
+                await self._call_handle(self.after_delete, records)
             else:
                 self.finish(RETCODE.NOT_FOUND)
 
@@ -636,25 +637,63 @@ class AbstractSQLView(BaseView):
     async def before_query(self, info: SQLQueryInfo):
         pass
 
-    async def after_read(self, record: DataRecord):
+    async def after_read(self, records: List[DataRecord]):
+        """
+        一对多，当有一个权限检查失败时即返回异常
+        :param records:
+        :return:
+        """
         pass
 
     async def before_insert(self, raw_post: Dict, values: SQLValuesToWrite):
+        """
+        一对一，但在一个事务中完成
+        :param raw_post:
+        :param values:
+        :return:
+        """
         pass
 
-    async def after_insert(self, raw_post: Dict, values: SQLValuesToWrite, record: DataRecord):
-        """ Emitted before finish """
+    async def after_insert(self, raw_post: Dict, values: SQLValuesToWrite, records: List[DataRecord]):
+        """
+        一对一，但在一个事务中完成
+        Emitted before finish
+        :param raw_post:
+        :param values:
+        :param record:
+        :return:
+        """
         pass
 
-    async def before_update(self, raw_post: Dict, values: SQLValuesToWrite, record: DataRecord):
-        """ raw_post 权限过滤和列过滤前，values 过滤后 """
+    async def before_update(self, raw_post: Dict, values: SQLValuesToWrite, records: List[DataRecord]):
+        """
+        一对多，当有一个权限检查失败时即返回异常
+        raw_post 权限过滤和列过滤前，values 过滤后
+        :param raw_post:
+        :param values:
+        :param record:
+        :return:
+        """
         pass
 
-    async def after_update(self, raw_post: Dict, values: SQLValuesToWrite, record: DataRecord):
+    async def after_update(self, raw_post: Dict, values: SQLValuesToWrite, records: List[DataRecord]):
+        """
+        :param raw_post:
+        :param values:
+        :param records:
+        :return:
+        """
+
+    async def before_delete(self, records: List[DataRecord]):
+        """
+        :param records:
+        :return:
+        """
         pass
 
-    async def before_delete(self, record: DataRecord):
-        pass
-
-    async def after_delete(self, deleted_record: DataRecord):
+    async def after_delete(self, deleted_records: List[DataRecord]):
+        """
+        :param deleted_records:
+        :return:
+        """
         pass

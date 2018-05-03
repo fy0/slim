@@ -345,7 +345,7 @@ async def test_update():
     val = ATestModel.get(ATestModel.binary==b'test1A')
     assert val.name == 'Name1AA'
 
-    # 1. simple update with returning
+    # 2. simple update with returning
     request = make_mocked_request('POST', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
     request._post = dict(name='Name2AA', count='5')
     request._post['returning'] = True
@@ -354,7 +354,29 @@ async def test_update():
     await view._prepare()
     await view.update()
     assert view.ret_val['code'] == RETCODE.SUCCESS
-    assert view.ret_val['data']['name'] == 'Name2A'
+    assert view.ret_val['data']['name'] == 'Name2AA'
+
+    # 3. incr
+    request = make_mocked_request('POST', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
+    request._post = {'count.incr': 1, 'returning': True}
+    view = ATestView(app, request)
+    view._params_cache = {'name': 'Name3A'}
+    await view._prepare()
+    await view.update()
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+    assert view.ret_val['data']['name'] == 'Name3A'
+    assert view.ret_val['data']['count'] == 4
+
+    # 3. incr -1
+    request = make_mocked_request('POST', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
+    request._post = {'count.incr': -2, 'returning': True}
+    view = ATestView(app, request)
+    view._params_cache = {'name': 'Name3A'}
+    await view._prepare()
+    await view.update()
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+    assert view.ret_val['data']['name'] == 'Name3A'
+    assert view.ret_val['data']['count'] == 2
 
 
 async def test_is():
