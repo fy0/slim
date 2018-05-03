@@ -4,7 +4,7 @@ from typing import Iterable, Type, TYPE_CHECKING
 from aiohttp import web, web_response
 from posixpath import join as urljoin
 from slim.base.ws import WSRouter
-from ..utils.async import sync_call
+from ..utils.async_run import sync_call
 
 if TYPE_CHECKING:
     from .view import BaseView

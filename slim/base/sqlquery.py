@@ -74,6 +74,11 @@ class DataRecord:
     def pop(self, key):
         return self.cache.pop(key)
 
+    def reserve(self, keys):
+        cache_keys = set(self.keys())
+        for k in cache_keys - set(keys):
+            del self.cache[k]
+
     def __getitem__(self, item):
         return self.get(item)
 
@@ -464,19 +469,18 @@ class SQLValuesToWrite(dict):
                 v = UpdateInfo(k, 'incr', v)
             self[k] = v
 
-    def check_write_permission(self, view: "AbstractSQLView", action, records=None):
-        return self.check_write_permission_full(view.current_user, view.table_name, view.ability, action, records)
+    def check_write_permission(self, view: "AbstractSQLView", action, record=None):
+        return self.check_write_permission_full(view.current_user, view.table_name, view.ability, action, record)
 
-    def check_write_permission_full(self, user: "BaseUser", table: str, ability: "Ability", action, records=None):
+    def check_write_permission_full(self, user: "BaseUser", table: str, ability: "Ability", action, record=None):
         from .permission import A
         logger.debug('request permission: [%s] of table %r' % (action, table))
 
         if action == A.WRITE:
-            for record in records:
-                valid = ability.can_with_record(user, action, record, available=self.keys())
-                if len(valid) != len(self):
-                    logger.debug("request permission failed. request / valid: %r, %r" % (list(self.keys()), valid))
-                    raise PermissionDenied()
+            valid = ability.can_with_record(user, action, record, available=self.keys())
+            if len(valid) != len(self):
+                logger.debug("request permission failed. request / valid: %r, %r" % (list(self.keys()), valid))
+                raise PermissionDenied()
         elif action == A.CREATE:
             valid = ability.can_with_columns(user, action, table, self.keys())
 
@@ -487,25 +491,29 @@ class SQLValuesToWrite(dict):
             raise SlimException("Invalid action to write: %r" % action)
 
         logger.debug("request permission successed: %r" % list(self.keys()))
+        return valid
 
-    def bind(self, view: "AbstractSQLView", action=None, records=None):
+    def bind(self, view: "AbstractSQLView", action=None, record=None):
         dict_filter_inplace(self, view.fields.keys())
         if len(self) == 0:
             raise InvalidPostData()
 
+        if action:
+            self.check_write_permission(view, action, record)
+
+        self.value_convert(view)
+
+    def value_convert(self, view):
         for k, v in self.items():
             field_type = view.fields[k]
             conv = lambda x: None if x in ('null', None) else field_type.value(x)
             try:
                 if isinstance(v, UpdateInfo):
                     if v.op == 'to':
-                        self[k] = conv(v)
+                        self[k] = conv(v.val)
                     elif v.op == 'incr':
-                        v.val = conv(v)
+                        v.val = conv(v.val)
                 else:
                     self[k] = conv(v)
             except:
                 raise SlimException("bad value")
-
-        if action:
-            self.check_write_permission(view, action, records)

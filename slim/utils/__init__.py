@@ -4,7 +4,7 @@ import re
 import string
 import sys
 import time
-from .async import *
+from .async_run import *
 from .binhex import to_bin, to_hex
 from .cls_init import MetaClassForInit
 from .pagination import pagination_calc

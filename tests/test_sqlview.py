@@ -316,8 +316,7 @@ async def test_new():
     await view._prepare()
     await view.new()
     assert view.ret_val['code'] == RETCODE.SUCCESS
-    assert isinstance(view.ret_val['data'], list)
-    assert view.ret_val['data'][0]['name'] == 'Name6'
+    assert view.ret_val['data']['name'] == 'Name6'
 
     # 3. insert without necessary parameter
     request = make_mocked_request('POST', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
@@ -355,8 +354,7 @@ async def test_update():
     await view._prepare()
     await view.update()
     assert view.ret_val['code'] == RETCODE.SUCCESS
-    assert isinstance(view.ret_val['data'], list)
-    assert view.ret_val['data'][0]['name'] == 'Name2A'
+    assert view.ret_val['data']['name'] == 'Name2A'
 
 
 async def test_is():
@@ -412,7 +410,7 @@ async def test_is():
 
 
 if __name__ == '__main__':
-    from slim.utils.async import sync_call
+    from slim.utils.async_run import sync_call
     sync_call(test_bind)
     sync_call(test_get)
     sync_call(test_get_loadfk)
