@@ -367,6 +367,18 @@ class SQLQueryInfo:
                         self.select = list(self.select)
                     self.select[i] = view.primary_key
 
+        # where convert
+        for i in self.conditions:
+            field_name, op, value = i
+            check_column_exists(field_name)
+            if field_name == PRIMARY_KEY:
+                i[0] = field_name = view.primary_key
+
+        # permission check
+        # 是否需要一个 order 权限？
+        if view.ability:
+            self.check_query_permission(view)
+
         # where check
         for i in self.conditions:
             field_name, op, value = i
@@ -384,7 +396,7 @@ class SQLQueryInfo:
                     i[2] = conv(value)
 
             except Exception as e:
-                raise SlimException("bad value")
+                raise SlimException("Column bad value: %s" % field_name)
 
         # order check
         for i, od in enumerate(self.orders):
@@ -438,11 +450,6 @@ class SQLQueryInfo:
         if self.loadfk:
             check_loadfk_data(view, self.loadfk)
 
-        # permission check
-        # 是否需要一个 order 权限？
-        if view.ability:
-            self.check_query_permission(view)
-
 
 class UpdateInfo:
     def __init__(self, key, op, val):
@@ -466,7 +473,7 @@ class SQLValuesToWrite(dict):
         for k, v in post_data.items():
             if k == 'returning':
                 self.returning = True
-            if '.' in k:
+            elif '.' in k:
                 k, op = k.rsplit('.', 1)
                 v = UpdateInfo(k, 'incr', v)
             self[k] = v
@@ -523,7 +530,7 @@ class SQLValuesToWrite(dict):
                 else:
                     self[k] = conv(v)
             except:
-                raise SlimException("bad value")
+                raise SlimException("Column bad value: %s" % k)
 
     def bind(self, view: "AbstractSQLView", action=None, records=None):
         dict_filter_inplace(self, view.fields.keys())

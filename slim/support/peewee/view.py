@@ -191,7 +191,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
                 q = model.update(**new_vals).where(cond)
                 if returning:
                     ret = q.returning(*model._meta.fields.values()).execute()
-                    to_record = lambda x: PeeweeDataRecord(None, ret.model(**ret._row_to_dict(x)), view=self.vcls)
+                    to_record = lambda x: PeeweeDataRecord(None, x, view=self.vcls)
                     items = map(to_record, ret)
                     return list(items)
                 else:

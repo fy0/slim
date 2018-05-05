@@ -3,12 +3,12 @@ import json
 import pytest
 from unittest import mock
 from aiohttp.test_utils import make_mocked_request
-
 from slim.retcode import RETCODE
 from slim.support.peewee import PeeweeView
 from peewee import *
 from slim import Application
 from playhouse.sqlite_ext import JSONField as SQLITE_JSONField
+from tests.tools import make_mocked_view_instance
 
 pytestmark = [pytest.mark.asyncio]
 app = Application(cookies_secret=b'123456')
@@ -47,7 +47,16 @@ class ATestCModel(Model):
         database = db
 
 
-db.create_tables([ATestModel, ATestBModel, ATestCModel])
+class ATestDModel(Model):
+    name = TextField()
+    link = ForeignKeyField(ATestBModel, null=True)
+
+    class Meta:
+        db_table = 'test4'
+        database = db
+
+
+db.create_tables([ATestModel, ATestBModel, ATestCModel, ATestDModel])
 a1 = ATestModel.create(name='Name1', binary=b'test1', count=1, json={'q': 1, 'w1': 2})
 a2 = ATestModel.create(name='Name2', binary=b'test2', count=2, json={'q': 1, 'w2': 2})
 a3 = ATestModel.create(name='Name3', binary=b'test3', count=3, json={'q': 1, 'w3': 2})
@@ -65,6 +74,12 @@ c2 = ATestCModel.create(name='NameC2', link=b2)
 c3 = ATestCModel.create(name='NameC3', link=b3)
 c4 = ATestCModel.create(name='NameC4', link=b4)
 c5 = ATestCModel.create(name='NameC5', link=b5)
+
+ATestDModel.insert_many([
+    {'name': 'NameD1', 'link': None},
+    {'name': 'NameD2', 'link': None},
+    {'name': 'NameD3', 'link': None},
+])
 
 
 @app.route('test1')
@@ -86,6 +101,15 @@ class ATestView3(PeeweeView):
         cls.add_soft_foreign_key('id', 'wrong table name')
         cls.add_soft_foreign_key('id', 'test2', 't2')
         cls.add_soft_foreign_key('id', 'test', 't1')
+
+
+@app.route('test4')
+class ATestView4(PeeweeView):
+    model = ATestDModel
+
+    @classmethod
+    def ready(cls):
+        cls.add_soft_foreign_key('id', 'test')
 
 
 app._prepare()
@@ -296,6 +320,20 @@ async def test_get_loadfk():
     assert view.ret_val['data']['t2']['id'] == 2
     assert view.ret_val['data']['t2']['name'] == 'NameB2'
     assert view.ret_val['data']['t1']['name'] == 'Name2'
+
+    # 14. loadfk and all foreign keys are null
+    request = make_mocked_request('GET', '/api/test4/list/1', headers={}, protocol=mock.Mock(), app=app)
+    view = ATestView4(app, request)
+    view._params_cache = {'loadfk': json.dumps({'link_id': None})}
+    await view._prepare()
+    await view.list()
+    assert view.ret_val['code'] == RETCODE.NOT_FOUND
+
+    # 15. loadfk and all foreign keys are null
+    view = await make_mocked_view_instance(app, ATestView4, 'GET', '/api/test4/list/1',
+                                           {'loadfk': json.dumps({'link_id': None})})
+    await view.list()
+    assert view.ret_val['code'] == RETCODE.NOT_FOUND
 
 
 async def test_new():

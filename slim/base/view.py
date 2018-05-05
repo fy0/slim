@@ -294,7 +294,7 @@ class ErrorCatchContext:
                 self.view.finish(RETCODE.PERMISSION_DENIED)
 
         elif isinstance(exc_val, SlimException):
-            if exc_val.args[0] == 'bad value':
+            if exc_val.args[0].startswith('Column bad value'):
                 self.view.finish(RETCODE.INVALID_PARAMS, exc_val.args[0])
             else:
                 self.view.finish(RETCODE.FAILED)
@@ -565,12 +565,12 @@ class AbstractSQLView(BaseView):
             if record:
                 records = [record]
                 values.bind(self, A.WRITE, records)
-                logger.debug('update record(s): %s' % values)
                 await self._call_handle(self.before_update, raw_post, values, records)
+                logger.debug('update record(s): %s' % values)
                 ret = await self._sql.update(records, values, returning=True)
+                await self.check_records_permission(None, ret)
                 await self._call_handle(self.after_update, raw_post, values, ret)
                 if values.returning:
-                    await self.check_records_permission(None, ret)
                     self.finish(RETCODE.SUCCESS, ret[0])
                 else:
                     self.finish(RETCODE.SUCCESS, len(ret))
@@ -587,9 +587,9 @@ class AbstractSQLView(BaseView):
             logger.debug('insert record(s): %s' % values_lst)
             await self._call_handle(self.before_insert, raw_post, values_lst)
             records = await self._sql.insert(values_lst, returning=True)
+            await self.check_records_permission(None, records)
             await self._call_handle(self.after_insert, raw_post, values_lst, records)
             if values.returning:
-                await self.check_records_permission(None, records)
                 self.finish(RETCODE.SUCCESS, records[0])
             else:
                 self.finish(RETCODE.SUCCESS, len(records))
@@ -645,11 +645,11 @@ class AbstractSQLView(BaseView):
         """
         pass
 
-    async def before_insert(self, raw_post: Dict, values: SQLValuesToWrite):
+    async def before_insert(self, raw_post: Dict, values_lst: List[SQLValuesToWrite]):
         """
-        一对一，但在一个事务中完成
+        一对一，但在一个事务中完成，所以也传 list
         :param raw_post:
-        :param values:
+        :param values_lst:
         :return:
         """
         pass
@@ -660,7 +660,7 @@ class AbstractSQLView(BaseView):
         Emitted before finish
         :param raw_post:
         :param values:
-        :param record:
+        :param records:
         :return:
         """
         pass
