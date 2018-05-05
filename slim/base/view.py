@@ -567,13 +567,13 @@ class AbstractSQLView(BaseView):
                 values.bind(self, A.WRITE, records)
                 await self._call_handle(self.before_update, raw_post, values, records)
                 logger.debug('update record(s): %s' % values)
-                ret = await self._sql.update(records, values, returning=True)
-                await self.check_records_permission(None, ret)
-                await self._call_handle(self.after_update, raw_post, values, ret)
+                new_records = await self._sql.update(records, values, returning=True)
+                await self.check_records_permission(None, new_records)
+                await self._call_handle(self.after_update, raw_post, values, records, new_records)
                 if values.returning:
-                    self.finish(RETCODE.SUCCESS, ret[0])
+                    self.finish(RETCODE.SUCCESS, new_records[0])
                 else:
-                    self.finish(RETCODE.SUCCESS, len(ret))
+                    self.finish(RETCODE.SUCCESS, len(new_records))
             else:
                 self.finish(RETCODE.NOT_FOUND)
     set = update
@@ -676,8 +676,10 @@ class AbstractSQLView(BaseView):
         """
         pass
 
-    async def after_update(self, raw_post: Dict, values: SQLValuesToWrite, records: List[DataRecord]):
+    async def after_update(self, raw_post: Dict, values: SQLValuesToWrite,
+                           old_records: List[DataRecord], records: List[DataRecord]):
         """
+        :param old_records:
         :param raw_post:
         :param values:
         :param records:

@@ -473,6 +473,7 @@ class SQLValuesToWrite(dict):
         for k, v in post_data.items():
             if k == 'returning':
                 self.returning = True
+                continue
             elif '.' in k:
                 k, op = k.rsplit('.', 1)
                 v = UpdateInfo(k, 'incr', v)

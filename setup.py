@@ -19,7 +19,7 @@ def long_desc():
 
 setup(
     name='slim',
-    version='0.3.4',
+    version='0.3.5',
 
     description=description(),
     long_description=long_desc(),
