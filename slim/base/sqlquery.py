@@ -396,7 +396,7 @@ class SQLQueryInfo:
                     i[2] = conv(value)
 
             except Exception as e:
-                raise SlimException("Column bad value: %s" % field_name)
+                raise InvalidParams("Column bad value: %s" % field_name)
 
         # order check
         for i, od in enumerate(self.orders):
@@ -531,7 +531,7 @@ class SQLValuesToWrite(dict):
                 else:
                     self[k] = conv(v)
             except:
-                raise SlimException("Column bad value: %s" % k)
+                raise InvalidPostData("Column bad value: %s" % k)
 
     def bind(self, view: "AbstractSQLView", action=None, records=None):
         dict_filter_inplace(self, view.fields.keys())

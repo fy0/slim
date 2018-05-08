@@ -18,7 +18,7 @@ from ..utils import pagination_calc, MetaClassForInit, async_call, is_py36
 from ..utils.json_ex import json_ex_dumps
 from ..exception import RecordNotFound, SyntaxException, InvalidParams, SQLOperatorInvalid, ColumnIsNotForeignKey, \
     ColumnNotFound, InvalidRole, PermissionDenied, FinishQuitException, SlimException, TableNotFound, \
-    ResourceException, NotNullConstraintFailed, AlreadyExists
+    ResourceException, NotNullConstraintFailed, AlreadyExists, InvalidPostData
 
 logger = logging.getLogger(__name__)
 
@@ -261,6 +261,18 @@ class ErrorCatchContext:
         elif isinstance(exc_val, ColumnIsNotForeignKey):
             self.view.finish(RETCODE.INVALID_PARAMS, "This column is not a foreign key: %r" % exc_val.args[0])
 
+        elif isinstance(exc_val, InvalidParams):
+            if len(exc_val.args) and exc_val.args[0].startswith('Column bad value'):
+                self.view.finish(RETCODE.INVALID_PARAMS, exc_val.args[0])
+            else:
+                self.view.finish(RETCODE.INVALID_PARAMS)
+
+        elif isinstance(exc_val, InvalidPostData):
+            if len(exc_val.args) and exc_val.args[0].startswith('Column bad value'):
+                self.view.finish(RETCODE.INVALID_POSTDATA, exc_val.args[0])
+            else:
+                self.view.finish(RETCODE.INVALID_POSTDATA)
+
         # ResourceException
         elif isinstance(exc_val, TableNotFound):
             self.view.finish(RETCODE.FAILED, exc_val.args[0])
@@ -293,11 +305,9 @@ class ErrorCatchContext:
             else:
                 self.view.finish(RETCODE.PERMISSION_DENIED)
 
+        # others
         elif isinstance(exc_val, SlimException):
-            if exc_val.args[0].startswith('Column bad value'):
-                self.view.finish(RETCODE.INVALID_PARAMS, exc_val.args[0])
-            else:
-                self.view.finish(RETCODE.FAILED)
+            self.view.finish(RETCODE.FAILED)
 
         else: return  # 异常会传递出去
         return True
@@ -614,8 +624,9 @@ class AbstractSQLView(BaseView):
                         return self.finish(RETCODE.PERMISSION_DENIED)
 
                 await self._call_handle(self.before_delete, records)
-                await self._sql.delete(records)
+                num = await self._sql.delete(records)
                 await self._call_handle(self.after_delete, records)
+                self.finish(RETCODE.SUCCESS, num)
             else:
                 self.finish(RETCODE.NOT_FOUND)
 

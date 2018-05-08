@@ -5,7 +5,7 @@ from typing import Type, Tuple, List, Iterable, Union
 
 import peewee
 # noinspection PyPackageRequirements
-from playhouse.postgres_ext import JSONField as PG_JSONField, BinaryJSONField
+from playhouse.postgres_ext import JSONField as PG_JSONField, BinaryJSONField as PG_BinaryJSONField
 from playhouse.sqlite_ext import JSONField as SQLITE_JSONField
 from playhouse.shortcuts import model_to_dict
 
@@ -261,14 +261,15 @@ def field_class_to_sql_type(field: peewee.Field) -> SQL_TYPE:
         return SQL_TYPE.INT
     elif isinstance(field, peewee.FloatField):
         return SQL_TYPE.FLOAT
+    elif isinstance(field, (PG_JSONField, PG_BinaryJSONField, SQLITE_JSONField)):
+        # 注意 SQLITE_JSONField 是一个 _StringField 所以要提前
+        return SQL_TYPE.JSON
     elif isinstance(field, peewee._StringField):
         return SQL_TYPE.STRING
     elif isinstance(field, peewee.BooleanField):
         return SQL_TYPE.BOOLEAN
     elif isinstance(field, peewee.BlobField):
         return SQL_TYPE.BLOB
-    elif isinstance(field, (PG_JSONField, SQLITE_JSONField)):
-        return SQL_TYPE.JSON
 
 
 class PeeweeView(AbstractSQLView):

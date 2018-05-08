@@ -419,54 +419,108 @@ async def test_update():
 
 async def test_is():
     # 1. success: .eq null (sqlite)
-    request = make_mocked_request('GET', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
-    view = ATestView(app, request)
-    view._params_cache = {'value': 'null'}
-    await view._prepare()
+    view = await make_mocked_view_instance(app, ATestView, 'GET', '/api/test1', {'value': 'null'})
     await view.get()
     assert view.ret_val['code'] == RETCODE.SUCCESS
 
     # 2. success: .ne null
-    request = make_mocked_request('GET', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
-    view = ATestView(app, request)
-    view._params_cache = {'value.ne': 'null'}
-    await view._prepare()
+    view = await make_mocked_view_instance(app, ATestView, 'GET', '/api/test1', {'value.ne': 'null'})
     await view.get()
     assert view.ret_val['code'] == RETCODE.NOT_FOUND
 
     # 3. success: .is null
-    request = make_mocked_request('GET', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
-    view = ATestView(app, request)
-    view._params_cache = {'value.is': 'null'}
-    await view._prepare()
+    view = await make_mocked_view_instance(app, ATestView, 'GET', '/api/test1', {'value.is': 'null'})
     await view.get()
     assert view.ret_val['code'] == RETCODE.SUCCESS
 
     # 4. success: .isnot null
-    request = make_mocked_request('GET', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
-    view = ATestView(app, request)
-    view._params_cache = {'value.isnot': 'null'}
-    await view._prepare()
+    view = await make_mocked_view_instance(app, ATestView, 'GET', '/api/test1', {'value.isnot': 'null'})
     await view.get()
     assert view.ret_val['code'] == RETCODE.NOT_FOUND
 
     # 5. success: .is value
-    request = make_mocked_request('GET', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
-    view = ATestView(app, request)
-    view._params_cache = {'name.is': 'Name1'}
-    await view._prepare()
+    view = await make_mocked_view_instance(app, ATestView, 'GET', '/api/test1', {'name.is': 'Name1'})
     await view.get()
     assert view.ret_val['code'] == RETCODE.SUCCESS
     assert view.ret_val['data']['binary'] == b'test1'
 
     # 6. success: .isnot value
-    request = make_mocked_request('GET', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
-    view = ATestView(app, request)
-    view._params_cache = {'name.isnot': 'Name1'}
-    await view._prepare()
+    view = await make_mocked_view_instance(app, ATestView, 'GET', '/api/test1', {'name.isnot': 'Name1'})
     await view.get()
     assert view.ret_val['code'] == RETCODE.SUCCESS
     assert view.ret_val['data']['binary'] == b'test2'
+
+
+async def test_delete():
+    assert ATestModel.select().where(ATestModel.name=='Name1B').count() == 0
+    b1 = ATestModel.create(name='Name1B', binary=b'test1B', count=1, json={'q': 1, 'w1b': 2})
+    # b2 = ATestModel.create(name='Name2B', binary=b'test2B', count=2, json={'q': 1, 'w2b': 2})
+    # b3 = ATestModel.create(name='Name3B', binary=b'test3B', count=3, json={'q': 1, 'w3b': 2})
+    assert ATestModel.select().where(ATestModel.name=='Name1B').count() == 1
+
+    view = await make_mocked_view_instance(app, ATestView, 'POST', '/api/test4', {'name': 'Name1B'})
+    await view.delete()
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+    assert ATestModel.select().where(ATestModel.name=='Name1B').count() == 0
+
+
+async def test_select():
+    # 1. success
+    view = await make_mocked_view_instance(app, ATestView, 'GET', '/api/test1',
+                                           {'select': 'name,binary,count,active,flt,json,value'})
+    await view.get()
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+    assert view.ret_val['data'].keys() == {'name', 'binary', 'count', 'active', 'flt', 'json', 'value'}
+
+    # 2. success: list
+    view = await make_mocked_view_instance(app, ATestView, 'GET', '/api/test1',
+                                           {'select': 'name,binary,count,active,flt,json,value'})
+    await view.list()
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+
+    # 3. success: random spaces
+    view = await make_mocked_view_instance(app, ATestView, 'GET', '/api/test1',
+                                           {'select': 'name, binary,count,\n active,flt,\rjson,\t value'})
+    await view.get()
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+
+    # 4. success: random spaces
+    view = await make_mocked_view_instance(app, ATestView, 'GET', '/api/test1',
+                                           {'select': 'name'})
+    await view.get()
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+    assert view.ret_val['data'].keys() == {'name'}
+
+    # 5. failed: Column not found
+    view = await make_mocked_view_instance(app, ATestView, 'GET', '/api/test1', {'select': 'name1,binary'})
+    await view.get()
+    assert view.ret_val['code'] == RETCODE.FAILED
+
+
+async def test_value_type():
+    # 1. success
+    view = await make_mocked_view_instance(app, ATestView, 'POST', '/api/test1',
+                                           post={'name': 'Name1BB', 'binary': b'test1bb',
+                                                 'json': {'q': 1, 'w6': 2}, 'count': 4})
+    await view.new()
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+    assert view.ret_val['data'] == 1
+
+    val = ATestModel.get(ATestModel.binary == b'test1bb')
+    assert val.name == 'Name1BB'
+
+    # 2. failed: post, bad json
+    view = await make_mocked_view_instance(app, ATestView, 'POST', '/api/test1',
+                                           post={'name': 'Name2BB', 'binary': b'test2bb',
+                                                 'json': '{', 'count': 5})
+    await view.new()
+    assert view.ret_val['code'] == RETCODE.INVALID_POSTDATA
+
+    # 2. failed: params, bad json
+    view = await make_mocked_view_instance(app, ATestView, 'GET', '/api/test1',
+                                           params={'json': '{', 'count': 5})
+    await view.get()
+    assert view.ret_val['code'] == RETCODE.INVALID_PARAMS
 
 
 if __name__ == '__main__':
@@ -477,3 +531,6 @@ if __name__ == '__main__':
     sync_call(test_new)
     sync_call(test_update)
     sync_call(test_is)
+    sync_call(test_delete)
+    sync_call(test_select)
+    sync_call(test_value_type)
