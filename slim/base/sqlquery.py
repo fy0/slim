@@ -190,11 +190,11 @@ class SQLQueryInfo:
 
             if len(items) == 1: column, order = items[0], 'default'
             elif len(items) == 2: column, order = items
-            else: raise SyntaxException("Invalid order syntax")
+            else: raise InvalidParams("Invalid order syntax")
 
             order = order.lower()
             if order not in ('asc', 'desc', 'default'):
-                raise SyntaxException('Invalid order mode: %s' % order)
+                raise InvalidParams('Invalid order mode: %s' % order)
 
             if order != 'default':
                 orders.append(SQLQueryOrder(column, order))
@@ -208,7 +208,7 @@ class SQLQueryInfo:
                 assert isinstance(i, str)
             self.select = set(items)
         else:
-            raise SyntaxException('Invalid select')
+            raise InvalidParams('Invalid select')
 
     @classmethod
     def parse_select(cls, text: str) -> Set:
@@ -221,7 +221,7 @@ class SQLQueryInfo:
             return ALL_COLUMNS  # None means ALL
         selected_columns = set(filter(lambda x: x, map(str.strip, text.split(','))))
         if not selected_columns:
-            raise SyntaxException("No column(s) selected")
+            raise InvalidParams("No column(s) selected")
         return selected_columns
 
     @classmethod
@@ -277,7 +277,7 @@ class SQLQueryInfo:
                 # {'role': <str>, 'as': <str>, ...}
                 return value_normalize_dict(value)
             else:
-                raise SyntaxException('Invalid syntax for "loadfk": %s' % value)
+                raise InvalidParams('Invalid syntax for "loadfk": %s' % value)
 
         # 对全部项进行检查
         new_data = {}
@@ -286,20 +286,30 @@ class SQLQueryInfo:
             new_data[k] = nv if isinstance(nv, List) else [nv]
         return new_data
 
-    def add_condition(self, field_name, op_name, value):
+    def add_condition(self, field_name, op, value):
         """
         Add a query condition and validate it.
         raise ParamsException if failed.
         self.view required
         :param field_name:
-        :param op_name:
+        :param op:
         :param value:
         :return: None
         """
+        if not isinstance(op, SQL_OP):
+            raise SQLOperatorInvalid(op)
+        self.conditions.append([field_name, op, value])  # 注意，必须是list
+
+    def parse_then_add_condition(self, field_name, op_name, value):
         if op_name not in SQL_OP.txt2op:
             raise SQLOperatorInvalid(op_name)
         op = SQL_OP.txt2op.get(op_name)
-        self.conditions.append([field_name, op, value])  # 注意，必须是list
+        if op in (SQL_OP.IN, SQL_OP.NOT_IN):
+            try:
+                value = json.loads(value)
+            except (json.JSONDecodeError, TypeError):
+                raise InvalidParams('The right value of "in" condition must be serialized json string: %s' % value)
+        self.add_condition(field_name, op, value)
 
     def clear_condition(self):
         self.conditions.clear()
@@ -320,12 +330,12 @@ class SQLQueryInfo:
                 try:
                     value = json.loads(value)  # [List, Dict[str, str]]
                 except (json.JSONDecodeError, TypeError):
-                    raise SyntaxException('Invalid json syntax for ":loadfk": %s' % value)
+                    raise InvalidParams('Invalid json syntax for "loadfk": %s' % value)
                 self.loadfk = self.parse_load_fk(value)
                 continue
 
             op = info[1] if len(info) > 1 else '='
-            self.add_condition(field_name, op, value)
+            self.parse_then_add_condition(field_name, op, value)
 
     def check_query_permission(self, view: "AbstractSQLView"):
         return self.check_query_permission_full(view.current_user, view.table_name, view.ability)

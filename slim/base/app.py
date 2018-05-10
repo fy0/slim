@@ -1,5 +1,8 @@
+import collections
 import logging
 import asyncio
+from typing import Union, List
+
 from aiohttp import web
 from aiohttp.web_urldispatcher import StaticResource
 from slim.utils.jsdict import JsDict
@@ -26,9 +29,20 @@ class ApplicationOptions:
         self.session_cls = CookieSession
 
 
+class CORSOptions:
+    def __init__(self, host, *, allow_credentials=False, expose_headers=(),
+                 allow_headers=(), max_age=None, allow_methods=None):
+        self.host = host
+        self.allow_credentials = allow_credentials
+        self.expose_headers = expose_headers
+        self.allow_headers = allow_headers
+        self.max_age = max_age
+        self.allow_methods = allow_methods
+
+
 class Application:
     def __init__(self, *, cookies_secret: bytes, log_level=logging.DEBUG, session_cls=CookieSession,
-                 client_max_size=2*1024*1024):
+                 client_max_size=2*1024*1024, cors_options: Union[CORSOptions, List[CORSOptions], None]=None):
         """
         :param cookies_secret:
         :param log_level:
@@ -43,6 +57,11 @@ class Application:
 
         if log_level:
             log.enable(log_level)
+
+        if isinstance(cors_options, CORSOptions):
+            self.cors_options = [cors_options]
+        else:
+            self.cors_options = cors_options
 
         self.options = ApplicationOptions()
         self.options.cookies_secret = cookies_secret
@@ -60,22 +79,29 @@ class Application:
                 cls.permission.app = self
 
         # Configure default CORS settings.
-        cors = aiohttp_cors.setup(self._raw_app, defaults={
-            "*": aiohttp_cors.ResourceOptions(
-                allow_credentials=True,
-                expose_headers="*",
-                allow_headers="*",
-            )
-        })
+        if self.cors_options:
+            vals = {}
+            for i in self.cors_options:
+                vals[i.host] = aiohttp_cors.ResourceOptions(
+                    allow_credentials=i.allow_credentials,
+                    expose_headers=i.expose_headers,
+                    allow_headers=i.allow_headers,
+                    max_age=i.max_age,
+                    allow_methods=i.allow_methods
+                )
+            cors = aiohttp_cors.setup(self._raw_app, defaults=vals)
+        else:
+            cors = None
 
         # Configure CORS on all routes.
         ws_set = set()
         for url, wsh in self.route.websockets:
             ws_set.add(wsh._handle)
 
-        for r in list(self._raw_app.router.routes()):
-            if type(r.resource) != StaticResource and r.handler not in ws_set:
-                cors.add(r)
+        if cors:
+            for r in list(self._raw_app.router.routes()):
+                if type(r.resource) != StaticResource and r.handler not in ws_set:
+                    cors.add(r)
 
         for _, cls in self.route.views:
             cls._ready()

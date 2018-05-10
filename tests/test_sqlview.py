@@ -204,13 +204,10 @@ async def test_get_loadfk():
     await view.get()
     assert view.ret_val['code'] == RETCODE.SUCCESS
 
-    #  2. failed: syntax
-    request = make_mocked_request('GET', '/api/test2', headers={}, protocol=mock.Mock(), app=app)
-    view = ATestView2(app, request)
-    view._params_cache = {'name': 'NameB1', 'loadfk': {'aaa': None}}
-    await view._prepare()
+    #  2. invalid params: loadfk must be json string
+    view = await make_mocked_view_instance(app, ATestView2, 'GET', '/api/test2', {'name': 'NameB1', 'loadfk': {'aaa': None}})
     await view.get()
-    assert view.ret_val['code'] == RETCODE.FAILED
+    assert view.ret_val['code'] == RETCODE.INVALID_PARAMS
 
     #  3. failed: column not found
     request = make_mocked_request('GET', '/api/test2', headers={}, protocol=mock.Mock(), app=app)
@@ -523,6 +520,21 @@ async def test_value_type():
     assert view.ret_val['code'] == RETCODE.INVALID_PARAMS
 
 
+async def test_in():
+    # 1. invalid params: not a json string
+    view = await make_mocked_view_instance(app, ATestView, 'GET', '/api/test1',
+                                           params={'name.in': ['Name1', 'Name2', 'Name3']})
+    await view.get()
+    assert view.ret_val['code'] == RETCODE.INVALID_PARAMS
+
+    # 2. success
+    view = await make_mocked_view_instance(app, ATestView, 'GET', '/api/test1',
+                                           params={'name.in': json.dumps(['Name1', 'Name2', 'Name3'])})
+    await view.list()
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+    assert view.ret_val['data']['info']['items_count'] == 3
+
+
 if __name__ == '__main__':
     from slim.utils.async_run import sync_call
     sync_call(test_bind)
@@ -534,3 +546,4 @@ if __name__ == '__main__':
     sync_call(test_delete)
     sync_call(test_select)
     sync_call(test_value_type)
+    sync_call(test_in)

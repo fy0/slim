@@ -463,7 +463,7 @@ class AbstractSQLView(BaseView):
                     await v._prepare()
                     info2 = SQLQueryInfo()
                     info2.set_select(ALL_COLUMNS)
-                    info2.add_condition(PRIMARY_KEY, 'in', pks)
+                    info2.add_condition(PRIMARY_KEY, SQL_OP.IN, pks)
                     info2.bind(v)
 
                     # ability = vcls.permission.request_role(self.current_user, fkvalues['role'])

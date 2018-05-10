@@ -1,5 +1,5 @@
 from slim.base.sqlquery import SQLQueryInfo, SQLQueryOrder, ALL_COLUMNS
-from slim.exception import SyntaxException
+from slim.exception import SyntaxException, InvalidParams
 
 
 def test_new():
@@ -21,13 +21,13 @@ def test_order():
         SQLQueryInfo.parse_order('a.a.a')
         assert False
     except Exception as e:
-        assert isinstance(e, SyntaxException)
+        assert isinstance(e, InvalidParams)
 
     try:
         SQLQueryInfo.parse_order('a.?sc')
         assert False
     except Exception as e:
-        assert isinstance(e, SyntaxException)
+        assert isinstance(e, InvalidParams)
 
     sqi = SQLQueryInfo()
     sqi.set_orders([])
@@ -53,12 +53,12 @@ def test_select():
         SQLQueryInfo.parse_select(',')
         assert False
     except Exception as e:
-        assert isinstance(e, SyntaxException)
+        assert isinstance(e, InvalidParams)
     try:
         SQLQueryInfo.parse_select(',,,')
         assert False
     except Exception as e:
-        assert isinstance(e, SyntaxException)
+        assert isinstance(e, InvalidParams)
 
     sqi = SQLQueryInfo()
     try:
@@ -71,7 +71,7 @@ def test_select():
         sqi.set_select(None)
         assert False
     except Exception as e:
-        assert isinstance(e, SyntaxException)
+        assert isinstance(e, InvalidParams)
 
     assert sqi.set_select(ALL_COLUMNS) is None
     assert sqi.set_select(['1', '2', '3']) is None
