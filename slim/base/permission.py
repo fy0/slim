@@ -1,8 +1,11 @@
 import copy
 import logging
-from typing import Dict, Tuple, Any
+from typing import Dict, Tuple, Any, TYPE_CHECKING
 from .sqlfuncs import DataRecord
 from .user import BaseUser
+
+if TYPE_CHECKING:
+    from .sqlquery import SQLQueryInfo
 
 logger = logging.getLogger(__name__)
 
@@ -109,11 +112,11 @@ class Ability:
             self.query_condition_params_funcs.setdefault(table, [])
             self.query_condition_params_funcs[table].append(func)
 
-            """def func(ability, user, query: 'ParamsQueryInfo'):
+            """def func(ability, user, query: 'SQLQueryInfo'):
                  pass
             """
 
-    def setup_extra_query_conditions(self, user, table, query: 'ParamsQueryInfo'):
+    def setup_extra_query_conditions(self, user, table, query: 'SQLQueryInfo'):
         if table in self.query_condition_params:
             # TODO: Check once
             for items in self.query_condition_params[table]:

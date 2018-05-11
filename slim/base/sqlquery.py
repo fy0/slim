@@ -142,7 +142,7 @@ for i in SQL_OP:
 
 
 class QueryConditions(list):
-    """ 查询条件，这是ParamsQueryInfo的一部分。与 list 实际没有太大不同，独立为类型的目的是使其能与list区分开来 """
+    """ 查询条件，这是 SQLQueryInfo 的一部分。与 list 实际没有太大不同，独立为类型的目的是使其能与list区分开来 """
     def __contains__(self, item):
         for i in self:
             if i[0] == item:
@@ -297,7 +297,10 @@ class SQLQueryInfo:
         :return: None
         """
         if not isinstance(op, SQL_OP):
-            raise SQLOperatorInvalid(op)
+            if op not in SQL_OP.txt2op:
+                raise SQLOperatorInvalid(op)
+            else:
+                op = SQL_OP.txt2op.get(op)
         self.conditions.append([field_name, op, value])  # 注意，必须是list
 
     def parse_then_add_condition(self, field_name, op_name, value):
@@ -358,6 +361,9 @@ class SQLQueryInfo:
 
         new_select = ability.can_with_columns(user, A.READ, table, self.select)  # select 过滤
         self.set_select(new_select)
+
+        # 设置附加条件
+        ability.setup_extra_query_conditions(user, table, self)
 
     def bind(self, view: "AbstractSQLView"):
         def check_column_exists(column):

@@ -262,7 +262,7 @@ class ErrorCatchContext:
             self.view.finish(RETCODE.INVALID_PARAMS, "This column is not a foreign key: %r" % exc_val.args[0])
 
         elif isinstance(exc_val, InvalidParams):
-            if len(exc_val.args) and exc_val.args[0].startswith('Column bad value'):
+            if len(exc_val.args):
                 self.view.finish(RETCODE.INVALID_PARAMS, exc_val.args[0])
             else:
                 self.view.finish(RETCODE.INVALID_PARAMS)
