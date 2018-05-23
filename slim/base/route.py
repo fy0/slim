@@ -142,7 +142,7 @@ class Route:
         return self.__call__(url, 'GET')(obj)
 
     def post(self, url, obj):
-        return self.__call__(url, 'POS')(obj)
+        return self.__call__(url, 'POST')(obj)
 
     def put(self, url, obj):
         return self.__call__(url, 'PUT')(obj)

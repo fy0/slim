@@ -68,7 +68,7 @@ class DataRecord:
         return self.cache.get(key, default)
 
     def to_dict(self):
-        return self.cache
+        return self.cache.copy()
 
     def keys(self):
         return self.cache.keys()

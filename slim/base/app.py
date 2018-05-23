@@ -74,6 +74,9 @@ class Application:
 
         for _, cls in self.route.views:
             if issubclass(cls, AbstractSQLView):
+                assert cls.table_name not in self.tables, "sorry, you bind one table (%r) to" \
+                    " two views (%r, %r) and it's not allowed." % (
+                    cls.table_name, self.tables[cls.table_name].__name__, cls.__name__)
                 self.tables[cls.table_name] = cls
                 self.permissions[cls.table_name] = cls.permission
                 cls.permission.app = self
