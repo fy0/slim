@@ -553,7 +553,8 @@ class SQLValuesToWrite(dict):
         dict_filter_inplace(self, view.fields.keys())
 
         if len(self) == 0:
-            raise InvalidPostData()
+            logger.debug('No values to write after filtered by table fields: %s' % view.table_name)
+            # raise InvalidPostData()
 
         if action:
             self.check_write_permission(view, action, records)

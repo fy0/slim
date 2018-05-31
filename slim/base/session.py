@@ -65,7 +65,7 @@ class CookieSession(BaseSession):
         self._view.set_secure_cookie('s', self._data)
 
 
-class BaseHeaderSession(BaseSession):
+class BaseHeaderKeySession(BaseSession):
     async def get_key(self):
         return self._view.headers.get('Session', None)
 
@@ -74,12 +74,12 @@ class BaseHeaderSession(BaseSession):
         pass
 
 
-class MemoryHeaderSession(BaseHeaderSession):
+class MemoryHeaderKeySession(BaseHeaderKeySession):
     data = {}
 
     def create(self, key, expire=30):
-        if key not in MemoryHeaderSession.data:
-            MemoryHeaderSession.data[key] = {}
+        if key not in MemoryHeaderKeySession.data:
+            MemoryHeaderKeySession.data[key] = {}
         self.key = key
 
     async def load(self):

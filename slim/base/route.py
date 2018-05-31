@@ -29,10 +29,15 @@ def get_route_middleware(app):
             ascii_encodable_path = request.path.encode('ascii', 'backslashreplace').decode('ascii')
             logger.info("{} {} -> {}".format(request._method, ascii_encodable_path, handler_name))
 
-            await view_instance._prepare()
+            from .view import ErrorCatchContext
+
+            with ErrorCatchContext(view_instance):
+                await view_instance._prepare()
             if view_instance.is_finished:
                 return view_instance.response
-            await view_instance.prepare()
+
+            with ErrorCatchContext(view_instance):
+                await view_instance.prepare()
             if view_instance.is_finished:
                 return view_instance.response
 

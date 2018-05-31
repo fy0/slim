@@ -1,8 +1,9 @@
-from slim import Application
+from slim import Application, CORSOptions
 import config
 
 
 app = Application(
+    log_level=config.DEBUG,
     cookies_secret=config.COOKIE_SECRET,
-    log_level=config.DEBUG
+    cors_options=CORSOptions('*', allow_credentials=True, expose_headers="*", allow_headers="*")
 )

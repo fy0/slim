@@ -1,17 +1,9 @@
 
 ## todo
 
-* is null/is not null
-
 * readme
 
 * 'select' for loadfk
-
-* delete 接口
-
-* access_token 支持
-
-* 递归外键加载
 
 * 文档：外键支持
     + 外键

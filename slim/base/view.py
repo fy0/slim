@@ -248,7 +248,7 @@ class ErrorCatchContext:
     def __exit__(self, exc_type, exc_val: Exception, exc_tb):
         # FinishQuitException
         if isinstance(exc_val, FinishQuitException):
-            return  # Do nothing
+            return True  # Finished, do nothing
 
         # SyntaxException
         elif isinstance(exc_val, SyntaxException):
