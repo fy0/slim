@@ -54,7 +54,7 @@ class DataRecord:
         if info:
             self.selected = info.select
         # 注意，这里实际上读了 self.keys()，所以cache已经生成了，因此直接调用reserve
-        self.available_columns = ability.can_with_record(user, A.READ, self)
+        self.available_columns = ability.can_with_record(user, A.READ, self, available=info.select if info else None)
         self.reserve(self.available_columns)
         return self.available_columns
 
@@ -148,6 +148,14 @@ class QueryConditions(list):
             if i[0] == item:
                 return True
 
+    def find(self, column):
+        ret = []
+        for i in self:
+            if i[0] == column:
+                ret.append(i)
+        return ret
+
+
     def map(self, key, func):
         for i in self:
             if i[0] == key:
@@ -157,7 +165,7 @@ class QueryConditions(list):
 class SQLQueryInfo:
     """ SQL查询参数。"""
     def __init__(self, params=None, view=None):
-        # self.select: Union[List[str], object]
+        # self.select: Union[Set[str], object]
         # self.orders: List[SQLQueryOrder]
         # self.loadfk: Dict[str, List[Dict[str, object]]]
 

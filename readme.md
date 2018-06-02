@@ -5,4 +5,4 @@
 [![codecov](https://codecov.io/gh/fy0/slim/branch/master/graph/badge.svg)](https://codecov.io/gh/fy0/slim)
 [![Maintainability](https://api.codeclimate.com/v1/badges/308e653d0aa234a83c25/maintainability)](https://codeclimate.com/github/fy0/slim/maintainability)
 
-[WIP] web framework based on aiohttp and peewee/asyncpg. Mapping sql table to json api easily.
+Web framework based on aiohttp and peewee/asyncpg. Mapping sql table to json api easily.

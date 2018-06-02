@@ -1,4 +1,9 @@
 
+#### 0.3.11 update 2018.06.03
+
+* Fixed: permission check for records after select remove some columns added by `add_query_condition`.
+
+
 #### 0.3.10 update 2018.06.01
 
 * Adjusted: `new` and `set` now accept empty values instead of throw exception.
