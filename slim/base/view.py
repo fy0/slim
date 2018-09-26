@@ -199,7 +199,7 @@ class BaseView(metaclass=MetaClassForInit):
         return default
 
     @property
-    def headers(self):
+    def headers(self) -> Dict:
         return self._request.headers
 
     @property

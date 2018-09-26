@@ -1,3 +1,7 @@
+#### 0.3.12 update 2018.09.27
+
+* Added: a new return code named `TOO_FREQUENT`
+
 
 #### 0.3.11 update 2018.06.03
 

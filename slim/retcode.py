@@ -6,6 +6,7 @@ class RETCODE(StateObject):
     FAILED = -255  # 失败
     TIMEOUT = -254  # 超时
     UNKNOWN = -253  # 未知错误
+    TOO_FREQUENT = -252  # 请求过于频繁
 
     NOT_FOUND = -249  # 未找到
     ALREADY_EXISTS = -248  # 已存在
@@ -27,6 +28,7 @@ class RETCODE(StateObject):
         FAILED: '失败',
         TIMEOUT: '超时',
         UNKNOWN: '未知错误',
+        TOO_FREQUENT: '请求过于频繁',
 
         NOT_FOUND: '未找到',
         ALREADY_EXISTS: '已存在',
@@ -49,6 +51,7 @@ class RETCODE(StateObject):
         FAILED: 'failed',
         TIMEOUT: 'timeout',
         UNKNOWN: 'unknown',
+        TOO_FREQUENT: 'request too frequent',
 
         NOT_FOUND: 'not found',
         ALREADY_EXISTS: 'already exists',
