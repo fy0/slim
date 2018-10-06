@@ -2,19 +2,18 @@ import asyncio
 import logging
 import time
 from abc import abstractmethod
+from ipaddress import ip_address, _IPAddressBase, IPv4Address, IPv6Address
 from types import FunctionType
 from typing import Tuple, Union, Dict, Iterable, Type, List, Set
 from unittest import mock
-
-from aiohttp import web
-
+from aiohttp import web, hdrs
 from .sqlquery import SQLQueryInfo, SQL_TYPE, SQLForeignKey, SQLValuesToWrite, ALL_COLUMNS, PRIMARY_KEY, SQL_OP
 from .app import Application
 from .helper import create_signed_value, decode_signed_value
 from .permission import Permissions, Ability, BaseUser, A, DataRecord
 from .sqlfuncs import AbstractSQLFunctions
 from ..retcode import RETCODE
-from ..utils import pagination_calc, MetaClassForInit, async_call, is_py36
+from ..utils import pagination_calc, MetaClassForInit, async_call, is_py36, get_ioloop
 from ..utils.json_ex import json_ex_dumps
 from ..exception import RecordNotFound, SyntaxException, InvalidParams, SQLOperatorInvalid, ColumnIsNotForeignKey, \
     ColumnNotFound, InvalidRole, PermissionDenied, FinishQuitException, SlimException, TableNotFound, \
@@ -113,6 +112,22 @@ class BaseView(metaclass=MetaClassForInit):
     async def on_finish(self):
         pass
 
+    async def get_x_forwarded_for(self) -> List[Union[IPv4Address, IPv6Address]]:
+        lst = self._request.headers.getall(hdrs.X_FORWARDED_FOR, [])
+        if not lst: return []
+        lst = map(str.strip, lst[0].split(','))
+        return [ip_address(x) for x in lst if x]
+
+    async def get_ip(self) -> Union[IPv4Address, IPv6Address]:
+        """
+        get ip address of client
+        :return:
+        """
+        xff = await self.get_x_forwarded_for()
+        if xff: return xff[0]
+        ip_addr = self._request.transport.get_extra_info('peername')[0]
+        return ip_address(ip_addr)
+
     @property
     def current_user(self) -> BaseUser:
         if not self._current_user:
@@ -128,6 +143,11 @@ class BaseView(metaclass=MetaClassForInit):
         if u is None:
             return {None}
         return u.roles
+
+    @property
+    def retcode(self):
+        if self.is_finished:
+            return self.ret_val['code']
 
     def finish(self, code, data=NotImplemented):
         if data is NotImplemented:
@@ -403,7 +423,7 @@ class AbstractSQLView(BaseView):
                 # assert cls.primary_key
                 # assert cls.foreign_keys
 
-        asyncio.get_event_loop().run_until_complete(func())
+        get_ioloop().run_until_complete(func())
 
     def _load_role(self, role):
         self.ability = self.permission.request_role(self.current_user, role)

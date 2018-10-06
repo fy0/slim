@@ -1,3 +1,15 @@
+
+#### 0.3.13 update 2018.10.07
+
+* Added: `BaseView.get_x_forwarded_for` method
+
+* Added: `BaseView.get_ip` method
+
+* Adjusted: Use IOCP eventloop by default on windows system
+
+* Fixed: query operator IS_NOT works
+
+
 #### 0.3.12 update 2018.09.27
 
 * Added: a new return code named `TOO_FREQUENT`

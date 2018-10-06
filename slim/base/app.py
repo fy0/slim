@@ -2,11 +2,11 @@ import collections
 import logging
 import asyncio
 from typing import Union, List
-
 from aiohttp import web
 from aiohttp.web_urldispatcher import StaticResource
-from slim.utils.jsdict import JsDict
 from .session import CookieSession
+from ..utils import get_ioloop
+from ..utils.jsdict import JsDict
 import aiohttp_cors
 from . import log
 
@@ -114,7 +114,7 @@ class Application:
         web.run_app(host=host, port=port, app=self._raw_app)
 
     def timer(self, interval_seconds, *, exit_when):
-        loop = asyncio.get_event_loop()
+        loop = get_ioloop()
 
         def wrapper(func):
             def runner():

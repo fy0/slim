@@ -112,7 +112,7 @@ class Ability:
             self.query_condition_params_funcs.setdefault(table, [])
             self.query_condition_params_funcs[table].append(func)
 
-            """def func(ability, user, query: 'SQLQueryInfo'):
+            """def func(ability: Ability, user, query: 'SQLQueryInfo'):
                  pass
             """
 

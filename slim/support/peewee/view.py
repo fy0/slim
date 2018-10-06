@@ -70,6 +70,7 @@ _peewee_method_map = {
     SQL_OP.GE: '__ge__',
     SQL_OP.GT: '__gt__',
     SQL_OP.IN: '__lshift__',  # __lshift__ = _e(OP.IN)
+    SQL_OP.NOT_IN: 'not_in',
     SQL_OP.IS: '__rshift__',  # __rshift__ = _e(OP.IS)
     SQL_OP.IS_NOT: '__rshift__'
 }
@@ -110,7 +111,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
         pw_args = []
         for field_name, op, value in args:
             cond = getattr(self._fields[field_name], _peewee_method_map[op])(value)
-            if op in (SQL_OP.IS_NOT, SQL_OP.NOT_IN):
+            if op == SQL_OP.IS_NOT:
                 cond = ~cond
             pw_args.append(cond)
         return pw_args
