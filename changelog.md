@@ -1,3 +1,8 @@
+#### 0.3.14 update 2018.11.14
+
+* Adjusted: `prepare` and `on_finish` method mustn't be an async function.
+
+* Fixed: a critical permission bug for all versions, upgrade immediately!!!
 
 #### 0.3.13 update 2018.10.07
 

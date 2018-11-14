@@ -7,6 +7,7 @@ class RETCODE(StateObject):
     TIMEOUT = -254  # 超时
     UNKNOWN = -253  # 未知错误
     TOO_FREQUENT = -252  # 请求过于频繁
+    DEPRECATED = -251  # 已废弃
 
     NOT_FOUND = -249  # 未找到
     ALREADY_EXISTS = -248  # 已存在
@@ -29,6 +30,7 @@ class RETCODE(StateObject):
         TIMEOUT: '超时',
         UNKNOWN: '未知错误',
         TOO_FREQUENT: '请求过于频繁',
+        DEPRECATED: '此接口已不推荐使用',
 
         NOT_FOUND: '未找到',
         ALREADY_EXISTS: '已存在',
@@ -52,6 +54,7 @@ class RETCODE(StateObject):
         TIMEOUT: 'timeout',
         UNKNOWN: 'unknown',
         TOO_FREQUENT: 'request too frequent',
+        DEPRECATED: 'interface deprecated',
 
         NOT_FOUND: 'not found',
         ALREADY_EXISTS: 'already exists',

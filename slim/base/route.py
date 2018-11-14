@@ -4,7 +4,7 @@ from typing import Iterable, Type, TYPE_CHECKING
 from aiohttp import web, web_response
 from posixpath import join as urljoin
 from slim.base.ws import WSRouter
-from ..utils.async_run import sync_call
+from ..utils.async_run import sync_call, async_call
 
 if TYPE_CHECKING:
     from .view import BaseView
@@ -37,15 +37,16 @@ def get_route_middleware(app):
                 return view_instance.response
 
             with ErrorCatchContext(view_instance):
-                await view_instance.prepare()
+                await async_call(view_instance.prepare)
             if view_instance.is_finished:
                 return view_instance.response
 
             resp = await func(view_instance) or view_instance.response
             assert isinstance(resp, web_response.StreamResponse), \
-                "Handler {!r} should return response instance, got {!r}".format(handler_name, type(resp), )
+                "Handler {!r} should return response instance, got {!r}. Is view.finish() not be called?".format(handler_name, type(resp), )
+
             await view_instance._on_finish()
-            await view_instance.on_finish()
+            await async_call(view_instance.on_finish)
             return resp
 
     return route_middleware

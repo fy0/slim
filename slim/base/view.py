@@ -1,8 +1,7 @@
-import asyncio
 import logging
 import time
 from abc import abstractmethod
-from ipaddress import ip_address, _IPAddressBase, IPv4Address, IPv6Address
+from ipaddress import ip_address, IPv4Address, IPv6Address
 from types import FunctionType
 from typing import Tuple, Union, Dict, Iterable, Type, List, Set
 from unittest import mock
@@ -13,7 +12,7 @@ from .helper import create_signed_value, decode_signed_value
 from .permission import Permissions, Ability, BaseUser, A, DataRecord
 from .sqlfuncs import AbstractSQLFunctions
 from ..retcode import RETCODE
-from ..utils import pagination_calc, MetaClassForInit, async_call, is_py36, get_ioloop
+from ..utils import pagination_calc, MetaClassForInit, async_call, get_ioloop
 from ..utils.json_ex import json_ex_dumps
 from ..exception import RecordNotFound, SyntaxException, InvalidParams, SQLOperatorInvalid, ColumnIsNotForeignKey, \
     ColumnNotFound, InvalidRole, PermissionDenied, FinishQuitException, SlimException, TableNotFound, \
@@ -151,7 +150,7 @@ class BaseView(metaclass=MetaClassForInit):
 
     def finish(self, code, data=NotImplemented):
         if data is NotImplemented:
-            data = RETCODE.txt_cn.get(code)
+            data = RETCODE.txt_cn.get(code, None)
         self.ret_val = {'code': code, 'data': data}  # for access in inhreads method
         self.response = web.json_response(self.ret_val, dumps=json_ex_dumps)
         logger.debug('finish: %s' % self.ret_val)
@@ -195,7 +194,7 @@ class BaseView(metaclass=MetaClassForInit):
 
     def get_cookie(self, name, default=None):
         if self._request.cookies is not None and name in self._request.cookies:
-            return self._request.cookies.get(name)
+            return self._request.cookies.get(name, default)
         return default
 
     def set_secure_cookie(self, name, value: bytes, *, httponly=True, max_age=30):
@@ -378,7 +377,7 @@ class AbstractSQLView(BaseView):
         warning: if the table not exists, will crash when query with loadfk
         :param column: table's column
         :param table_name: foreign table name
-        :param alias: table name's alias, avoid exposed the table name to user. Default is as same as table name.
+        :param alias: table name's alias. Default is as same as table name.
         :return: True, None
         """
         if column in cls.fields:
@@ -702,7 +701,7 @@ class AbstractSQLView(BaseView):
         raw_post 权限过滤和列过滤前，values 过滤后
         :param raw_post:
         :param values:
-        :param record:
+        :param records:
         :return:
         """
         pass

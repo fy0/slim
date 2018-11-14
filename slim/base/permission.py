@@ -1,6 +1,6 @@
 import copy
 import logging
-from typing import Dict, Tuple, Any, TYPE_CHECKING
+from typing import Dict, Tuple, Any, TYPE_CHECKING, Optional
 from .sqlfuncs import DataRecord
 from .user import BaseUser
 
@@ -282,9 +282,9 @@ class Permissions:
     def add(self, ability: Ability):
         self.role_to_ability[ability.role] = ability
 
-    def request_role(self, user: BaseUser, role) -> Ability:
+    def request_role(self, user: Optional[BaseUser], role) -> Optional[Ability]:
         if user is None:
-            return self.role_to_ability.get(role)
+            return self.role_to_ability.get(None)
         if role in user.roles:
             return self.role_to_ability.get(role)
 

@@ -71,7 +71,7 @@ class BaseSecureCookieUserMixin(BaseUserMixin):
 # noinspection PyAbstractClass
 class BaseAccessTokenUserMixin(BaseUserMixin):
     def get_current_user(self):
-        access_token = self.headers.get('AccessToken')
+        access_token = self.headers.get('AccessToken', None)
         if access_token: return self.get_user_by_key(access_token)
 
     def setup_user_key(self, key, expires=30):
@@ -81,7 +81,7 @@ class BaseAccessTokenUserMixin(BaseUserMixin):
 # noinspection PyAbstractClass
 class BaseAccessTokenInParamUserMixin(BaseUserMixin):
     def get_current_user(self):
-        access_token = self.params.get('AccessToken')
+        access_token = self.params.get('AccessToken', None)
         if access_token: return self.get_user_by_key(access_token)
 
     def setup_user_key(self, key, expires=30):

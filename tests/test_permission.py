@@ -1,6 +1,5 @@
 # coding:utf-8
-from slim.base.permission import A, Ability, DataRecord
-
+from slim.base.permission import A, Ability, DataRecord, Permissions
 
 ab = Ability('normal', {
     # 测试不带通配的权限
@@ -100,8 +99,8 @@ class DictDataRecord(DataRecord):
     def has(self, key):
         return key in self.val
 
-    def get(self, key):
-        return self.val.get(key)
+    def get(self, key, default=None):
+        return self.val.get(key, default)
 
 
 def test_record_filter():
@@ -131,6 +130,13 @@ def test_record_filter():
     assert set(ab.can_with_record(None, A.READ, record2)) == {'a', 'b'}
     assert ab.can_with_record(None, A.DELETE, record2) == []
     assert ab.can_with_record(None, A.WRITE, record2) == []
+
+
+def test_permission_role_bug():
+    p = Permissions()
+    p.add(Ability(None, {'user': {'key': (A.READ,)}}))
+    p.add(Ability('user', {'user': {'key': (A.READ, A.WRITE)}}))
+    assert p.request_role(None, 'user').role is None
 
 
 def test_global():

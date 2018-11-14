@@ -289,6 +289,8 @@ class SQLQueryInfo:
 
         # 对全部项进行检查
         new_data = {}
+        if not isinstance(data, dict):
+            raise InvalidParams('Invalid syntax for "loadfk": %s' % data)
         for k, v in data.items():
             nv = value_normalize(v, False)
             new_data[k] = nv if isinstance(nv, List) else [nv]
