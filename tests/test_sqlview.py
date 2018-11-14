@@ -532,19 +532,19 @@ async def test_in():
     assert view.ret_val['data']['info']['items_count'] == 3
 
 
-class TestReadyModel(ATestModel):
+class ATestReadyModel(ATestModel):
     class Meta:
         db_table = 'ready_test'
 
 
-class TestReadyModel2(ATestModel):
+class ATestReadyModel2(ATestModel):
     class Meta:
         db_table = 'ready_test2'
 
 
 @app.route('test1')
-class TestReadyView(PeeweeView):
-    model = TestReadyModel
+class ATestReadyView(PeeweeView):
+    model = ATestReadyModel
     a = 1
 
     @classmethod
@@ -553,8 +553,8 @@ class TestReadyView(PeeweeView):
 
 
 @app.route('test1')
-class TestReadyView2(PeeweeView):
-    model = TestReadyModel2
+class ATestReadyView2(PeeweeView):
+    model = ATestReadyModel2
     a = 1
 
     @classmethod
@@ -563,8 +563,8 @@ class TestReadyView2(PeeweeView):
 
 
 async def test_ready():
-    assert TestReadyView.a == 2
-    assert TestReadyView2.a == 2
+    assert ATestReadyView.a == 2
+    assert ATestReadyView2.a == 2
 
 
 app._prepare()

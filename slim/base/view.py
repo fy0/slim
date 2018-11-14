@@ -614,10 +614,11 @@ class AbstractSQLView(BaseView):
             values_lst = [values]
 
             logger.debug('insert record(s): %s' % values_lst)
-            await self._call_handle(self.before_insert, raw_post, values_lst)
+            # 注意，这里只给一个，new接口暂不支持一次insert多个
+            await self._call_handle(self.before_insert, raw_post, values)
             records = await self._sql.insert(values_lst, returning=True)
             await self.check_records_permission(None, records)
-            await self._call_handle(self.after_insert, raw_post, values_lst, records)
+            await self._call_handle(self.after_insert, raw_post, values_lst[0], records[0])
             if values.returning:
                 self.finish(RETCODE.SUCCESS, records[0])
             else:
@@ -675,22 +676,22 @@ class AbstractSQLView(BaseView):
         """
         pass
 
-    async def before_insert(self, raw_post: Dict, values_lst: List[SQLValuesToWrite]):
+    async def before_insert(self, raw_post: Dict, values: SQLValuesToWrite):
         """
-        一对一，但在一个事务中完成，所以也传 list
+        一对一
         :param raw_post:
-        :param values_lst:
+        :param values:
         :return:
         """
         pass
 
-    async def after_insert(self, raw_post: Dict, values: SQLValuesToWrite, records: List[DataRecord]):
+    async def after_insert(self, raw_post: Dict, values: SQLValuesToWrite, record: DataRecord):
         """
-        一对一，但在一个事务中完成
+        一对一
         Emitted before finish
         :param raw_post:
         :param values:
-        :param records:
+        :param record:
         :return:
         """
         pass

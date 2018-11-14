@@ -155,7 +155,6 @@ class QueryConditions(list):
                 ret.append(i)
         return ret
 
-
     def map(self, key, func):
         for i in self:
             if i[0] == key:
@@ -333,7 +332,10 @@ class SQLQueryInfo:
             info = key.split('.', 1)
 
             field_name = info[0]
-            if field_name == 'order':
+
+            if field_name.startswith('$'):
+                continue
+            elif field_name == 'order':
                 self.orders = self.parse_order(value)
                 continue
             elif field_name == 'select':
@@ -500,12 +502,14 @@ class SQLValuesToWrite(dict):
     def parse(self, post_data):
         self.clear()
         for k, v in post_data.items():
-            if k == 'returning':
+            if k.startswith('$'):
+                continue
+            elif k == 'returning':
                 self.returning = True
                 continue
             elif '.' in k:
                 k, op = k.rsplit('.', 1)
-                v = UpdateInfo(k, 'incr', v)
+                v = UpdateInfo(k, op, v)
             self[k] = v
 
     def check_insert_permission(self, user: "BaseUser", table: str, ability: "Ability"):

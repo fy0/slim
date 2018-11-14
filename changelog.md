@@ -1,8 +1,14 @@
+
 #### 0.3.14 update 2018.11.14
 
-* Adjusted: `prepare` and `on_finish` method mustn't be an async function.
+* Added: the keys startswith '$' in params and postdata will be ignore for database query.
+
+* Adjusted: `prepare` and `on_finish` method mustn't be an async function anymore.
+
+* Adjusted: callbacks of insert(`view.before_insert` and `view.after_insert`) changed. It's a break change.
 
 * Fixed: a critical permission bug for all versions, upgrade immediately!!!
+
 
 #### 0.3.13 update 2018.10.07
 
