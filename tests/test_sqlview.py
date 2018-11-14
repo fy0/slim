@@ -112,9 +112,6 @@ class ATestView4(PeeweeView):
         cls.add_soft_foreign_key('id', 'test')
 
 
-app._prepare()
-
-
 async def test_bind():
     request = make_mocked_request('GET', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
     view = ATestView(app, request)
@@ -535,6 +532,44 @@ async def test_in():
     assert view.ret_val['data']['info']['items_count'] == 3
 
 
+class TestReadyModel(ATestModel):
+    class Meta:
+        db_table = 'ready_test'
+
+
+class TestReadyModel2(ATestModel):
+    class Meta:
+        db_table = 'ready_test2'
+
+
+@app.route('test1')
+class TestReadyView(PeeweeView):
+    model = TestReadyModel
+    a = 1
+
+    @classmethod
+    def ready(cls):
+        cls.a = 2
+
+
+@app.route('test1')
+class TestReadyView2(PeeweeView):
+    model = TestReadyModel2
+    a = 1
+
+    @classmethod
+    async def ready(cls):
+        cls.a = 2
+
+
+async def test_ready():
+    assert TestReadyView.a == 2
+    assert TestReadyView2.a == 2
+
+
+app._prepare()
+
+
 if __name__ == '__main__':
     from slim.utils.async_run import sync_call
     sync_call(test_bind)
@@ -547,3 +582,4 @@ if __name__ == '__main__':
     sync_call(test_select)
     sync_call(test_value_type)
     sync_call(test_in)
+    sync_call(test_ready)

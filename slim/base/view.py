@@ -12,7 +12,7 @@ from .helper import create_signed_value, decode_signed_value
 from .permission import Permissions, Ability, BaseUser, A, DataRecord
 from .sqlfuncs import AbstractSQLFunctions
 from ..retcode import RETCODE
-from ..utils import pagination_calc, MetaClassForInit, async_call, get_ioloop
+from ..utils import pagination_calc, MetaClassForInit, async_call, get_ioloop, sync_call
 from ..utils.json_ex import json_ex_dumps
 from ..exception import RecordNotFound, SyntaxException, InvalidParams, SQLOperatorInvalid, ColumnIsNotForeignKey, \
     ColumnNotFound, InvalidRole, PermissionDenied, FinishQuitException, SlimException, TableNotFound, \
@@ -232,7 +232,7 @@ class BaseView(metaclass=MetaClassForInit):
     @classmethod
     def _ready(cls):
         """ private version of cls.ready() """
-        cls.ready()
+        sync_call(cls.ready)
 
     @classmethod
     def ready(cls):

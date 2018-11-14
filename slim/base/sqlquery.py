@@ -484,6 +484,9 @@ class UpdateInfo:
         self.op = op
         self.val = val
 
+    def __repr__(self):
+        return '<%s %s>' % (self.op, self.val)
+
 
 class SQLValuesToWrite(dict):
     def __init__(self, post_data=None, view=None, action=None, records=None):
