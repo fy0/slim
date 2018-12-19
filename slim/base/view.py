@@ -609,7 +609,10 @@ class AbstractSQLView(BaseView):
 
     async def new(self):
         with ErrorCatchContext(self):
-            raw_post = await self.post_data()
+            if self._request.content_type == 'application/json':
+                raw_post = await self._post_json()
+            else:
+                raw_post = await self.post_data()
             values = SQLValuesToWrite(raw_post, self, A.CREATE)
             values_lst = [values]
 
