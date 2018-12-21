@@ -1,3 +1,5 @@
+import json
+
 import pytest
 from unittest import mock
 from aiohttp.test_utils import make_mocked_request
@@ -54,3 +56,14 @@ async def test_post_blob():
     await view.get()
     assert view.ret_val['code'] == RETCODE.SUCCESS
     assert view.ret_val['data']['info'] == b'\xaa\xbb\xcc'
+
+    request = make_mocked_request('POST', '/api/test',
+                                  headers={'content-type': 'application/json'},
+                                  protocol=mock.Mock(), app=app)
+    raw_json = json.dumps({'info': 'aabbcc'})
+    request._post = raw_json
+    request._read_bytes = bytes(raw_json, encoding='utf-8')
+    view = ATestView(app, request)
+    await view._prepare()
+    await view.new()
+    assert view.ret_val['code'] == RETCODE.SUCCESS

@@ -178,10 +178,15 @@ class BaseView(metaclass=MetaClassForInit):
         return self._post_json_cache
 
     async def post_data(self) -> dict:
-        # post body: form data
-        if self._post_data_cache is None:
+        if self._post_data_cache is not None:
+            return self._post_data_cache
+        if self._request.content_type == 'application/json':
+            # post body: raw(text) json
+            self._post_data_cache = dict(await self._request.json())
+        else:
+            # post body: form data
             self._post_data_cache = dict(await self._request.post())
-            logger.debug('raw post data: %s', self._post_data_cache)
+        logger.debug('raw post data: %s', self._post_data_cache)
         return self._post_data_cache
 
     def set_cookie(self, key, value, *, path='/', expires=None, domain=None, max_age=None, secure=None,

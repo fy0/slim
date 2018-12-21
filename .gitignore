@@ -43,6 +43,7 @@ coverage.xml
 docs/_build/
 
 .idea
+.vscode
 database.db
 *.py~
 *.txt~
