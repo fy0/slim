@@ -17,7 +17,7 @@ def async_corun(coroutine):
 
 def async_run(func):
     loop = get_ioloop()
-    return loop.run_until_complete(func())
+    return loop.run_until_complete(func)
 
 
 async def async_call(func, *args, **kwargs):

@@ -3,7 +3,7 @@ import time
 from abc import abstractmethod
 from ipaddress import ip_address, IPv4Address, IPv6Address
 from types import FunctionType
-from typing import Tuple, Union, Dict, Iterable, Type, List, Set
+from typing import Tuple, Union, Dict, Iterable, Type, List, Set, Any, Optional
 from unittest import mock
 from aiohttp import web, hdrs
 from .sqlquery import SQLQueryInfo, SQL_TYPE, SQLForeignKey, SQLValuesToWrite, ALL_COLUMNS, PRIMARY_KEY, SQL_OP
@@ -28,6 +28,7 @@ class BaseView(metaclass=MetaClassForInit):
     """
     _interface = {}
     _no_route = False
+
     # permission: Permissions  # 3.6
 
     @classmethod
@@ -77,7 +78,7 @@ class BaseView(metaclass=MetaClassForInit):
             cls.permission = Permissions()
         cls.permission_init()
 
-    def __init__(self, app: Application, aiohttp_request: web.web_request.Request=None):
+    def __init__(self, app: Application, aiohttp_request: web.web_request.Request = None):
         self.app = app
         if aiohttp_request is None:
             self._request = mock.Mock()
@@ -153,6 +154,19 @@ class BaseView(metaclass=MetaClassForInit):
             data = RETCODE.txt_cn.get(code, None)
         self.ret_val = {'code': code, 'data': data}  # for access in inhreads method
         self.response = web.json_response(self.ret_val, dumps=json_ex_dumps)
+        logger.debug('finish: %s' % self.ret_val)
+        for i in self._cookie_set or ():
+            if i[0] == 'set':
+                self.response.set_cookie(i[1], i[2], **i[3])
+            else:
+                self.response.del_cookie(i[1])
+
+    def finish_raw(self,
+                   body: Any = None,
+                   status: int = 200,
+                   text: Optional[str] = None,
+                   content_type: Optional[str] = None, ):
+        self.response = web.Response(body=body, status=status, text=text, content_type=content_type)
         logger.debug('finish: %s' % self.ret_val)
         for i in self._cookie_set or ():
             if i[0] == 'set':
@@ -250,7 +264,7 @@ class BaseView(metaclass=MetaClassForInit):
 
 
 class ViewOptions:
-    def __init__(self, *, list_page_size=20, list_accept_size_from_client=False, permission: Permissions=None):
+    def __init__(self, *, list_page_size=20, list_accept_size_from_client=False, permission: Permissions = None):
         self.list_page_size = list_page_size
         self.list_accept_size_from_client = list_accept_size_from_client
         self.permission = permission
@@ -333,7 +347,8 @@ class ErrorCatchContext:
         elif isinstance(exc_val, SlimException):
             self.view.finish(RETCODE.FAILED)
 
-        else: return  # 异常会传递出去
+        else:
+            return  # 异常会传递出去
         return True
 
 
@@ -417,6 +432,7 @@ class AbstractSQLView(BaseView):
         # because of BaseView.cls_init is a bound method (@classmethod)
         # so we can only route BaseView._interface, not cls._interface defined by user
         BaseView.cls_init.__func__(cls)
+
         # super().cls_init()  # fixed in 3.6
 
         async def func():
@@ -455,6 +471,7 @@ class AbstractSQLView(BaseView):
         :param records: the data got from database and filtered from permission
         :return:
         """
+
         # if not items, items is probably [], so return itself.
         # if not items: return items
 
@@ -610,6 +627,7 @@ class AbstractSQLView(BaseView):
                     self.finish(RETCODE.SUCCESS, len(new_records))
             else:
                 self.finish(RETCODE.NOT_FOUND)
+
     set = update
 
     async def new(self):
