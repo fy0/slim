@@ -42,7 +42,7 @@ class CORSOptions:
 
 class Application:
     def __init__(self, *, cookies_secret: bytes, log_level=logging.DEBUG, session_cls=CookieSession,
-                 client_max_size=2*1024*1024, cors_options: Union[CORSOptions, List[CORSOptions], None]=None):
+                 client_max_size=2 * 1024 * 1024, cors_options: Union[CORSOptions, List[CORSOptions], None] = None):
         """
         :param cookies_secret:
         :param log_level:
@@ -75,8 +75,9 @@ class Application:
         for _, cls in self.route.views:
             if issubclass(cls, AbstractSQLView):
                 assert cls.table_name not in self.tables, "sorry, you bind the table (%r) to" \
-                    " multi views (%r, %r), it's not allowed." % (
-                    cls.table_name, self.tables[cls.table_name].__name__, cls.__name__)
+                                                          " multi views (%r, %r), it's not allowed." % (
+                                                              cls.table_name, self.tables[cls.table_name].__name__,
+                                                              cls.__name__)
                 self.tables[cls.table_name] = cls
                 self.permissions[cls.table_name] = cls.permission
                 cls.permission.app = self
@@ -110,6 +111,9 @@ class Application:
             cls._ready()
 
     def run(self, host, port):
+        self._raw_app.on_startup.append(self.on_startup)
+        self._raw_app.on_shutdown.append(self.on_shutdown)
+        self._raw_app.on_cleanup.append(self.on_cleanup)
         self._prepare()
         web.run_app(host=host, port=port, app=self._raw_app)
 
@@ -132,3 +136,12 @@ class Application:
             return func
 
         return wrapper
+
+    async def on_startup(self, app):
+        pass
+
+    async def on_shutdown(self, app):
+        pass
+
+    async def on_cleanup(self, app):
+        pass
