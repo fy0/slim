@@ -1,5 +1,5 @@
 from model import db
-from model.test import Test
+from model.example import Example
 
 db.connect()
-db.create_tables([Test], safe=True)
+db.create_tables([Example], safe=True)

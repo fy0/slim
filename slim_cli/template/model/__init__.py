@@ -1,23 +1,7 @@
 from slim.utils import async_run
 import config
 
-# asyncpg 配置
-asyncpg_conn = None
-
-
-def asyncpg_init(db_uri):
-    import asyncpg
-    async def create_conn():
-        global asyncpg_conn
-        asyncpg_conn = await asyncpg.connect(db_uri)
-
-    async_run(create_conn)
-
-
-# asyncpg_init(config.DATABASE_URI)
-
 # peewee 配置
-
 import peewee
 from playhouse.db_url import connect
 from playhouse.shortcuts import model_to_dict
@@ -49,3 +33,19 @@ class BaseModel(peewee.Model):
     @classmethod
     def exists_by_pk(cls, value):
         return cls.select().where(cls._meta.primary_key == value).exists()
+
+
+# asyncpg 配置
+asyncpg_conn = None
+
+
+def asyncpg_init(db_uri):
+    import asyncpg
+    async def create_conn():
+        global asyncpg_conn
+        asyncpg_conn = await asyncpg.connect(db_uri)
+
+    async_run(create_conn)
+
+
+# asyncpg_init(config.DATABASE_URI)

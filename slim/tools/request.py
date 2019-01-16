@@ -8,9 +8,11 @@ config = {
     'remote': {
         'API_SERVER': 'http://localhost:9999',
         'WS_SERVER': 'ws://localhost:9999/ws',
-        'authMode': 'access_token'  # access_token / access_token_in_params / cookie
+        # 'authMode': 'access_token'  # access_token / access_token_in_params / cookie 可选
     },
-    'access_token': None
+    'request': {
+        'access_token': None
+    }
 }
 '''
 
@@ -26,10 +28,11 @@ class UnexpectedMethod(Exception):
 def do_request(config, method, url, params=None, data=None, role=None):
     headers = {}
     if params is None: params = {}
-    auth_mode = config['remote']['authMode']
+    auth_mode = config['remote'].get('authMode', 'access_token')
+    request_info = config.get('request', {})
 
     if auth_mode in ('access_token', 'access_token_in_params'):
-        token = config.get('access_token', None)
+        token = request_info.get('access_token', None)
         if auth_mode == 'access_token':
             headers['AccessToken'] = token
         else:

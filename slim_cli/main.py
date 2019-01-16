@@ -11,15 +11,12 @@ def gen(project_dir, project_name):
     shutil.copytree(join(src_dir, 'template'), project_dir)
 
     config_file = join(project_dir, 'config.py')
-    fp = open(config_file)
+    fp = open(config_file, encoding='utf-8')
     txt = fp.read()
     fp.close()
     txt = txt.replace("PROJECT_NAME = 'SlimApplication'", "PROJECT_NAME = '%s'" % project_name.title())
     txt = txt.replace(' = b"6aOO5ZC55LiN5pWj6ZW/5oGo77yM6Iqx5p+T5LiN6YCP5Lmh5oSB44CC"', ' = %r' % base64.b64encode(os.urandom(48)))
-    try:
-        fp = open(config_file, 'w+', encoding='utf-8')
-    except:
-        fp = open(config_file, 'w+')
+    fp = open(config_file, 'w+', encoding='utf-8')
     fp.write(txt)
     fp.close()
     return True

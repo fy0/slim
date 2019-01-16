@@ -1,2 +1,2 @@
 import view.index
-import view.test
+import view.example

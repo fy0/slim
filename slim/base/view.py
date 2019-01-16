@@ -6,6 +6,9 @@ from types import FunctionType
 from typing import Tuple, Union, Dict, Iterable, Type, List, Set, Any, Optional
 from unittest import mock
 from aiohttp import web, hdrs
+from aiohttp.web_request import BaseRequest
+from multidict import CIMultiDictProxy
+
 from .sqlquery import SQLQueryInfo, SQL_TYPE, SQLForeignKey, SQLValuesToWrite, ALL_COLUMNS, PRIMARY_KEY, SQL_OP
 from .app import Application
 from .helper import create_signed_value, decode_signed_value
@@ -78,7 +81,7 @@ class BaseView(metaclass=MetaClassForInit):
             cls.permission = Permissions()
         cls.permission_init()
 
-    def __init__(self, app: Application, aiohttp_request: web.web_request.Request = None):
+    def __init__(self, app: Application, aiohttp_request: BaseRequest = None):
         self.app = app
         if aiohttp_request is None:
             self._request = mock.Mock()
@@ -237,7 +240,7 @@ class BaseView(metaclass=MetaClassForInit):
         return default
 
     @property
-    def headers(self) -> Dict:
+    def headers(self) -> CIMultiDictProxy:
         return self._request.headers
 
     @property
