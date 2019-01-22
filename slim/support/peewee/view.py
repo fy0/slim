@@ -5,8 +5,10 @@ from typing import Type, Tuple, List, Iterable, Union
 
 import peewee
 # noinspection PyPackageRequirements
-from playhouse.postgres_ext import JSONField as PG_JSONField, BinaryJSONField as PG_BinaryJSONField
-from playhouse.sqlite_ext import JSONField as SQLITE_JSONField
+try:
+    from playhouse.postgres_ext import JSONField as PG_JSONField, BinaryJSONField as PG_BinaryJSONField
+except:
+    from playhouse.sqlite_ext import JSONField as SQLITE_JSONField
 from playhouse.shortcuts import model_to_dict
 
 from ...base.sqlquery import SQL_TYPE, SQLForeignKey, SQL_OP, SQLQueryInfo, SQLQueryOrder, ALL_COLUMNS, \
@@ -257,14 +259,17 @@ class PeeweeViewOptions(ViewOptions):
 def field_class_to_sql_type(field: peewee.Field) -> SQL_TYPE:
     if isinstance(field, peewee.ForeignKeyField):
         field = field.rel_field
-
+    try:
+        if isinstance(field, (PG_JSONField, PG_BinaryJSONField)):
+            return SQL_TYPE.JSON
+    except:
+        if isinstance(field, SQLITE_JSONField):
+            # 注意 SQLITE_JSONField 是一个 _StringField 所以要提前
+            return SQL_TYPE.JSON
     if isinstance(field, peewee.IntegerField):
         return SQL_TYPE.INT
     elif isinstance(field, peewee.FloatField):
         return SQL_TYPE.FLOAT
-    elif isinstance(field, (PG_JSONField, PG_BinaryJSONField, SQLITE_JSONField)):
-        # 注意 SQLITE_JSONField 是一个 _StringField 所以要提前
-        return SQL_TYPE.JSON
     elif isinstance(field, peewee._StringField):
         return SQL_TYPE.STRING
     elif isinstance(field, peewee.BooleanField):
