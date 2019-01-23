@@ -5,6 +5,7 @@ from unittest import mock
 from aiohttp.test_utils import make_mocked_request
 from multidict import MultiDict
 
+from slim.base.user import BaseUserViewMixin
 from slim.retcode import RETCODE
 from slim.support.peewee import PeeweeView
 from peewee import *

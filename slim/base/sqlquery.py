@@ -353,7 +353,8 @@ class SQLQueryInfo:
             self.parse_then_add_condition(field_name, op, value)
 
     def check_query_permission(self, view: "AbstractSQLView"):
-        return self.check_query_permission_full(view.current_user, view.table_name, view.ability)
+        user = view.current_user if view.can_get_user else None
+        return self.check_query_permission_full(user, view.table_name, view.ability)
 
     def check_query_permission_full(self, user: "BaseUser", table: str, ability: "Ability"):
         from .permission import A
@@ -544,10 +545,11 @@ class SQLValuesToWrite(dict):
 
     def check_write_permission(self, view: "AbstractSQLView", action, records=None):
         from .permission import A
+        user = view.current_user if view.can_get_user else None
         if action == A.WRITE:
-            self.check_update_permission(view.current_user, view.table_name, view.ability, records)
+            self.check_update_permission(user, view.table_name, view.ability, records)
         elif action == A.CREATE:
-            self.check_insert_permission(view.current_user, view.table_name, view.ability)
+            self.check_insert_permission(user, view.table_name, view.ability)
         else:
             raise SlimException("Invalid action to write: %r" % action)
 

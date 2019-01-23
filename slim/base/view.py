@@ -141,8 +141,12 @@ class BaseView(metaclass=MetaClassForInit):
         return ip_address(ip_addr)
 
     @property
+    def can_get_user(self):
+        return isinstance(self, BaseUserViewMixin)
+
+    @property
     def current_user(self) -> BaseUser:
-        if not isinstance(self, BaseUserViewMixin):
+        if not self.can_get_user:
             raise NoUserViewMixinException("Current View should inherited from `BaseUserViewMixin` or it's subclasses")
         if not self._current_user:
             func = getattr(self, 'get_current_user', None)
@@ -475,7 +479,8 @@ class AbstractSQLView(BaseView):
         get_ioloop().run_until_complete(func())
 
     def _load_role(self, role):
-        self.ability = self.permission.request_role(self.current_user, role)
+        user = self.current_user if self.can_get_user else None
+        self.ability = self.permission.request_role(user, role)
         return self.ability
 
     @property
@@ -600,8 +605,9 @@ class AbstractSQLView(BaseView):
         return page, size
 
     async def check_records_permission(self, info, records):
+        user = self.current_user if self.can_get_user else None
         for record in records:
-            columns = record.set_info(info, self.ability, self.current_user)
+            columns = record.set_info(info, self.ability, user)
             if not columns: raise RecordNotFound(self.table_name)
         await self._call_handle(self.after_read, records)
 
@@ -688,9 +694,10 @@ class AbstractSQLView(BaseView):
 
             if record:
                 records = [record]
+                user = self.current_user if self.can_get_user else None
                 logger.debug('request permission: [%s] of table %r' % (A.DELETE, self.table_name))
                 for record in records:
-                    valid = self.ability.can_with_record(self.current_user, A.DELETE, record, available=record.keys())
+                    valid = self.ability.can_with_record(user, A.DELETE, record, available=record.keys())
 
                     if len(valid) == len(record.keys()):
                         logger.debug("request permission successed: %r" % list(record.keys()))

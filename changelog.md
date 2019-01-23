@@ -1,14 +1,16 @@
-#### 0.4.0 update 2019.01.23
+#### 0.4.0 update 2019.01.24
 
 * Added: `view.temp_storage` for save values during the request
 
-* Added: `view.current_user` throw a Exception when current View not inherited from `BaseUserViewMixin`
+* Added: **`view.current_user` throw a Exception when current View not inherited from `BaseUserViewMixin`**
 
 * Added: Accept 'Application/json' content as post data [#2](https://github.com/fy0/slim/pull/2)
 
 * Added: Application hooks: `on_startup`, `on_shutdown`, `on_cleanup` [#3](https://github.com/fy0/slim/pull/3)
 
 * Added: New finish method `finish_raw(body: bytes, status: int=200, content_type=None)` [#3](https://github.com/fy0/slim/pull/3)
+
+* Changed: compatible with current aiohttp version (3.5).
 
 * Changed: `get_current_user` can works with async function
 
