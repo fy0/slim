@@ -20,8 +20,7 @@ from playhouse.shortcuts import model_to_dict
 from ...base.sqlquery import SQL_TYPE, SQLForeignKey, SQL_OP, SQLQueryInfo, SQLQueryOrder, ALL_COLUMNS, \
     SQLValuesToWrite, UpdateInfo
 from ...exception import RecordNotFound, AlreadyExists, ResourceException, NotNullConstraintFailed
-from ...base.permission import DataRecord, Permissions, A
-from ...retcode import RETCODE
+from ...base.permission import DataRecord, Permissions
 from ...utils import to_bin, pagination_calc, dict_filter
 from ...base.view import AbstractSQLView, AbstractSQLFunctions, ViewOptions
 

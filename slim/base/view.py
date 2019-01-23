@@ -107,10 +107,11 @@ class BaseView(metaclass=MetaClassForInit):
 
     async def _prepare(self):
         # 如果获取用户是一个异步函数，那么提前将其加载
-        func = getattr(self, 'get_current_user', None)
-        if func:
-            if asyncio.iscoroutinefunction(func):
-                self._current_user = await func()
+        if self.can_get_user:
+            func = getattr(self, 'get_current_user', None)
+            if func:
+                if asyncio.iscoroutinefunction(func):
+                    self._current_user = await func()
         session_cls = self.app.options.session_cls
         self.session = await session_cls.get_session(self)
 
@@ -160,7 +161,7 @@ class BaseView(metaclass=MetaClassForInit):
 
     @property
     def roles(self) -> Set:
-        if not isinstance(self, BaseUserViewMixin):
+        if not self.can_get_user:
             raise NoUserViewMixinException("Current View should inherited from `BaseUserViewMixin` or it's subclasses")
         if self._current_user_roles is not None:
             return self._current_user_roles
