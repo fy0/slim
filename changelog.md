@@ -12,8 +12,6 @@
 
 * Added: New finish method `finish_raw(body: bytes, status: int=200, content_type=None)` [#3](https://github.com/fy0/slim/pull/3)
 
-* Changed: compatible with current aiohttp version (3.5).
-
 * Changed: `get_current_user` can works with async function
 
 * Changed(break): Renamed `view.current_role` to `view.current_request_role`
@@ -33,6 +31,8 @@
 * Removed(break): `view.permission_init` function
 
 * Changed: template update
+
+* Fixed: compatible with current aiohttp version (3.5).
 
 * Fixed: `psycopg2` not required for `PeeweeView`
 
