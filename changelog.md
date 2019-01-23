@@ -1,11 +1,41 @@
+#### 0.4.0 update 2019.01.23
+
+* Added: `view.temp_storage` for save values during the request
+
+* Added: `view.current_user` throw a Exception when current View not inherited from `BaseUserViewMixin`
+
+* Added: Accept 'Application/json' content as post data [#2](https://github.com/fy0/slim/pull/2)
+
+* Added: Application hooks: `on_startup`, `on_shutdown`, `on_cleanup` [#3](https://github.com/fy0/slim/pull/3)
+
+* Added: New finish method `finish_raw(body: bytes, status: int=200, content_type=None)` [#3](https://github.com/fy0/slim/pull/3)
+
+* Changed: `get_current_user` can works with async function
+
+* Changed(break): Renamed `view.current_role` to `view.current_request_role`
+
+* Changed(break): Renamed `view.current_user_roles` to `view.roles`
+
+* Changed(break): Renamed `BaseUserMixin` to `BaseUserViewMixin`
+
+* Changed(break): Renamed `BaseSecureCookieUserMixin` to `BaseSecureCookieUserViewMixin`
+
+* Changed(break): Renamed `BaseAccessTokenUserMixin` to `BaseAccessTokenUserViewMixin`
+
+* Changed(break): Renamed `BaseAccessTokenInParamUserMixin` to `BaseAccessTokenInParamUserViewMixin`
+
+* Changed: template update
+
+* Fixed: `psycopg2` not required for `PeeweeView`
+
 
 #### 0.3.14 update 2018.11.14
 
 * Added: the keys startswith '$' in params and postdata will be ignore for database query.
 
-* Adjusted: `prepare` and `on_finish` method mustn't be an async function anymore.
+* Changed: `prepare` and `on_finish` method mustn't be an async function anymore.
 
-* Adjusted: callbacks of insert(`view.before_insert` and `view.after_insert`) changed. It's a break change.
+* Changed: callbacks of insert(`view.before_insert` and `view.after_insert`) changed. It's a break change.
 
 * Fixed: a critical permission bug for all versions, upgrade immediately!!!
 
@@ -16,7 +46,7 @@
 
 * Added: `BaseView.get_ip` method
 
-* Adjusted: Use IOCP eventloop by default on windows system
+* Changed: Use IOCP eventloop by default on windows system
 
 * Fixed: query operator IS_NOT works
 
@@ -33,7 +63,7 @@
 
 #### 0.3.10 update 2018.06.01
 
-* Adjusted: `new` and `set` now accept empty values instead of throw exception.
+* Changed: `new` and `set` now accept empty values instead of throw exception.
 
 * Fixed: `SlimExceptions` raised by BaseView.prepare were not caught.
 

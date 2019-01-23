@@ -5,7 +5,7 @@ import aiohttp
 import asyncio
 from aiohttp import web
 from aiohttp.web_request import BaseRequest
-from .user import BaseUserMixin, BaseUser
+from .user import BaseUserViewMixin, BaseUser
 from ..retcode import RETCODE
 from ..utils.count_dict import CountDict
 from ..utils import MetaClassForInit, async_call

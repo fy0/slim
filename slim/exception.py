@@ -3,6 +3,10 @@ class SlimException(Exception):
     pass
 
 
+class NoUserViewMixinException(SlimException):
+    pass
+
+
 class SyntaxException(SlimException):
     pass
 

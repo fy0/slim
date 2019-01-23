@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 from abc import abstractmethod
@@ -9,6 +10,7 @@ from aiohttp import web, hdrs
 from aiohttp.web_request import BaseRequest
 from multidict import CIMultiDictProxy
 
+from slim.base.user import BaseUserViewMixin
 from .sqlquery import SQLQueryInfo, SQL_TYPE, SQLForeignKey, SQLValuesToWrite, ALL_COLUMNS, PRIMARY_KEY, SQL_OP
 from .app import Application
 from .helper import create_signed_value, decode_signed_value
@@ -19,7 +21,7 @@ from ..utils import pagination_calc, MetaClassForInit, async_call, get_ioloop, s
 from ..utils.json_ex import json_ex_dumps
 from ..exception import RecordNotFound, SyntaxException, InvalidParams, SQLOperatorInvalid, ColumnIsNotForeignKey, \
     ColumnNotFound, InvalidRole, PermissionDenied, FinishQuitException, SlimException, TableNotFound, \
-    ResourceException, NotNullConstraintFailed, AlreadyExists, InvalidPostData
+    ResourceException, NotNullConstraintFailed, AlreadyExists, InvalidPostData, NoUserViewMixinException
 
 logger = logging.getLogger(__name__)
 
@@ -96,12 +98,19 @@ class BaseView(metaclass=MetaClassForInit):
         self._post_data_cache = None
         self._post_json_cache = None
         self._current_user = None
+        self._current_user_roles = None
+        self.temp_storage = {}
 
     @property
     def is_finished(self):
         return self.response is not None
 
     async def _prepare(self):
+        # 如果获取用户是一个异步函数，那么提前将其加载
+        func = getattr(self, 'get_current_user', None)
+        if func:
+            if asyncio.iscoroutinefunction(func):
+                self._current_user = await func()
         session_cls = self.app.options.session_cls
         self.session = await session_cls.get_session(self)
 
@@ -133,49 +142,66 @@ class BaseView(metaclass=MetaClassForInit):
 
     @property
     def current_user(self) -> BaseUser:
+        if not isinstance(self, BaseUserViewMixin):
+            raise NoUserViewMixinException("Current View should inherited from `BaseUserViewMixin` or it's subclasses")
         if not self._current_user:
-            if getattr(self, 'get_current_user', None):
-                self._current_user = self.get_current_user()
+            func = getattr(self, 'get_current_user', None)
+            if func:
+                # 只加载非异步函数
+                if not asyncio.iscoroutinefunction(func):
+                    self._current_user = func()
             else:
                 self._current_user = None
         return self._current_user
 
     @property
-    def current_user_roles(self):
-        u = self.current_user
-        if u is None:
-            return {None}
-        return u.roles
+    def roles(self) -> Set:
+        if not isinstance(self, BaseUserViewMixin):
+            raise NoUserViewMixinException("Current View should inherited from `BaseUserViewMixin` or it's subclasses")
+        if self._current_user_roles is not None:
+            return self._current_user_roles
+        else:
+            u = self.current_user
+            self._current_user_roles = {None} if u is None else set(u.roles)
+            return self._current_user_roles
 
     @property
     def retcode(self):
         if self.is_finished:
             return self.ret_val['code']
 
-    def finish(self, code, data=NotImplemented):
-        if data is NotImplemented:
-            data = RETCODE.txt_cn.get(code, None)
-        self.ret_val = {'code': code, 'data': data}  # for access in inhreads method
-        self.response = web.json_response(self.ret_val, dumps=json_ex_dumps)
-        logger.debug('finish: %s' % self.ret_val)
+    def _finish_end(self):
         for i in self._cookie_set or ():
             if i[0] == 'set':
                 self.response.set_cookie(i[1], i[2], **i[3])
             else:
                 self.response.del_cookie(i[1])
 
-    def finish_raw(self,
-                   body: Any = None,
-                   status: int = 200,
-                   text: Optional[str] = None,
-                   content_type: Optional[str] = None, ):
-        self.response = web.Response(body=body, status=status, text=text, content_type=content_type)
+    def finish(self, code, data=NotImplemented):
+        """
+        Set response as {'code': xxx, 'data': xxx}
+        :param code:
+        :param data:
+        :return:
+        """
+        if data is NotImplemented:
+            data = RETCODE.txt_cn.get(code, None)
+        self.ret_val = {'code': code, 'data': data}  # for access in inhreads method
+        self.response = web.json_response(self.ret_val, dumps=json_ex_dumps)
         logger.debug('finish: %s' % self.ret_val)
-        for i in self._cookie_set or ():
-            if i[0] == 'set':
-                self.response.set_cookie(i[1], i[2], **i[3])
-            else:
-                self.response.del_cookie(i[1])
+        self._finish_end()
+
+    def finish_raw(self, body: bytes, status: int = 200, content_type: Optional[str] = None):
+        """
+        Set raw response
+        :param body:
+        :param status:
+        :param content_type:
+        :return:
+        """
+        self.response = web.Response(body=body, status=status, content_type=content_type)
+        logger.debug('finish: raw body(%d bytes)' % len(body))
+        self._finish_end()
 
     def del_cookie(self, key):
         if self._cookie_set is None:
@@ -453,7 +479,11 @@ class AbstractSQLView(BaseView):
         return self.ability
 
     @property
-    def current_role(self) -> [int, str]:
+    def current_request_role(self) -> [int, str]:
+        """
+        Current role requested by client.
+        :return:
+        """
         role_val = self.headers.get('Role')
         return int(role_val) if role_val and role_val.isdigit() else role_val
 
@@ -462,11 +492,11 @@ class AbstractSQLView(BaseView):
         # _sql 里使用了 self.err 存放数据
         # 那么可以推测在并发中，cls._sql.err 会被多方共用导致出错
         self._sql = self._sql_cls(self.__class__)
-        if not self._load_role(self.current_role):
+        if not self._load_role(self.current_request_role):
             logger.debug("load role %r failed, please check permission settings of View %r"
                          " (mapping to table %r)." %
-                         (self.current_role, type(self).__name__, type(self).table_name))
-            raise InvalidRole(self.current_role)
+                         (self.current_request_role, type(self).__name__, type(self).table_name))
+            raise InvalidRole(self.current_request_role)
 
     async def load_fk(self, info: SQLQueryInfo, records: Iterable[DataRecord]) -> Union[List, Iterable]:
         """

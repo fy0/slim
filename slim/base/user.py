@@ -18,13 +18,13 @@ class BaseUser:
         return {None}
 
 
-class BaseUserMixin:
+class BaseUserViewMixin:
     """
     应继承此类并实现自己的 UserMixin：
 
     from model.user import User
 
-    class UserMixin(BaseUserMixin):
+    class UserViewMixin(BaseUserMixin):
         @property
         def user_cls(self) -> Type[BaseUser]:
             return User
@@ -52,7 +52,7 @@ class BaseUserMixin:
 
 
 # noinspection PyAbstractClass
-class BaseSecureCookieUserMixin(BaseUserMixin):
+class BaseSecureCookieUserViewMixin(BaseUserViewMixin):
     def get_current_user(self):
         try:
             key = self.get_secure_cookie('u')
@@ -69,7 +69,7 @@ class BaseSecureCookieUserMixin(BaseUserMixin):
 
 
 # noinspection PyAbstractClass
-class BaseAccessTokenUserMixin(BaseUserMixin):
+class BaseAccessTokenUserViewMixin(BaseUserViewMixin):
     def get_current_user(self):
         access_token = self.headers.get('AccessToken', None)
         if access_token: return self.get_user_by_key(access_token)
@@ -79,7 +79,7 @@ class BaseAccessTokenUserMixin(BaseUserMixin):
 
 
 # noinspection PyAbstractClass
-class BaseAccessTokenInParamUserMixin(BaseUserMixin):
+class BaseAccessTokenInParamUserViewMixin(BaseUserViewMixin):
     def get_current_user(self):
         access_token = self.params.get('AccessToken', None)
         if access_token: return self.get_user_by_key(access_token)

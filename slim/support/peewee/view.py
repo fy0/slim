@@ -1,12 +1,20 @@
-import json
-import binascii
 import logging
+import peewee
 from typing import Type, Tuple, List, Iterable, Union
 
-import peewee
-# noinspection PyPackageRequirements
-from playhouse.postgres_ext import JSONField as PG_JSONField, BinaryJSONField as PG_BinaryJSONField
-from playhouse.sqlite_ext import JSONField as SQLITE_JSONField
+try:
+    from playhouse.postgres_ext import JSONField as PG_JSONField, BinaryJSONField as PG_BinaryJSONField
+    from playhouse.sqlite_ext import JSONField as SQLITE_JSONField
+except ImportError:
+    # noinspection PyPep8Naming
+    class PG_JSONField: pass
+
+    # noinspection PyPep8Naming
+    class PG_BinaryJSONField: pass
+
+    # noinspection PyPep8Naming
+    class SQLITE_JSONField: pass
+
 from playhouse.shortcuts import model_to_dict
 
 from ...base.sqlquery import SQL_TYPE, SQLForeignKey, SQL_OP, SQLQueryInfo, SQLQueryOrder, ALL_COLUMNS, \
