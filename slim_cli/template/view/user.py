@@ -1,10 +1,7 @@
 from slim.utils import to_bin
-
 from slim.base.user import BaseAccessTokenUserMixin
-
 from app import app
 from model.user import User
-from permissions import permissions_add_all
 from typing import Dict, List
 from slim.base.sqlquery import SQLValuesToWrite, DataRecord
 from slim.retcode import RETCODE
@@ -82,7 +79,3 @@ class UserView(PeeweeView, UserMixin):
             self.finish(RETCODE.SUCCESS)
         else:
             self.finish(RETCODE.FAILED)
-
-    @classmethod
-    def permission_init(cls):
-        permissions_add_all(cls.permission)

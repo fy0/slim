@@ -1,7 +1,7 @@
+from app import app
 from permissions.roles import *
 from permissions.tables import *
 
 
-def permissions_add_all(permission):
-    permission.add(visitor)
-    permission.add(normal_user)
+app.permission.add(visitor)
+app.permission.add(normal_user)

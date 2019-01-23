@@ -469,7 +469,7 @@ class SQLQueryInfo:
                         raise TableNotFound("Foreign key refer to a table not exists: %r -> %r" % (field_name, fk.rel_table))
 
                     # 检查对应的表的角色是否存在
-                    if values['role'] not in app.permissions[fk.rel_table].roles:
+                    if values['role'] not in app.table_permissions[fk.rel_table].roles:
                         raise InvalidRole('%s of %s' % (values['role'], fk.rel_table))
 
                     # 递归外键读取

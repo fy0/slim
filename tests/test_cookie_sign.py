@@ -5,7 +5,7 @@ from http.cookiejar import CookieJar
 from requests.cookies import morsel_to_cookie, merge_cookies
 from requests.utils import dict_from_cookiejar
 
-from slim import Application
+from slim import Application, ALL_PERMISSION
 from slim.base.helper import create_signed_value, decode_signed_value, _value_decode, _value_encode
 from slim.base.view import BaseView
 from slim.retcode import RETCODE
@@ -30,7 +30,7 @@ def test_sign():
     assert decode_data is None
 
 
-app = Application(cookies_secret=secret)
+app = Application(cookies_secret=secret, permission=ALL_PERMISSION)
 
 
 class FakeRequest:

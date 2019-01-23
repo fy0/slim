@@ -6,12 +6,12 @@ from aiohttp.test_utils import make_mocked_request
 from slim.retcode import RETCODE
 from slim.support.peewee import PeeweeView
 from peewee import *
-from slim import Application
+from slim import Application, ALL_PERMISSION
 from playhouse.sqlite_ext import JSONField as SQLITE_JSONField
 from tests.tools import make_mocked_view_instance
 
 pytestmark = [pytest.mark.asyncio]
-app = Application(cookies_secret=b'123456')
+app = Application(cookies_secret=b'123456', permission=ALL_PERMISSION)
 db = SqliteDatabase(":memory:")
 
 

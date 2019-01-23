@@ -271,8 +271,8 @@ class Ability:
 
 
 class Permissions:
-    def __init__(self):
-        self.app = None
+    def __init__(self, app):
+        self.app = app
         self.role_to_ability = {}
 
     @property
@@ -293,3 +293,7 @@ class Permissions:
         # TODO: 这里理论上存在 BUG，子类继承权限后如果进行修改，那么父类的 ability 也会跟着变化
         instance.role_to_ability = self.role_to_ability.copy()
         return instance
+
+
+ALL_PERMISSION = object()
+EMPTY_PERMISSION = object()

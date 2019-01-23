@@ -1,7 +1,6 @@
-import collections
 import logging
 import asyncio
-from typing import Union, List
+from typing import Union, List, Optional, TYPE_CHECKING
 from aiohttp import web
 from aiohttp.web_urldispatcher import StaticResource
 from .session import CookieSession
@@ -9,6 +8,11 @@ from ..utils import get_ioloop
 from ..utils.jsdict import JsDict
 import aiohttp_cors
 from . import log
+
+if TYPE_CHECKING:
+    from .permission import Permissions
+
+logger = logging.getLogger(__name__)
 
 
 class SlimTables(JsDict):
@@ -19,8 +23,17 @@ class SlimTables(JsDict):
 
 
 class SlimPermissions(JsDict):
+    def __init__(self, default, **kwargs):
+        super().__init__(**kwargs)
+        setattr(self, '_default_val', default)
+
+    def __getitem__(self, item):
+        return self.get(item, self.get('_default_val'))
+
     def __repr__(self):
         return '<SlimPermissions ' + dict.__repr__(self) + '>'
+
+    __getattr__ = __getitem__
 
 
 class ApplicationOptions:
@@ -42,18 +55,31 @@ class CORSOptions:
 
 class Application:
     def __init__(self, *, cookies_secret: bytes, log_level=logging.DEBUG, session_cls=CookieSession,
-                 client_max_size=2 * 1024 * 1024, cors_options: Union[CORSOptions, List[CORSOptions], None] = None):
+                 permission: Optional['Permissions'], client_max_size=2 * 1024 * 1024,
+                 cors_options: Optional[Union[CORSOptions, List[CORSOptions]]] = None):
         """
         :param cookies_secret:
         :param log_level:
+        :param permission: `ALL_PERMISSION`, `EMPTY_PERMISSION` or a `Permissions` object
         :param session_cls:
         :param client_max_size: 2MB is default client_max_body_size of nginx
         """
         from .route import get_route_middleware, Route
+        from .permission import Permissions, Ability, ALL_PERMISSION, EMPTY_PERMISSION
 
         self.route = Route(self)
+        if permission is ALL_PERMISSION:
+            logger.warning('app.permission is ALL_PERMISSION, it means everyone has all permissions for any table')
+            self.permission = Permissions(self)
+            self.permission.add(Ability(None, {'*': '*'}))  # everyone has all permission for all table
+        elif permission is None or permission is EMPTY_PERMISSION:
+            self.permission = Permissions(self)  # empty
+        else:
+            self.permission = permission
+            permission.app = self
+
         self.tables = SlimTables()
-        self.permissions = SlimPermissions()
+        self.table_permissions = SlimPermissions(self.permission)
 
         if log_level:
             log.enable(log_level)
@@ -70,6 +96,7 @@ class Application:
 
     def _prepare(self):
         from .view import AbstractSQLView
+        from .permission import Permissions
         self.route.bind()
 
         for _, cls in self.route.views:
@@ -79,8 +106,8 @@ class Application:
                                                               cls.table_name, self.tables[cls.table_name].__name__,
                                                               cls.__name__)
                 self.tables[cls.table_name] = cls
-                self.permissions[cls.table_name] = cls.permission
-                cls.permission.app = self
+                if isinstance(cls.permission, Permissions):
+                    self.table_permissions[cls.table_name] = cls.permission
 
         # Configure default CORS settings.
         if self.cors_options:

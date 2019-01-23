@@ -65,11 +65,6 @@ class BaseView(metaclass=MetaClassForInit):
         pass
 
     @classmethod
-    def permission_init(cls):
-        """ Override it """
-        cls.permission.add(Ability(None, {'*': '*'}))
-
-    @classmethod
     def cls_init(cls):
         cls._interface = {}
         cls.interface()
@@ -77,11 +72,10 @@ class BaseView(metaclass=MetaClassForInit):
             if isinstance(v, FunctionType):
                 if getattr(v, '_interface', None):
                     cls.use(k, *v._interface)
-        if getattr(cls, 'permission', None):
-            cls.permission = cls.permission.copy()
-        else:
-            cls.permission = Permissions()
-        cls.permission_init()
+
+    @property
+    def permission(self) -> Permissions:
+        return self.app.permission
 
     def __init__(self, app: Application, aiohttp_request: BaseRequest = None):
         self.app = app
@@ -306,8 +300,7 @@ class ViewOptions:
     def assign(self, obj: Type["AbstractSQLView"]):
         obj.LIST_PAGE_SIZE = self.list_page_size
         obj.LIST_ACCEPT_SIZE_FROM_CLIENT = self.list_accept_size_from_client
-        if self.permission:
-            obj.permission = self.permission
+        obj.permission = self.permission
 
 
 class ErrorCatchContext:

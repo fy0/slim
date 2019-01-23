@@ -50,6 +50,7 @@ setup(
 
     keywords='slim web framework model aiohttp asyncpg peewee',
     packages=find_packages(exclude=['tests']) + ['slim_cli', 'slim_cli.template', 'slim_cli.template.view',
+                                                 'slim_cli.template.permissions', 'slim_cli.template.tools',
                                                  'slim_cli.template.model'],
     package_dir={
         'slim_cli.template': 'slim_cli/template',

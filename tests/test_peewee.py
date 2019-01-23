@@ -9,10 +9,10 @@ from slim.base.user import BaseUserViewMixin
 from slim.retcode import RETCODE
 from slim.support.peewee import PeeweeView
 from peewee import *
-from slim import Application
+from slim import Application, ALL_PERMISSION
 
 pytestmark = [pytest.mark.asyncio]
-app = Application(cookies_secret=b'123456')
+app = Application(cookies_secret=b'123456', permission=ALL_PERMISSION)
 db = SqliteDatabase(":memory:")
 
 

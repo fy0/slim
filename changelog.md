@@ -2,6 +2,8 @@
 
 * Added: `view.temp_storage` for save values during the request
 
+* Added: `app.permission` option, it can be set to `ALL_PERMISSION`, `EMPTY_PERMISSION` or a `Permissions` object
+
 * Added: **`view.current_user` throw a Exception when current View not inherited from `BaseUserViewMixin`**
 
 * Added: Accept 'Application/json' content as post data [#2](https://github.com/fy0/slim/pull/2)
@@ -25,6 +27,10 @@
 * Changed(break): Renamed `BaseAccessTokenUserMixin` to `BaseAccessTokenUserViewMixin`
 
 * Changed(break): Renamed `BaseAccessTokenInParamUserMixin` to `BaseAccessTokenInParamUserViewMixin`
+
+* Changed(break): Renamed `app.permissions` to `app.table_permissions`
+
+* Removed(break): `view.permission_init` function
 
 * Changed: template update
 

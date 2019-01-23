@@ -133,7 +133,7 @@ def test_record_filter():
 
 
 def test_permission_role_bug():
-    p = Permissions()
+    p = Permissions(None)
     p.add(Ability(None, {'user': {'key': (A.READ,)}}))
     p.add(Ability('user', {'user': {'key': (A.READ, A.WRITE)}}))
     assert p.request_role(None, 'user').role is None
