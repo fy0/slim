@@ -198,6 +198,7 @@ class BaseView(metaclass=MetaClassForInit):
         :param content_type:
         :return:
         """
+        self.ret_val = body
         self.response = web.Response(body=body, status=status, content_type=content_type)
         logger.debug('finish: raw body(%d bytes)' % len(body))
         self._finish_end()
