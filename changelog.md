@@ -1,3 +1,10 @@
+#### 0.4.1 update 2019.01.25
+
+* Fixed: compatible with peewee [3.8.2](https://github.com/coleifer/peewee/releases/tag/3.8.2).
+
+* Fixed: slim-cli not work
+
+
 #### 0.4.0 update 2019.01.24
 
 * Added: `view.temp_storage` for save values during the request

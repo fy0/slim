@@ -1,0 +1,3 @@
+recursive-include slim_cli/template *.txt *.py
+include slim_cli/template/.gitignore
+include slim_cli/template/requirements.txt

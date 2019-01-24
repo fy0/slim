@@ -27,6 +27,10 @@ from ...base.view import AbstractSQLView, AbstractSQLFunctions, ViewOptions
 logger = logging.getLogger(__name__)
 
 
+def get_peewee_ver():
+    return tuple(map(int, peewee.__version__.split('.')))
+
+
 # noinspection PyProtectedMember
 class PeeweeDataRecord(DataRecord):
     def __init__(self, table_name, val: peewee.Model, *, view=None):
@@ -223,7 +227,11 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
                 q = model.insert_many(values_lst)
                 if returning:
                     ret = q.returning(*model._meta.fields.values()).execute()
-                    to_record = lambda x: PeeweeDataRecord(None, ret.model(**ret._row_to_dict(x)), view=self.vcls)
+                    if get_peewee_ver() >= (3, 8, 2):
+                        # incompatible change of peewee: https://github.com/coleifer/peewee/releases/tag/3.8.2
+                        to_record = lambda x: PeeweeDataRecord(None, x, view=self.vcls)
+                    else:
+                        to_record = lambda x: PeeweeDataRecord(None, ret.model(**ret._row_to_dict(x)), view=self.vcls)
                     items = map(to_record, ret)
                     return list(items)
                 else:

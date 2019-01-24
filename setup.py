@@ -19,7 +19,7 @@ def long_desc():
 
 setup(
     name='slim',
-    version='0.4.0',
+    version='0.4.1',
 
     description=description(),
     long_description=long_desc(),
@@ -46,15 +46,11 @@ setup(
         'Programming Language :: Python :: 3 :: Only',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7'
     ],
 
     keywords='slim web framework model aiohttp asyncpg peewee',
-    packages=find_packages(exclude=['tests']) + ['slim_cli', 'slim_cli.template', 'slim_cli.template.view',
-                                                 'slim_cli.template.permissions', 'slim_cli.template.tools',
-                                                 'slim_cli.template.model'],
-    package_dir={
-        'slim_cli.template': 'slim_cli/template',
-    },
+    packages=find_packages(exclude=['tests']) + ['slim_cli'],
     include_package_data=True,
     platforms='any',
 
@@ -62,9 +58,10 @@ setup(
     python_requires='>=3.5.3',
 
     extras_require={
-        'full': ['peewee', 'asyncpg', 'msgpack', 'psycopg2'],
-        'peewee': ['peewee', 'psycopg2'],
-        'asyncpg': ['asyncpg']
+        'full': ['peewee', 'asyncpg', 'msgpack', 'psycopg2-binary'],
+        'peewee': ['peewee', 'psycopg2-binary'],
+        'asyncpg': ['asyncpg'],
+        'dev': ['pytest', 'pytest-cov', 'pytest-asyncio', 'peewee', 'asyncpg', 'msgpack', 'psycopg2-binary']
     },
 
     entry_points={
