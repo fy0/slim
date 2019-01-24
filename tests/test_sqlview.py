@@ -25,7 +25,7 @@ class ATestModel(Model):
     value = IntegerField(null=True)
 
     class Meta:
-        db_table = 'test'
+        table_name = 'test'
         database = db
 
 
@@ -34,7 +34,7 @@ class ATestBModel(Model):
     link = ForeignKeyField(ATestModel)
 
     class Meta:
-        db_table = 'test2'
+        table_name = 'test2'
         database = db
 
 
@@ -43,7 +43,7 @@ class ATestCModel(Model):
     link = ForeignKeyField(ATestBModel)
 
     class Meta:
-        db_table = 'test3'
+        table_name = 'test3'
         database = db
 
 
@@ -52,7 +52,7 @@ class ATestDModel(Model):
     link = ForeignKeyField(ATestBModel, null=True)
 
     class Meta:
-        db_table = 'test4'
+        table_name = 'test4'
         database = db
 
 
@@ -534,12 +534,12 @@ async def test_in():
 
 class ATestReadyModel(ATestModel):
     class Meta:
-        db_table = 'ready_test'
+        table_name = 'ready_test'
 
 
 class ATestReadyModel2(ATestModel):
     class Meta:
-        db_table = 'ready_test2'
+        table_name = 'ready_test2'
 
 
 @app.route('test1')

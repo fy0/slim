@@ -20,7 +20,7 @@ class ATestModel(Model):
     info = BlobField()
 
     class Meta:
-        db_table = 'test'
+        table_name = 'test'
         database = db
 
 

@@ -8,4 +8,4 @@ class Test(BaseModel):
     test = TextField()
 
     class Meta:
-        db_table = 'test'
+        table_name = 'test'

@@ -32,7 +32,7 @@ class User(BaseModel, BaseUser):
     token_time = BigIntegerField()
 
     class Meta:
-        db_table = 'user'
+        table_name = 'user'
 
     @property
     def roles(self):

@@ -6,4 +6,4 @@ class Example(BaseModel):
     test = TextField()
 
     class Meta:
-        db_table = 'example'
+        table_name = 'example'

@@ -14,7 +14,7 @@ secret = b'asdasd' * 5
 
 
 def test_sign():
-    timestamp = int(time.clock())
+    timestamp = int(time.process_time())
     to_sign = [1, timestamp, 'test name', 'test value 中文', {'asd': '测试'}]
     value = create_signed_value(secret, to_sign)
 
