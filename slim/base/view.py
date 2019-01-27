@@ -293,15 +293,20 @@ class BaseView(metaclass=MetaClassForInit):
 
 
 class ViewOptions:
-    def __init__(self, *, list_page_size=20, list_accept_size_from_client=False, permission: Permissions = None):
+    def __init__(self, *, list_page_size=20, list_accept_size_from_client=False, list_page_size_client_limit=None,
+                 permission: Permissions = None):
         self.list_page_size = list_page_size
         self.list_accept_size_from_client = list_accept_size_from_client
-        self.permission = permission
+        self.list_page_size_client_limit = list_page_size_client_limit
+        if permission:
+            self.permission = permission
 
     def assign(self, obj: Type["AbstractSQLView"]):
         obj.LIST_PAGE_SIZE = self.list_page_size
-        obj.LIST_ACCEPT_SIZE_FROM_CLIENT = self.list_accept_size_from_client
-        obj.permission = self.permission
+        obj.LIST_PAGE_SIZE_CLIENT_LIMIT = self.list_page_size_client_limit
+        obj.LIST_ACCEPT_SIZE_FROM_CLIENT = self.list_page_size_client_limit
+        if isinstance(self.permission, Permissions):
+            obj.permission = self.permission
 
 
 class ErrorCatchContext:
@@ -386,6 +391,7 @@ class AbstractSQLView(BaseView):
 
     options_cls = ViewOptions
     LIST_PAGE_SIZE = 20  # list 单次取出的默认大小
+    LIST_PAGE_SIZE_CLIENT_LIMIT = None  # None 为与LIST_PAGE_SIZE相同，-1 为无限
     LIST_ACCEPT_SIZE_FROM_CLIENT = False
 
     table_name = None
@@ -460,8 +466,14 @@ class AbstractSQLView(BaseView):
         # because of BaseView.cls_init is a bound method (@classmethod)
         # so we can only route BaseView._interface, not cls._interface defined by user
         BaseView.cls_init.__func__(cls)
-
         # super().cls_init()  # fixed in 3.6
+
+        assert isinstance(cls.LIST_PAGE_SIZE, int), 'view.LIST_PAGE_SIZE must be int'
+        assert cls.LIST_PAGE_SIZE > 0, 'view.LIST_PAGE_SIZE must more than 0'
+        assert cls.LIST_PAGE_SIZE_CLIENT_LIMIT is None or isinstance(cls.LIST_PAGE_SIZE_CLIENT_LIMIT, int), \
+            'view.LIST_PAGE_SIZE_CLIENT_LIMIT must be None or int'
+        assert cls.LIST_PAGE_SIZE == -1 or cls.LIST_PAGE_SIZE > 0, \
+            'view.LIST_PAGE_SIZE must be None or -1 or more than 0'
 
         async def func():
             await cls._fetch_fields(cls)
@@ -584,16 +596,20 @@ class AbstractSQLView(BaseView):
         page = int(page)
 
         size = self.route_info.get('size', '').strip()
-        if self.LIST_ACCEPT_SIZE_FROM_CLIENT:
-            if size:
-                if size == '-1':  # size is infinite
-                    size = -1
-                elif size.isdigit():  # isdigit means size >= 0
-                    size = int(size or self.LIST_PAGE_SIZE)
+        if self.LIST_ACCEPT_SIZE_FROM_CLIENT and size:
+            page_size_limit = self.LIST_PAGE_SIZE_CLIENT_LIMIT or self.LIST_PAGE_SIZE
+            if size == '-1':  # -1 means all
+                size = -1
+            elif size.isdigit():  # size >= 0
+                size = int(size)
+                if size == 0:
+                    # use default value
+                    size = page_size_limit
                 else:
-                    raise InvalidParams("`size` is not a number")
+                    if page_size_limit != -1:
+                        size = min(size, page_size_limit)
             else:
-                size = self.LIST_PAGE_SIZE
+                raise InvalidParams("`size` is not a number")
         else:
             size = self.LIST_PAGE_SIZE
 

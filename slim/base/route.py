@@ -141,24 +141,6 @@ class Route:
             return obj
         return _
 
-    def head(self, url, obj):
-        return self.__call__(url, 'HEAD')(obj)
-
-    def get(self, url, obj):
-        return self.__call__(url, 'GET')(obj)
-
-    def post(self, url, obj):
-        return self.__call__(url, 'POST')(obj)
-
-    def put(self, url, obj):
-        return self.__call__(url, 'PUT')(obj)
-
-    def patch(self, url, obj):
-        return self.__call__(url, 'PATCH')(obj)
-
-    def delete(self, url, obj):
-        return self.__call__(url, 'DELETE')(obj)
-
     def add_static(self, prefix, path, **kwargs):
         """
         :param prefix: URL prefix

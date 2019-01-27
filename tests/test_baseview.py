@@ -1,11 +1,14 @@
 import base64
 from unittest import mock
 
+import pytest
 from aiohttp import web
 from aiohttp.test_utils import make_mocked_request
 
 from slim import Application
 from slim.base.view import BaseView
+
+pytestmark = [pytest.mark.asyncio]
 
 
 class ATestApplication(Application):
@@ -35,6 +38,7 @@ async def test_get_captcha():
                                   protocol=mock.Mock(), app=app)
     view = ATestView(app, request)
     await view._prepare()
+    await view.captcha()
     assert view.ret_val == base64.b64decode(captcha)
     assert view.response.content_type == 'image/png'
     assert view.response.status == 206
