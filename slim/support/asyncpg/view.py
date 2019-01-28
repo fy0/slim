@@ -222,3 +222,7 @@ class AsyncpgView(AbstractSQLView):
             for i in info:
                 ret[i['attname']] = [i['relname']]
             cls_or_self.foreign_keys = ret
+
+    @staticmethod
+    async def permission_valid_check(cls):
+        pass

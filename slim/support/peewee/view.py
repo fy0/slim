@@ -309,8 +309,8 @@ class PeeweeView(AbstractSQLView):
         # super().cls_init(False)
 
     @staticmethod
-    async def _fetch_fields(cls):
-        if cls.model:
+    async def _fetch_fields(cls_or_self):
+        if cls_or_self.model:
             pv3 = peewee.__version__[0] >= '3'
 
             # noinspection PyProtectedMember
@@ -324,19 +324,23 @@ class PeeweeView(AbstractSQLView):
                 meta = the_model._meta
                 return meta.table_name if pv3 else meta.db_table
 
-            cls.table_name = get_table_name(cls.model)
-            cls.primary_key = get_pk_name(cls.model)
-            cls.foreign_keys = {}
-            cls._peewee_fields = {}
+            cls_or_self.table_name = get_table_name(cls_or_self.model)
+            cls_or_self.primary_key = get_pk_name(cls_or_self.model)
+            cls_or_self.foreign_keys = {}
+            cls_or_self._peewee_fields = {}
 
             def wrap(name, field) -> str:
                 if isinstance(field, peewee.ForeignKeyField):
                     rm = field.rel_model
                     name = '%s_id' % name
-                    cls.foreign_keys[name] = [SQLForeignKey(get_table_name(rm), get_pk_name(rm),
-                                                           field_class_to_sql_type(rm))]
+                    cls_or_self.foreign_keys[name] = [SQLForeignKey(get_table_name(rm), get_pk_name(rm),
+                                                                    field_class_to_sql_type(rm))]
 
-                cls._peewee_fields[name] = field
+                cls_or_self._peewee_fields[name] = field
                 return name
 
-            cls.fields = {wrap(k, v): field_class_to_sql_type(v) for k, v in cls.model._meta.fields.items()}
+            cls_or_self.fields = {wrap(k, v): field_class_to_sql_type(v) for k, v in cls_or_self.model._meta.fields.items()}
+
+    @staticmethod
+    async def permission_valid_check(cls):
+        pass

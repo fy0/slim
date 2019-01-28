@@ -390,7 +390,7 @@ class AbstractSQLView(BaseView):
     is_base_class = True  # skip cls_init check
 
     options_cls = ViewOptions
-    LIST_PAGE_SIZE = 20  # list 单次取出的默认大小
+    LIST_PAGE_SIZE = 20  # list 单次取出的默认大小，若为-1取出所有
     LIST_PAGE_SIZE_CLIENT_LIMIT = None  # None 为与LIST_PAGE_SIZE相同，-1 为无限
     LIST_ACCEPT_SIZE_FROM_CLIENT = False
 
@@ -468,12 +468,14 @@ class AbstractSQLView(BaseView):
         BaseView.cls_init.__func__(cls)
         # super().cls_init()  # fixed in 3.6
 
-        assert isinstance(cls.LIST_PAGE_SIZE, int), 'view.LIST_PAGE_SIZE must be int'
-        assert cls.LIST_PAGE_SIZE > 0, 'view.LIST_PAGE_SIZE must more than 0'
-        assert cls.LIST_PAGE_SIZE_CLIENT_LIMIT is None or isinstance(cls.LIST_PAGE_SIZE_CLIENT_LIMIT, int), \
-            'view.LIST_PAGE_SIZE_CLIENT_LIMIT must be None or int'
+        assert isinstance(cls.LIST_PAGE_SIZE, int), '%s.LIST_PAGE_SIZE must be int' % cls.__name__
         assert cls.LIST_PAGE_SIZE == -1 or cls.LIST_PAGE_SIZE > 0, \
-            'view.LIST_PAGE_SIZE must be None or -1 or more than 0'
+            '%s.LIST_PAGE_SIZE must be -1 or more than 0' % cls.__name__
+        assert cls.LIST_PAGE_SIZE_CLIENT_LIMIT is None or isinstance(cls.LIST_PAGE_SIZE_CLIENT_LIMIT, int), \
+            '%s.LIST_PAGE_SIZE_CLIENT_LIMIT must be None or int' % cls.__name__
+        if isinstance(cls.LIST_PAGE_SIZE_CLIENT_LIMIT, int):
+            assert cls.LIST_PAGE_SIZE_CLIENT_LIMIT == -1 or cls.LIST_PAGE_SIZE_CLIENT_LIMIT > 0, \
+                '%s.LIST_PAGE_SIZE must be None or -1 or more than 0' % cls.__name__
 
         async def func():
             await cls._fetch_fields(cls)
@@ -595,25 +597,25 @@ class AbstractSQLView(BaseView):
             raise InvalidParams("`page` is not a number")
         page = int(page)
 
-        size = self.route_info.get('size', '').strip()
-        if self.LIST_ACCEPT_SIZE_FROM_CLIENT and size:
+        client_size = self.route_info.get('size', '').strip()
+        if self.LIST_ACCEPT_SIZE_FROM_CLIENT and client_size:
             page_size_limit = self.LIST_PAGE_SIZE_CLIENT_LIMIT or self.LIST_PAGE_SIZE
-            if size == '-1':  # -1 means all
-                size = -1
-            elif size.isdigit():  # size >= 0
-                size = int(size)
-                if size == 0:
+            if client_size == '-1':  # -1 means all
+                client_size = -1
+            elif client_size.isdigit():  # size >= 0
+                client_size = int(client_size)
+                if client_size == 0:
                     # use default value
-                    size = page_size_limit
+                    client_size = page_size_limit
                 else:
                     if page_size_limit != -1:
-                        size = min(size, page_size_limit)
+                        client_size = min(client_size, page_size_limit)
             else:
                 raise InvalidParams("`size` is not a number")
         else:
-            size = self.LIST_PAGE_SIZE
+            client_size = self.LIST_PAGE_SIZE
 
-        return page, size
+        return page, client_size
 
     async def check_records_permission(self, info, records):
         user = self.current_user if self.can_get_user else None
@@ -726,7 +728,7 @@ class AbstractSQLView(BaseView):
 
     @staticmethod
     @abstractmethod
-    async def _fetch_fields(cls):
+    async def _fetch_fields(cls_or_self):
         """
         4 values must be set up in this function:
         1. cls.table_name: str
@@ -734,7 +736,7 @@ class AbstractSQLView(BaseView):
         3. cls.fields: Dict['column', SQL_TYPE]
         4. cls.foreign_keys: Dict['column', List[SQLForeignKey]]
 
-        :param cls:
+        :param cls_or_self:
         :return:
         """
         pass
@@ -801,6 +803,16 @@ class AbstractSQLView(BaseView):
     async def after_delete(self, deleted_records: List[DataRecord]):
         """
         :param deleted_records:
+        :return:
+        """
+        pass
+
+    @staticmethod
+    @abstractmethod
+    async def permission_valid_check(cls):
+        """
+        To make sure current permission settings can fit with sql tables.
+        :param cls:
         :return:
         """
         pass
