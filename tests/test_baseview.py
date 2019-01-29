@@ -1,4 +1,6 @@
 import base64
+import threading
+import time
 from unittest import mock
 
 import pytest
@@ -34,6 +36,11 @@ async def test_init_config():
     assert init_config == 1
     assert close_socket == 1
     assert close_config == 1
+
+    thr = threading.Thread(target=app.run, args=["0.0.0.0", 8080])
+    thr.start()
+    time.sleep(3)
+
 
 
 app = Application(cookies_secret=b'123456', permission=None)
