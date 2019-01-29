@@ -2,6 +2,7 @@ import base64
 import threading
 import time
 from unittest import mock
+from multiprocessing import Process, Pool
 
 import pytest
 from aiohttp import web
@@ -33,14 +34,13 @@ async def test_init_config():
 
     app = ATestApplication(cookies_secret=b'123456', permission=None)
 
-    assert init_config == 1
-    assert close_socket == 1
-    assert close_config == 1
-
     thr = threading.Thread(target=app.run, args=["0.0.0.0", 8080])
     thr.start()
     time.sleep(3)
 
+    assert init_config == 1
+    assert close_socket == 1
+    assert close_config == 1
 
 
 app = Application(cookies_secret=b'123456', permission=None)
