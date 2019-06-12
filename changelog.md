@@ -1,6 +1,10 @@
 #### 0.4.2 update 2019.06.12
 
+* Added: `LIST_PAGE_SIZE_CLIENT_LIMIT` for view
+
 * Changed(break): list api does not return `NOT_FOUND` anymore
+
+* Changed(break): Removed `app.route.get` `app.route.post` `app.route.head` and so on
 
 * Fixed: Can not insert record with empty data
 
