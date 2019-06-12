@@ -56,7 +56,15 @@ class ATestDModel(Model):
         database = db
 
 
-db.create_tables([ATestModel, ATestBModel, ATestCModel, ATestDModel])
+class ATestNewModel(Model):
+    name = TextField(default='aaa')
+
+    class Meta:
+        table_name = 'test_new'
+        database = db
+
+
+db.create_tables([ATestModel, ATestBModel, ATestCModel, ATestDModel, ATestNewModel])
 a1 = ATestModel.create(name='Name1', binary=b'test1', count=1, json={'q': 1, 'w1': 2})
 a2 = ATestModel.create(name='Name2', binary=b'test2', count=2, json={'q': 1, 'w2': 2})
 a3 = ATestModel.create(name='Name3', binary=b'test3', count=3, json={'q': 1, 'w3': 2})
@@ -110,6 +118,11 @@ class ATestView4(PeeweeView):
     @classmethod
     def ready(cls):
         cls.add_soft_foreign_key('id', 'test')
+
+
+@app.route('test_new')
+class ATestNewView(PeeweeView):
+    model = ATestNewModel
 
 
 async def test_bind():
@@ -321,13 +334,15 @@ async def test_get_loadfk():
     view._params_cache = {'loadfk': json.dumps({'link_id': None})}
     await view._prepare()
     await view.list()
-    assert view.ret_val['code'] == RETCODE.NOT_FOUND
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+    assert len(view.ret_val['data']['items']) == 0
 
     # 15. loadfk and all foreign keys are null
     view = await make_mocked_view_instance(app, ATestView4, 'GET', '/api/test4/list/1',
                                            {'loadfk': json.dumps({'link_id': None})})
     await view.list()
-    assert view.ret_val['code'] == RETCODE.NOT_FOUND
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+    assert len(view.ret_val['data']['items']) == 0
 
 
 async def test_new():
@@ -357,6 +372,16 @@ async def test_new():
     await view._prepare()
     await view.new()
     assert view.ret_val['code'] == RETCODE.INVALID_POSTDATA
+
+
+async def test_new_without_data():
+    assert ATestNewModel.create()
+    request = make_mocked_request('POST', '/api/test_new', headers={}, protocol=mock.Mock(), app=app)
+    request._post = {}
+    view = ATestNewView(app, request)
+    await view._prepare()
+    await view.new()
+    assert view.ret_val['code'] == RETCODE.SUCCESS
 
 
 async def test_update():

@@ -1,7 +1,7 @@
 import logging
 from abc import abstractmethod
 from enum import Enum
-from typing import Tuple, Dict, Iterable, Union, List
+from typing import Tuple, Dict, Iterable, Union, List, Sequence
 from .sqlquery import SQLQueryInfo, SQLValuesToWrite, DataRecord
 
 logger = logging.getLogger(__name__)
@@ -33,7 +33,7 @@ class AbstractSQLFunctions:
         raise NotImplementedError()
 
     @abstractmethod
-    async def update(self, records: Iterable[DataRecord], values: SQLValuesToWrite, returning=False) -> Union[int, Iterable[DataRecord]]:
+    async def update(self, records: Iterable[DataRecord], values: SQLValuesToWrite, returning=False) -> Union[int, Sequence[DataRecord]]:
         """
         :param records:
         :param values:

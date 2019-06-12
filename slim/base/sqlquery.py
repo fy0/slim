@@ -495,6 +495,9 @@ class SQLValuesToWrite(dict):
     def __init__(self, post_data=None, view=None, action=None, records=None):
         super().__init__()
         self.returning = False
+        self._inner_data = {
+            'view': view
+        }
 
         if post_data:
             self.parse(post_data)
@@ -504,6 +507,8 @@ class SQLValuesToWrite(dict):
         self.clear()
         for k, v in post_data.items():
             if k.startswith('$'):
+                continue
+            elif k == '_inner_data':
                 continue
             elif k == 'returning':
                 self.returning = True
@@ -515,23 +520,37 @@ class SQLValuesToWrite(dict):
 
     def check_insert_permission(self, user: "BaseUser", table: str, ability: "Ability"):
         from .permission import A
-        logger.debug('request permission: [%s] of table %r' % (A.CREATE, table))
-        available = ability.can_with_columns(user, A.CREATE, table, self.keys())
+        columns = self.keys()
+        logger.debug('request permission: [%s] of table %r, columns: %s' % (A.CREATE, table, columns))
+        is_empty_input = not columns
+
+        # 如果插入数据项为空，那么用户应该至少有一个列的插入权限
+        if is_empty_input:
+            if self._inner_data.get('view'):
+                columns = self._inner_data['view'].fields.keys()
+
+        available = ability.can_with_columns(user, A.CREATE, table, columns)
         if not available: raise PermissionDenied()
         dict_filter_inplace(self, available)
 
         valid = ability.can_with_columns(user, A.CREATE, table, available)
 
-        if len(valid) != len(self):
-            logger.debug("request permission failed. request / valid: %r, %r" % (list(self.keys()), valid))
-            raise PermissionDenied()
+        if is_empty_input:
+            if len(valid) <= 0:
+                logger.debug("request permission failed. request / valid: %r, %r" % (list(self.keys()), valid))
+                raise PermissionDenied()
+        else:
+            if len(valid) != len(self):
+                logger.debug("request permission failed. request / valid: %r, %r" % (list(self.keys()), valid))
+                raise PermissionDenied()
 
         logger.debug("request permission successed: %r" % list(self.keys()))
 
     def check_update_permission(self, user: "BaseUser", table: str, ability: "Ability", records):
         from .permission import A
-        logger.debug('request permission: [%s] of table %r' % (A.WRITE, table))
-        available = ability.can_with_columns(user, A.WRITE, table, self.keys())
+        columns = self.keys()
+        logger.debug('request permission: [%s] of table %r, columns: %s' % (A.WRITE, table, columns))
+        available = ability.can_with_columns(user, A.WRITE, table, columns)
         if not available: raise PermissionDenied()
         dict_filter_inplace(self, available)
 

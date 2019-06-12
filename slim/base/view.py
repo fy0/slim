@@ -617,11 +617,11 @@ class AbstractSQLView(BaseView):
 
         return page, client_size
 
-    async def check_records_permission(self, info, records):
+    async def check_records_permission(self, info, records, *, exception_cls: Type[SlimException]=PermissionDenied):
         user = self.current_user if self.can_get_user else None
         for record in records:
             columns = record.set_info(info, self.ability, user)
-            if not columns: raise RecordNotFound(self.table_name)
+            if not columns: raise exception_cls(self.table_name)
         await self._call_handle(self.after_read, records)
 
     async def get(self):
@@ -632,6 +632,7 @@ class AbstractSQLView(BaseView):
 
             if record:
                 records = [record]
+                # , exception_cls=RecordNotFound
                 await self.check_records_permission(info, records)
                 data_dict = await self.load_fk(info, records)
                 self.finish(RETCODE.SUCCESS, data_dict[0])
@@ -646,15 +647,13 @@ class AbstractSQLView(BaseView):
             records, count = await self._sql.select_page(info, size, page)
             await self.check_records_permission(info, records)
 
-            if count:
-                if size == -1: size = count
-                pg = pagination_calc(count, size, page)
-                records = await self.load_fk(info, records)
-                pg["items"] = records
+            if size == -1: size = count
+            pg = pagination_calc(count, size, page)
+            records = await self.load_fk(info, records)
+            pg["items"] = records
 
-                self.finish(RETCODE.SUCCESS, pg)
-            else:
-                self.finish(RETCODE.NOT_FOUND)
+            self.finish(RETCODE.SUCCESS, pg)
+
 
     async def update(self):
         with ErrorCatchContext(self):

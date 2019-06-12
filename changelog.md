@@ -1,3 +1,10 @@
+#### 0.4.2 update 2019.06.12
+
+* Changed(break): list api does not return `NOT_FOUND` anymore
+
+* Fixed: Can not insert record with empty data
+
+
 #### 0.4.1 update 2019.01.25
 
 * Fixed: compatible with peewee [3.8.2](https://github.com/coleifer/peewee/releases/tag/3.8.2).
