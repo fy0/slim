@@ -17,13 +17,42 @@ from .helper import create_signed_value, decode_signed_value
 from .permission import Permissions, Ability, BaseUser, A, DataRecord
 from .sqlfuncs import AbstractSQLFunctions
 from ..retcode import RETCODE
-from ..utils import pagination_calc, MetaClassForInit, async_call, get_ioloop, sync_call
+from ..utils import pagination_calc, MetaClassForInit, async_call, get_ioloop, sync_call, BlobParser, BoolParser, \
+    JSONParser
 from ..utils.json_ex import json_ex_dumps
 from ..exception import RecordNotFound, SyntaxException, InvalidParams, SQLOperatorInvalid, ColumnIsNotForeignKey, \
     ColumnNotFound, InvalidRole, PermissionDenied, FinishQuitException, SlimException, TableNotFound, \
     ResourceException, NotNullConstraintFailed, AlreadyExists, InvalidPostData, NoUserViewMixinException
 
 logger = logging.getLogger(__name__)
+
+
+class ValueParser:
+    @staticmethod
+    def _normalize(val):
+        if isinstance(val, str):
+            return val.strip()
+        return val
+
+    def from_int(self, val):
+        val = self._normalize(val)
+        return int(val)
+
+    def from_float(self, val):
+        val = self._normalize(val)
+        return float(val)
+
+    def from_bool(self, val):
+        val = self._normalize(val)
+        return BoolParser(val)
+
+    def from_blob(self, val):
+        val = self._normalize(val)
+        return BlobParser(val)
+
+    def from_json(self, val):
+        val = self._normalize(val)
+        return JSONParser(val)
 
 
 class BaseView(metaclass=MetaClassForInit):
@@ -418,11 +447,10 @@ class AbstractSQLView(BaseView):
         # super().interface()  # 3.5, super(): empty __class__ cell
         cls.use('get', 'GET')
         cls.use_lst('list')
+        cls.use('set', 'POST')
         cls.use('update', 'POST')
         cls.use('new', 'POST')
         cls.use('delete', 'POST')
-        # deprecated
-        cls.use('set', 'POST')
 
     @classmethod
     def add_soft_foreign_key(cls, column, table_name, alias=None):
@@ -500,6 +528,10 @@ class AbstractSQLView(BaseView):
         """
         role_val = self.headers.get('Role')
         return int(role_val) if role_val and role_val.isdigit() else role_val
+
+    def __init__(self, app: Application, aiohttp_request: BaseRequest = None):
+        super().__init__(app, aiohttp_request)
+        self._sql = None
 
     async def _prepare(self):
         await super()._prepare()
@@ -654,7 +686,6 @@ class AbstractSQLView(BaseView):
 
             self.finish(RETCODE.SUCCESS, pg)
 
-
     async def update(self):
         with ErrorCatchContext(self):
             info = SQLQueryInfo(self.params, self)
@@ -669,6 +700,7 @@ class AbstractSQLView(BaseView):
                 values.bind(self, A.WRITE, records)
                 await self._call_handle(self.before_update, raw_post, values, records)
                 logger.debug('update record(s): %s' % values)
+                # 注：此处returning为true是因为后续要检查数据的权限，和前端返回无关
                 new_records = await self._sql.update(records, values, returning=True)
                 await self.check_records_permission(None, new_records)
                 await self._call_handle(self.after_update, raw_post, values, records, new_records)

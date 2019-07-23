@@ -1,3 +1,10 @@
+#### 0.4.3 update 2019.07.23
+
+* Changed: Renamed `XXConverter` to `XXParser`
+
+* Changed: Renamed `EMPTY_PERMISSION` to `NO_PERMISSION`
+
+
 #### 0.4.2 update 2019.06.12
 
 * Added: `LIST_PAGE_SIZE_CLIENT_LIMIT` for view
@@ -20,7 +27,7 @@
 
 * Added: `view.temp_storage` for save values during the request
 
-* Added: `app.permission` option, it can be set to `ALL_PERMISSION`, `EMPTY_PERMISSION` or a `Permissions` object
+* Added: `app.permission` option, it can be set to `ALL_PERMISSION`, `NO_PERMISSION` or a `Permissions` object
 
 * Added: **`view.current_user` throw a Exception when current View not inherited from `BaseUserViewMixin`**
 

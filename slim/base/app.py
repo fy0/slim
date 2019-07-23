@@ -65,14 +65,14 @@ class Application:
         :param client_max_size: 2MB is default client_max_body_size of nginx
         """
         from .route import get_route_middleware, Route
-        from .permission import Permissions, Ability, ALL_PERMISSION, EMPTY_PERMISSION
+        from .permission import Permissions, Ability, ALL_PERMISSION, NO_PERMISSION
 
         self.route = Route(self)
         if permission is ALL_PERMISSION:
             logger.warning('app.permission is ALL_PERMISSION, it means everyone has all permissions for any table')
             self.permission = Permissions(self)
             self.permission.add(Ability(None, {'*': '*'}))  # everyone has all permission for all table
-        elif permission is None or permission is EMPTY_PERMISSION:
+        elif permission is None or permission is NO_PERMISSION:
             self.permission = Permissions(self)  # empty
         else:
             self.permission = permission

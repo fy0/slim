@@ -23,7 +23,7 @@ from ...base.sqlquery import SQL_TYPE, SQLForeignKey, SQL_OP, SQLQueryInfo, SQLQ
     SQLValuesToWrite, UpdateInfo
 from ...exception import RecordNotFound, AlreadyExists, ResourceException, NotNullConstraintFailed
 from ...base.permission import DataRecord, Permissions
-from ...utils import to_bin, pagination_calc, dict_filter, get_bytes_from_blob
+from ...utils import to_bin, to_hex, pagination_calc, dict_filter, get_bytes_from_blob
 from ...base.view import AbstractSQLView, AbstractSQLFunctions, ViewOptions
 
 logger = logging.getLogger(__name__)
@@ -205,6 +205,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
             if isinstance(db, peewee.PostgresqlDatabase):
                 q = model.update(**new_vals).where(cond)
                 if returning:
+                    # cond: peewee.Expression
                     ret = q.returning(*model._meta.fields.values()).execute()
                     to_record = lambda x: PeeweeDataRecord(None, x, view=self.vcls)
                     items = map(to_record, ret)

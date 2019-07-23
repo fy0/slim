@@ -60,7 +60,7 @@ def time_readable():
     return time.strftime('%Y-%m-%d %H:%M:%S', x)
 
 
-class BoolConverter:
+class BoolParser:
     def __new__(self, val):
         is_true = val in ('true', 'True', '1')
         is_false = val in ('false', 'False', '0')
@@ -69,7 +69,7 @@ class BoolConverter:
         return is_true
 
 
-class BlobConverter:
+class BlobParser:
     def __new__(self, val):
         if isinstance(val, (memoryview, bytes)):
             return val
@@ -89,7 +89,7 @@ class BlobConverter:
             return to_bin(val)
 
 
-class JSONConverter:
+class JSONParser:
     def __new__(self, val):
         if isinstance(val, str):
             return json.loads(val)

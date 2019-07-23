@@ -296,4 +296,6 @@ class Permissions:
 
 
 ALL_PERMISSION = object()
-EMPTY_PERMISSION = object()
+NO_PERMISSION = object()
+
+EMPTY_PERMISSION = NO_PERMISSION

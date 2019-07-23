@@ -3,7 +3,7 @@ import logging
 from enum import Enum
 from typing import Union, Iterable, List, TYPE_CHECKING, Dict, Set
 
-from ..utils import BlobConverter, JSONConverter, is_py36, dict_filter, dict_filter_inplace, BoolConverter
+from ..utils import BlobParser, JSONParser, is_py36, dict_filter, dict_filter_inplace, BoolParser
 from ..exception import SyntaxException, ResourceException, InvalidParams, \
     PermissionDenied, ColumnNotFound, ColumnIsNotForeignKey, SQLOperatorInvalid, InvalidRole, SlimException, \
     InvalidPostData, TableNotFound
@@ -21,9 +21,9 @@ class SQL_TYPE(Enum):
     INT = int
     FLOAT = float
     STRING = str
-    BLOB = BlobConverter
-    BOOLEAN = BoolConverter
-    JSON = JSONConverter
+    BLOB = BlobParser
+    BOOLEAN = BoolParser
+    JSON = JSONParser
 
 
 class NamedObject:
