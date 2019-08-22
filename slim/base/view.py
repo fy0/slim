@@ -10,13 +10,14 @@ from aiohttp import web, hdrs
 from aiohttp.web_request import BaseRequest
 from multidict import CIMultiDictProxy
 
-from slim.base.user import BaseUserViewMixin
+from .user import BaseUserViewMixin
 from .sqlquery import SQLQueryInfo, SQL_TYPE, SQLForeignKey, SQLValuesToWrite, ALL_COLUMNS, PRIMARY_KEY, SQL_OP
 from .app import Application
 from .helper import create_signed_value, decode_signed_value
 from .permission import Permissions, Ability, BaseUser, A, DataRecord
 from .sqlfuncs import AbstractSQLFunctions
 from ..retcode import RETCODE
+from ..utils.jsdict import JsDict
 from ..utils import pagination_calc, MetaClassForInit, async_call, get_ioloop, sync_call, BlobParser, BoolParser, \
     JSONParser
 from ..utils.json_ex import json_ex_dumps
@@ -122,7 +123,7 @@ class BaseView(metaclass=MetaClassForInit):
         self._post_json_cache = None
         self._current_user = None
         self._current_user_roles = None
-        self.temp_storage = {}
+        self._ = self.temp_storage = JsDict()
 
     @property
     def is_finished(self):

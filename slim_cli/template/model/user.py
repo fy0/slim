@@ -28,11 +28,8 @@ class User(BaseModel, BaseUser):
     time = BigIntegerField()  # 创建时间
     state = IntegerField(default=POST_STATE.NORMAL, index=True)  # 当前状态
 
-    token = BlobField(index=True, null=True)
-    token_time = BigIntegerField()
-
     class Meta:
-        table_name = 'user'
+        db_table = 'user'
 
     @property
     def roles(self):
@@ -57,36 +54,6 @@ class User(BaseModel, BaseUser):
             config.PASSWORD_HASH_ITERATIONS,
         )
         return {'password': dk, 'salt': salt}
-
-    @classmethod
-    def gen_token(cls):
-        """ 生成 access_token """
-        token = os.urandom(16)
-        token_time = int(time.time())
-        return {'token': token, 'token_time': token_time}
-
-    def refresh_token(self):
-        count = 0
-        while count < 10:
-            with db.atomic():
-                try:
-                    k = self.gen_token()
-                    self.token = k['token']
-                    self.token_time = k['token_time']
-                    self.save()
-                    return k
-                except DatabaseError:
-                    count += 1
-                    db.rollback()
-        raise ValueError("generate token failed")
-
-    @classmethod
-    def get_by_token(cls, token):
-        """ 根据 access_token 获取用户 """
-        try:
-            return cls.get(cls.token == token)
-        except DoesNotExist:
-            return None
 
     def set_password(self, new_password):
         """ 设置密码 """
@@ -124,4 +91,9 @@ class User(BaseModel, BaseUser):
         return u._auth_base(password_text)
 
     def __repr__(self):
-        return '<User id:%x nickname:%r>' % (int.from_bytes(get_bytes_from_blob(self.id), 'big'), self.nickname)
+        if isinstance(self.id, (bytes, memoryview)):
+            return '<User id:%x nickname:%r>' % (int.from_bytes(get_bytes_from_blob(self.id), 'big'), self.nickname)
+        elif isinstance(self.id, int):
+            return '<User id:%d nickname:%r>' % (self.id, self.nickname)
+        else:
+            return '<User id:%s nickname:%r>' % (self.id, self.nickname)

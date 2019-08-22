@@ -35,6 +35,10 @@ class BaseModel(peewee.Model):
         return cls.select().where(cls._meta.primary_key == value).exists()
 
 
+class INETField(peewee.TextField):
+    field_type = 'inet'
+
+
 # asyncpg 配置
 asyncpg_conn = None
 

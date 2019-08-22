@@ -1,3 +1,13 @@
+#### 0.4.4 update 2019.08.22
+
+* Added: decorator `auth_role` and decorator generator `get_cooldown_decorator`
+
+* Added: Type hints for UserViewMixin
+
+* Changed(break): Rewrite `BaseUserViewMixin`.
+
+* Changed(break): Python 3.6 required
+
 #### 0.4.3 update 2019.07.23
 
 * Changed: Renamed `XXConverter` to `XXParser`
@@ -21,7 +31,6 @@
 * Fixed: compatible with peewee [3.8.2](https://github.com/coleifer/peewee/releases/tag/3.8.2).
 
 * Fixed: slim-cli not work
-
 
 #### 0.4.0 update 2019.01.24
 

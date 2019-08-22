@@ -1,6 +1,4 @@
 import logging
-import psycopg2
-
 import peewee
 from typing import Type, Tuple, List, Iterable, Union
 

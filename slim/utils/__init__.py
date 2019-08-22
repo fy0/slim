@@ -23,6 +23,7 @@ except ImportError:
 is_py36 = sys.version_info[0] >= 3 and sys.version_info[1] >= 6
 
 RegexPatternType = type(re.compile(''))
+sentinel = object()
 
 
 def random_str(random_length=16, chars=string.ascii_uppercase + string.digits):

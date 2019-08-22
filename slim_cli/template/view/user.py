@@ -1,26 +1,45 @@
-from slim.utils import to_bin
-from slim.base.user import BaseAccessTokenUserMixin
+from slim.base.view import BaseView
+from slim.utils import sentinel
+from slim.base.user import BaseAccessTokenUserViewMixin, BaseUserViewMixin, BaseUser
 from app import app
 from model.user import User
-from typing import Dict, List
+from typing import Dict, List, Union, Type
 from slim.base.sqlquery import SQLValuesToWrite, DataRecord
 from slim.retcode import RETCODE
 from slim.support.peewee import PeeweeView
+
+from model.user_token import UserToken
 from view import ValidateForm
 from wtforms import validators as va, StringField, IntegerField, ValidationError
 
 
-class UserMixin(BaseAccessTokenUserMixin):
+class UserMixin(BaseAccessTokenUserViewMixin):
     """ 用户Mixin，用于与View """
-    def teardown_user_key(self):
-        u: User = self.current_user
-        u.key = None
-        u.save()
+    @property
+    def user_cls(self):
+        return User
 
-    def get_user_by_key(self, key):
-        if not key: return
-        try: return User.get_by_token(to_bin(key))
-        except: pass
+    def get_user_by_token(self: Union['BaseUserViewMixin', 'BaseView'], token) -> Type[BaseUser]:
+        t = UserToken.get_by_token(token)
+        if  t: return User.get_by_pk(t.user_id)
+
+    def setup_user_token(self, user_id, key=None, expires=30):
+        """ setup user token """
+        t = UserToken.new(user_id)
+        t.init(self)
+
+    def teardown_user_token(self: Union['BaseUserViewMixin', 'BaseView'], token=sentinel):
+        """ invalidate the token here"""
+        u = self.current_user
+        if u:
+            if token is None:
+                # clear all tokens
+                UserToken.delete().where(UserToken.user_id == u.id).execute()
+                return
+
+            if token is sentinel:
+                token = self.get_user_token()
+            UserToken.delete().where(UserToken.user_id == u.id, UserToken.id == token).execute()
 
 
 class SigninByEmailForm(ValidateForm):
@@ -63,19 +82,18 @@ class UserView(PeeweeView, UserMixin):
         # auth and generate access token
         user = auth_method(post[account_key], post['password'])
         if user:
-            user.refresh_token()
-            self.setup_user_key(user.token, 30)
+            self.setup_user_token(user.id)
             self.finish(RETCODE.SUCCESS, {'id': user.id, 'access_token': user.token})
+        else:
+            self.finish(RETCODE.FAILED)
+
+    @app.route.interface('POST')
+    async def signout(self):
+        if self.current_user:
+            self.teardown_user_token()
+            self.finish(RETCODE.SUCCESS)
         else:
             self.finish(RETCODE.FAILED)
 
     async def before_update(self, raw_post: Dict, values: SQLValuesToWrite, records: List[DataRecord]):
         pass
-
-    @app.route.interface('POST')
-    async def signout(self):
-        if self.current_user:
-            self.teardown_user_key()
-            self.finish(RETCODE.SUCCESS)
-        else:
-            self.finish(RETCODE.FAILED)

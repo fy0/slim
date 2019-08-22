@@ -19,7 +19,7 @@ def long_desc():
 
 setup(
     name='slim',
-    version='0.4.2',
+    version='0.4.4',
 
     description=description(),
     long_description=long_desc(),
@@ -50,12 +50,22 @@ setup(
     ],
 
     keywords='slim web framework model aiohttp asyncpg peewee',
-    packages=find_packages(exclude=['tests']) + ['slim_cli'],
+    packages=find_packages(exclude=['tests']) + ['slim_cli',
+                                                 'slim_cli.template',
+                                                 'slim_cli.template.permissions',
+                                                 'slim_cli.template.permissions.roles',
+                                                 'slim_cli.template.permissions.tables',
+                                                 'slim_cli.template.view',
+                                                 'slim_cli.template.tools',
+                                                 'slim_cli.template.model'],
+    package_dir={
+        'slim_cli.template': 'slim_cli/template',
+    },
     include_package_data=True,
     platforms='any',
 
     install_requires=['aiohttp', 'aiohttp_cors', 'click'],
-    python_requires='>=3.5.3',
+    python_requires='>=3.6.0',
 
     extras_require={
         'full': ['peewee', 'asyncpg', 'msgpack', 'psycopg2-binary'],
