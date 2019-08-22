@@ -1,9 +1,9 @@
 import typing
 from abc import abstractmethod
-from typing import Union
+from typing import Union, Type
 
 if typing.TYPE_CHECKING:
-    from .view import BaseView, Type
+    from .view import BaseView
 
 
 class BaseUser:
