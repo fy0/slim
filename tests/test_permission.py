@@ -1,7 +1,7 @@
 # coding:utf-8
 from slim.base.permission import A, Ability, DataRecord, Permissions
 
-ab = Ability('normal', {
+ab = Ability({
     # 测试不带通配的权限
     'user': {
         'username': (A.QUERY, A.READ),
