@@ -1,9 +1,12 @@
+import binascii
 import os
 import time
+from typing import Optional
 
 from peewee import TextField, BigIntegerField, BlobField
 from slim.base.view import AbstractSQLView
 from model import BaseModel, INETField
+from slim.utils import to_bin, get_bytes_from_blob
 
 
 class UserToken(BaseModel):
@@ -21,6 +24,9 @@ class UserToken(BaseModel):
     ip_latest = INETField(default=None, null=True)
     ua_latest = TextField(null=True)
 
+    class Meta:
+        db_table = 'user_token'
+
     @classmethod
     def new(cls, user_id):
         create_time = int(time.time())
@@ -29,10 +35,19 @@ class UserToken(BaseModel):
         return UserToken.create(id=token, time=create_time, user_id=user_id, expire=expire_time)
 
     @classmethod
-    def get_by_token(cls, token) -> 'UserToken':
+    def get_by_token(cls, token) -> Optional['UserToken']:
+        if isinstance(token, str):
+            try:
+                token = to_bin(token)
+            except binascii.Error:
+                return
+
         t = cls.get_by_pk(token)
-        if t and time.time() > t.expire:
+        if t and time.time() < t.expire:
             return t
+
+    def get_token(self):
+        return get_bytes_from_blob(self.id)
 
     async def init(self, view: AbstractSQLView):
         """

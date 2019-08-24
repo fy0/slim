@@ -1,5 +1,7 @@
+import binascii
+
 from slim.base.view import BaseView
-from slim.utils import sentinel
+from slim.utils import sentinel, to_bin
 from slim.base.user import BaseAccessTokenUserViewMixin, BaseUserViewMixin, BaseUser
 from app import app
 from model.user import User
@@ -21,7 +23,7 @@ class UserMixin(BaseAccessTokenUserViewMixin):
 
     def get_user_by_token(self: Union['BaseUserViewMixin', 'BaseView'], token) -> Type[BaseUser]:
         t = UserToken.get_by_token(token)
-        if  t: return User.get_by_pk(t.user_id)
+        if t: return User.get_by_pk(t.user_id)
 
     def setup_user_token(self, user_id, key=None, expires=30):
         """ setup user token """
@@ -38,7 +40,10 @@ class UserMixin(BaseAccessTokenUserViewMixin):
                 return
 
             if token is sentinel:
-                token = self.get_user_token()
+                try:
+                    token = to_bin(self.get_user_token())
+                except binascii.Error:
+                    return
             UserToken.delete().where(UserToken.user_id == u.id, UserToken.id == token).execute()
 
 

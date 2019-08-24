@@ -1,3 +1,16 @@
+#### 0.4.5 update 2019.08.24
+
+* Added: `msg` parameter for view.finish
+
+* Changed(break): Rename decorator `auth_role` to `request_role`
+
+* Changed(break): Changed define of `Ability`
+
+* Changed: Updated cli template
+
+* Changed: Cli generate project with random port
+
+
 #### 0.4.4 update 2019.08.22
 
 * Added: decorator `auth_role` and decorator generator `get_cooldown_decorator`
@@ -7,6 +20,7 @@
 * Changed(break): Rewrite `BaseUserViewMixin`.
 
 * Changed(break): Python 3.6 required
+
 
 #### 0.4.3 update 2019.07.23
 

@@ -19,7 +19,13 @@ async def get_ip(view: BaseView) -> bytes:
 def get_cooldown_decorator(aioredis_instance, default_unique_id_func=get_ip):
     redis = aioredis_instance
 
-    def cooldown(interval, redis_key_template, *, unique_id_func=default_unique_id_func, cd_if_unsuccessed=None):
+    def cooldown(interval_value_or_func, redis_key_template, *, unique_id_func=default_unique_id_func, cd_if_unsuccessed=None):
+        if isinstance(interval_value_or_func, int):
+            interval = interval_value_or_func
+            interval_func = None
+        else:
+            interval_func = interval_value_or_func
+
         def wrapper(func):
             async def myfunc(self: BaseView, *args, **kwargs):
                 # 有可能在刚进入的时候，上一轮已经finish了，那么直接退出
@@ -48,6 +54,8 @@ def get_cooldown_decorator(aioredis_instance, default_unique_id_func=get_ip):
                         return ret
 
                     # 所有跳过条件都不存在，设置正常的expire并退出
+                    if interval_func:
+                        interval = interval_func(unique_id)
                     await redis.set(key, '1', expire=interval)
                     return ret
             return myfunc

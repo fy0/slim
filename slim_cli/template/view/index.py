@@ -9,7 +9,7 @@ class TestBaseView(BaseView):
     @app.route.interface('GET')
     async def info(self):
         self.finish(RETCODE.SUCCESS, {
-            'retcode': list(RETCODE.items()),
+            'retcode': RETCODE.to_dict(),
             'retinfo': RETCODE.txt_cn,
         })
 

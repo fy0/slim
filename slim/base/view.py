@@ -19,7 +19,7 @@ from .sqlfuncs import AbstractSQLFunctions
 from ..retcode import RETCODE
 from ..utils.jsdict import JsDict
 from ..utils import pagination_calc, MetaClassForInit, async_call, get_ioloop, sync_call, BlobParser, BoolParser, \
-    JSONParser
+    JSONParser, sentinel
 from ..utils.json_ex import json_ex_dumps
 from ..exception import RecordNotFound, SyntaxException, InvalidParams, SQLOperatorInvalid, ColumnIsNotForeignKey, \
     ColumnNotFound, InvalidRole, PermissionDenied, FinishQuitException, SlimException, TableNotFound, \
@@ -206,16 +206,19 @@ class BaseView(metaclass=MetaClassForInit):
             else:
                 self.response.del_cookie(i[1])
 
-    def finish(self, code, data=NotImplemented):
+    def finish(self, code, data=sentinel, msg=sentinel):
         """
         Set response as {'code': xxx, 'data': xxx}
         :param code:
         :param data:
+        :param msg: 可选
         :return:
         """
-        if data is NotImplemented:
+        if data is sentinel:
             data = RETCODE.txt_cn.get(code, None)
         self.ret_val = {'code': code, 'data': data}  # for access in inhreads method
+        if msg is not sentinel:
+            self.ret_val['msg'] = msg
         self.response = web.json_response(self.ret_val, dumps=json_ex_dumps)
         logger.debug('finish: %s' % self.ret_val)
         self._finish_end()

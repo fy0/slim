@@ -1,4 +1,6 @@
 import os
+import random
+
 import click
 import base64
 import shutil
@@ -14,6 +16,7 @@ def gen(project_dir, project_name):
     fp = open(config_file, encoding='utf-8')
     txt = fp.read()
     fp.close()
+    txt = txt.replace('PORT = 9999', 'PORT = 9%03d' % random.randint(0, 999))
     txt = txt.replace("PROJECT_NAME = 'SlimApplication'", "PROJECT_NAME = '%s'" % project_name.title())
     txt = txt.replace(' = b"6aOO5ZC55LiN5pWj6ZW/5oGo77yM6Iqx5p+T5LiN6YCP5Lmh5oSB44CC"', ' = %r' % base64.b64encode(os.urandom(48)))
     fp = open(config_file, 'w+', encoding='utf-8')

@@ -4,6 +4,7 @@ import time
 from peewee import *
 from slim.base.user import BaseUser
 from slim.utils import StateObject, get_bytes_from_blob
+from permissions.role_define import ACCESS_ROLE
 
 import config
 from model import BaseModel, db
@@ -40,7 +41,7 @@ class User(BaseModel, BaseUser):
         ret = {None}
         if self.state == POST_STATE.DEL:
             return ret
-        ret.add('user')
+        ret.add(ACCESS_ROLE.NORMAL_USER)
         return ret
 
     @classmethod
@@ -75,7 +76,7 @@ class User(BaseModel, BaseUser):
             config.PASSWORD_HASH_ITERATIONS
         )
 
-        if self.password == dk:
+        if get_bytes_from_blob(self.password) == get_bytes_from_blob(dk):
             return self
 
     @classmethod

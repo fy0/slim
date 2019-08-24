@@ -47,7 +47,7 @@ class AbilityColumn:
 
 
 class Ability:
-    def __init__(self, role: (str, int), data: dict = None, based_on=None):
+    def __init__(self, data: dict = None, *, based_on=None):
         """
         {
             'user': {
@@ -59,11 +59,10 @@ class Ability:
             'topic': '*',
             'test': ['query', 'read', 'write', 'create', 'delete'],
         }
-        :param role: 
-        :param data: 
+        :param data:
         :param based_on: 
         """
-        self.role = role
+        self.role = None
         if based_on:
             self.rules = copy.deepcopy(based_on.rules)
         else:
@@ -279,20 +278,16 @@ class Permissions:
     def roles(self):
         return self.role_to_ability
 
-    def add(self, ability: Ability):
-        self.role_to_ability[ability.role] = ability
+    def add(self, role: Optional[str], ability: Ability):
+        assert isinstance(ability, Ability)
+        ability.role = role
+        self.role_to_ability[role] = ability
 
     def request_role(self, user: Optional[BaseUser], role) -> Optional[Ability]:
         if user is None:
             return self.role_to_ability.get(None)
         if role in user.roles:
             return self.role_to_ability.get(role)
-
-    def copy(self) -> 'Permissions':
-        instance = Permissions()
-        # TODO: 这里理论上存在 BUG，子类继承权限后如果进行修改，那么父类的 ability 也会跟着变化
-        instance.role_to_ability = self.role_to_ability.copy()
-        return instance
 
 
 ALL_PERMISSION = object()
