@@ -7,8 +7,8 @@ from types import FunctionType
 from typing import Tuple, Union, Dict, Iterable, Type, List, Set, Any, Optional
 from unittest import mock
 from aiohttp import web, hdrs
-from aiohttp.web_request import BaseRequest
-from multidict import CIMultiDictProxy
+from aiohttp.web_request import BaseRequest, FileField
+from multidict import CIMultiDictProxy, MultiDictProxy
 
 from .user import BaseUserViewMixin
 from .sqlquery import SQLQueryInfo, SQL_TYPE, SQLForeignKey, SQLValuesToWrite, ALL_COLUMNS, PRIMARY_KEY, SQL_OP
@@ -63,8 +63,6 @@ class BaseView(metaclass=MetaClassForInit):
     """
     _interface = {}
     _no_route = False
-
-    # permission: Permissions  # 3.6
 
     @classmethod
     def use(cls, name, method: [str, Set, List], url=None):
@@ -216,6 +214,8 @@ class BaseView(metaclass=MetaClassForInit):
         """
         if data is sentinel:
             data = RETCODE.txt_cn.get(code, None)
+        if msg is sentinel and code != RETCODE.SUCCESS:
+            msg = RETCODE.txt_cn.get(code, None)
         self.ret_val = {'code': code, 'data': data}  # for access in inhreads method
         if msg is not sentinel:
             self.ret_val['msg'] = msg
@@ -242,9 +242,9 @@ class BaseView(metaclass=MetaClassForInit):
         self._cookie_set.append(('del', key))
 
     @property
-    def params(self) -> dict:
+    def params(self) -> "MultiDictProxy[str]":
         if self._params_cache is None:
-            self._params_cache = dict(self._request.query)
+            self._params_cache = self._request.query
         return self._params_cache
 
     async def _post_json(self) -> dict:
@@ -253,7 +253,7 @@ class BaseView(metaclass=MetaClassForInit):
             self._post_json_cache = dict(await self._request.json())
         return self._post_json_cache
 
-    async def post_data(self) -> dict:
+    async def post_data(self) -> "MultiDictProxy[Union[str, bytes, FileField]]":
         if self._post_data_cache is not None:
             return self._post_data_cache
         if self._request.content_type == 'application/json':
@@ -261,7 +261,7 @@ class BaseView(metaclass=MetaClassForInit):
             self._post_data_cache = dict(await self._request.json())
         else:
             # post body: form data
-            self._post_data_cache = dict(await self._request.post())
+            self._post_data_cache = await self._request.post()
         logger.debug('raw post data: %s', self._post_data_cache)
         return self._post_data_cache
 
@@ -300,6 +300,7 @@ class BaseView(metaclass=MetaClassForInit):
 
     @property
     def headers(self) -> CIMultiDictProxy:
+        self._request: web.Request
         return self._request.headers
 
     @property
@@ -308,6 +309,7 @@ class BaseView(metaclass=MetaClassForInit):
         info matched by router
         :return:
         """
+        self._request: web.Request
         return self._request.match_info
 
     @classmethod

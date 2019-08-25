@@ -2,7 +2,7 @@ from ..retcode import RETCODE
 from ..base.view import BaseView, AbstractSQLView
 
 
-def auth_role(role=None):
+def request_role(role=None):
     def _(func):
         async def __(view: AbstractSQLView, *args, **kwargs):
             if role not in view.roles:

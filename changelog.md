@@ -1,8 +1,15 @@
+#### 0.4.6 update 2019.08.25
+
+* Added: template update
+
+* Changed(break): Rename decorator `auth_role` to `request_role`
+
+* Fixed: Correct return value of `view.params` and `view.post()` to `MultiDict`
+
+
 #### 0.4.5 update 2019.08.24
 
 * Added: `msg` parameter for view.finish
-
-* Changed(break): Rename decorator `auth_role` to `request_role`
 
 * Changed(break): Changed define of `Ability`
 
