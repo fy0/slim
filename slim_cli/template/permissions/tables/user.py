@@ -4,7 +4,7 @@ from slim.base.permission import Ability, A, DataRecord
 from slim.base.sqlquery import SQLQueryInfo, SQL_OP
 from slim.utils import get_bytes_from_blob
 
-TABLE_USER = 'user'
+TABLE_NAME = 'user'
 
 
 # 如果查询的是自己，多附带部分信息
@@ -15,7 +15,7 @@ def func(ability: Ability, user, query: 'SQLQueryInfo'):
             query.select.add('token_time')
 
 
-normal_user.add_query_condition(TABLE_USER, func=func)
+normal_user.add_query_condition(TABLE_NAME, func=func)
 
 
 # 阻止其他人写入自己的个人资料
@@ -26,7 +26,7 @@ def check_is_me(ability, user, action, record: DataRecord, available_columns: li
     return True
 
 
-visitor.add_record_check((A.WRITE,), TABLE_USER, func=check_is_me)
+visitor.add_record_check((A.WRITE,), TABLE_NAME, func=check_is_me)
 
 # 不允许查询删除状态的信息
-add_post_visible_limit(TABLE_USER)
+add_post_visible_limit(TABLE_NAME)

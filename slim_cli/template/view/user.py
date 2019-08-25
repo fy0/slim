@@ -25,10 +25,11 @@ class UserMixin(BaseAccessTokenUserViewMixin):
         t = UserToken.get_by_token(token)
         if t: return User.get_by_pk(t.user_id)
 
-    def setup_user_token(self, user_id, key=None, expires=30):
+    async def setup_user_token(self, user_id, key=None, expires=30):
         """ setup user token """
         t = UserToken.new(user_id)
-        t.init(self)
+        await t.init(self)
+        return t
 
     def teardown_user_token(self: Union['BaseUserViewMixin', 'BaseView'], token=sentinel):
         """ invalidate the token here"""
@@ -53,15 +54,44 @@ class SigninByEmailForm(ValidateForm):
     password = StringField('password', validators=[va.required()])
 
 
-class SigninByNicknameForm(ValidateForm):
-    """ 邮箱登录验证表单 """
-    nickname = StringField('nickname', validators=[va.required(), va.Length(2, 30)])
+class SigninByUsernameForm(ValidateForm):
+    """ 用户名登录验证表单 """
+    username = StringField('username', validators=[va.required(), va.Length(2, 30)])
+    password = StringField('password', validators=[va.required()])
+
+
+class SignupForm(ValidateForm):
+    """ 注册验证表单 """
+    username = StringField('username', validators=[va.required(), va.Length(2, 30)])
+    email = StringField('email', validators=[va.optional(), va.Length(3, 30), va.Email()])
     password = StringField('password', validators=[va.required()])
 
 
 @app.route('user')
 class UserView(PeeweeView, UserMixin):
     model = User
+
+    @classmethod
+    def interface(cls):
+        super().interface()
+        cls.discard('new')
+        cls.discard('delete')
+
+    @app.route.interface('POST')
+    async def signup(self):
+        """ 创建账户 """
+        data = await self.post_data()
+
+        form = SignupForm(**data)
+        if not form.validate():
+            return self.finish(RETCODE.INVALID_POSTDATA, form.errors)
+
+        u = User.new(data['username'], data['password'], email=data.get('email', None), nickname=data.get('nickname', None))
+        if not u:
+            self.finish(RETCODE.FAILED, msg='注册失败！')
+        else:
+            t: UserToken = await self.setup_user_token(u.id)
+            self.finish(RETCODE.SUCCESS, {'id': u.id, 'username': u.username, 'access_token': t.get_token()})
 
     @app.route.interface('POST')
     async def signin(self):
@@ -75,9 +105,9 @@ class UserView(PeeweeView, UserMixin):
             va_form_cls = SigninByEmailForm
             auth_method = User.auth_by_mail
         else:
-            account_key = 'nickname'
-            va_form_cls = SigninByNicknameForm
-            auth_method = User.auth_by_nickname
+            account_key = 'username'
+            va_form_cls = SigninByUsernameForm
+            auth_method = User.auth_by_username
 
         # parameters validate
         form = va_form_cls(**post)
@@ -87,10 +117,10 @@ class UserView(PeeweeView, UserMixin):
         # auth and generate access token
         user = auth_method(post[account_key], post['password'])
         if user:
-            self.setup_user_token(user.id)
-            self.finish(RETCODE.SUCCESS, {'id': user.id, 'access_token': user.token})
+            t: UserToken = await self.setup_user_token(user.id)
+            self.finish(RETCODE.SUCCESS, {'id': user.id, 'access_token': t.get_token()})
         else:
-            self.finish(RETCODE.FAILED)
+            self.finish(RETCODE.FAILED, msg='用户名或密码不正确')
 
     @app.route.interface('POST')
     async def signout(self):

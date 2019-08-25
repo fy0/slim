@@ -1,6 +1,11 @@
+#### 0.4.7 update 2019.08.25
+
+* Changed: template update
+
+
 #### 0.4.6 update 2019.08.25
 
-* Added: template update
+* Changed: template update
 
 * Changed(break): Rename decorator `auth_role` to `request_role`
 

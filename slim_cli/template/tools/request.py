@@ -10,6 +10,19 @@ config = {
     }
 }
 
+
+class UserViewRequest(SlimViewRequest):
+    def signin(self, username, password):
+        resp = self.do_request('POST', '/signin', post_data={'username': username, 'password': password}, role=None)
+        config['request']['access_token'] = resp['data']['access_token']
+        return resp
+
+    def signup(self, username, password):
+        resp = self.do_request('POST', '/signup', post_data={'username': username, 'password': password}, role=None)
+        config['request']['access_token'] = resp['data']['access_token']
+        return resp
+
+
 api_user = SlimViewRequest(config, 'user')
 
 

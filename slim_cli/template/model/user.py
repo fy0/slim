@@ -1,13 +1,17 @@
 import hashlib
 import os
 import time
+import traceback
+from typing import Set, Optional
+
+import peewee
 from peewee import *
 from slim.base.user import BaseUser
-from slim.utils import StateObject, get_bytes_from_blob
+from slim.utils import StateObject, CustomID, get_bytes_from_blob
 from permissions.role_define import ACCESS_ROLE
 
 import config
-from model import BaseModel, db
+from model import BaseModel, db, CITextField
 
 
 class POST_STATE(StateObject):
@@ -21,8 +25,9 @@ class POST_STATE(StateObject):
 
 class User(BaseModel, BaseUser):
     email = TextField(index=True, unique=True, null=True, default=None)
-    nickname = TextField(index=True, unique=True, null=True)
+    username = CITextField(index=True, unique=True, null=True)
 
+    nickname = TextField(index=True, null=True)
     password = BlobField()
     salt = BlobField()
 
@@ -33,7 +38,7 @@ class User(BaseModel, BaseUser):
         db_table = 'user'
 
     @property
-    def roles(self):
+    def roles(self) -> Set:
         """
         BaseUser.roles 的实现，返回用户可用角色
         :return:
@@ -43,6 +48,31 @@ class User(BaseModel, BaseUser):
             return ret
         ret.add(ACCESS_ROLE.NORMAL_USER)
         return ret
+
+    @classmethod
+    def new(cls, username, password, *, email=None, nickname=None) -> Optional['User']:
+        values = {
+            'id': CustomID().to_bin(),
+            'email': email,
+            'username': username,
+            'time': int(time.time())
+        }
+
+        info = cls.gen_password_and_salt(password)
+        values.update(info)
+
+        try:
+            uid = User.insert(values).execute()
+            u = User.get_by_pk(uid)
+            return u
+        except peewee.IntegrityError as e:
+            # traceback.print_exc()
+            db.rollback()
+            if e.args[0].startswith('duplicate key'):
+                return
+        except peewee.DatabaseError:
+            traceback.print_exc()
+            db.rollback()
 
     @classmethod
     def gen_password_and_salt(cls, password_text):
@@ -86,15 +116,15 @@ class User(BaseModel, BaseUser):
         return u._auth_base(password_text)
 
     @classmethod
-    def auth_by_nickname(cls, nickname, password_text):
-        try: u = cls.get(cls.nickname == nickname)
+    def auth_by_username(cls, username, password_text):
+        try: u = cls.get(cls.username == username)
         except DoesNotExist: return False
         return u._auth_base(password_text)
 
     def __repr__(self):
         if isinstance(self.id, (bytes, memoryview)):
-            return '<User id:%x nickname:%r>' % (int.from_bytes(get_bytes_from_blob(self.id), 'big'), self.nickname)
+            return '<User id:%x username:%r>' % (int.from_bytes(get_bytes_from_blob(self.id), 'big'), self.username)
         elif isinstance(self.id, int):
-            return '<User id:%d nickname:%r>' % (self.id, self.nickname)
+            return '<User id:%d username:%r>' % (self.id, self.username)
         else:
-            return '<User id:%s nickname:%r>' % (self.id, self.nickname)
+            return '<User id:%s username:%r>' % (self.id, self.username)
