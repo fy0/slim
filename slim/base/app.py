@@ -60,19 +60,20 @@ class Application:
         """
         :param cookies_secret:
         :param log_level:
-        :param permission: `ALL_PERMISSION`, `NO_PERMISSION` or a `Permissions` object
+        :param permission: `ALL_PERMISSION`, `EMPTY_PERMISSION` or a `Permissions` object
         :param session_cls:
         :param client_max_size: 2MB is default client_max_body_size of nginx
         """
         from .route import get_route_middleware, Route
-        from .permission import Permissions, Ability, ALL_PERMISSION, NO_PERMISSION
+        from .permission import Permissions, Ability, ALL_PERMISSION, EMPTY_PERMISSION
 
         self.route = Route(self)
         if permission is ALL_PERMISSION:
             logger.warning('app.permission is ALL_PERMISSION, it means everyone has all permissions for any table')
+            logger.warning("This option should only be used in development environment")
             self.permission = Permissions(self)
             self.permission.add(None, Ability({'*': '*'}))  # everyone has all permission for all table
-        elif permission is None or permission is NO_PERMISSION:
+        elif permission is None or permission is EMPTY_PERMISSION:
             self.permission = Permissions(self)  # empty
         else:
             self.permission = permission

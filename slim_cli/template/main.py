@@ -1,6 +1,6 @@
 from app import app
 import config
-import permission.roles_apply
+import permissions.roles_apply
 
 if __name__ == '__main__':
     import model._models
