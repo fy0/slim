@@ -8,7 +8,7 @@ from typing import Tuple, Union, Dict, Iterable, Type, List, Set, Any, Optional
 from unittest import mock
 from aiohttp import web, hdrs
 from aiohttp.web_request import BaseRequest, FileField
-from multidict import CIMultiDictProxy, MultiDictProxy
+from multidict import CIMultiDictProxy, MultiDictProxy, MultiDict
 
 from .user import BaseUserViewMixin
 from .sqlquery import SQLQueryInfo, SQL_TYPE, SQLForeignKey, SQLValuesToWrite, ALL_COLUMNS, PRIMARY_KEY, SQL_OP
@@ -242,9 +242,9 @@ class BaseView(metaclass=MetaClassForInit):
         self._cookie_set.append(('del', key))
 
     @property
-    def params(self) -> "MultiDictProxy[str]":
+    def params(self) -> "MultiDict[str]":
         if self._params_cache is None:
-            self._params_cache = self._request.query
+            self._params_cache = MultiDict(self._request.query)
         return self._params_cache
 
     async def _post_json(self) -> dict:
@@ -253,7 +253,7 @@ class BaseView(metaclass=MetaClassForInit):
             self._post_json_cache = dict(await self._request.json())
         return self._post_json_cache
 
-    async def post_data(self) -> "MultiDictProxy[Union[str, bytes, FileField]]":
+    async def post_data(self) -> "MultiDict[Union[str, bytes, FileField]]":
         if self._post_data_cache is not None:
             return self._post_data_cache
         if self._request.content_type == 'application/json':
@@ -261,7 +261,7 @@ class BaseView(metaclass=MetaClassForInit):
             self._post_data_cache = dict(await self._request.json())
         else:
             # post body: form data
-            self._post_data_cache = await self._request.post()
+            self._post_data_cache = MultiDict(await self._request.post())
         logger.debug('raw post data: %s', self._post_data_cache)
         return self._post_data_cache
 
@@ -527,13 +527,14 @@ class AbstractSQLView(BaseView):
         return self.ability
 
     @property
-    def current_request_role(self) -> [int, str]:
+    def current_request_role(self) -> Optional[int, str]:
         """
-        Current role requested by client.
+        Current role requesting by client.
         :return:
         """
-        role_val = self.headers.get('Role')
-        return int(role_val) if role_val and role_val.isdigit() else role_val
+        role_val = self.headers.get('Role', None)
+        if role_val is not None:
+            return int(role_val) if role_val.isdigit() else role_val
 
     def __init__(self, app: Application, aiohttp_request: BaseRequest = None):
         super().__init__(app, aiohttp_request)

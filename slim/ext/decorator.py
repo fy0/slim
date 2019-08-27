@@ -2,10 +2,20 @@ from ..retcode import RETCODE
 from ..base.view import BaseView, AbstractSQLView
 
 
-def request_role(role=None):
+def require_role(role=None):
     def _(func):
         async def __(view: AbstractSQLView, *args, **kwargs):
             if role not in view.roles:
+                return view.finish(RETCODE.INVALID_ROLE)
+            return await func(view, *args, **kwargs)
+        return __
+    return _
+
+
+def request_role(role=None):
+    def _(func):
+        async def __(view: AbstractSQLView, *args, **kwargs):
+            if role == view.current_request_role:
                 return view.finish(RETCODE.INVALID_ROLE)
             return await func(view, *args, **kwargs)
         return __

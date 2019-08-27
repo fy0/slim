@@ -1,3 +1,10 @@
+#### 0.4.8 update 2019.08.27
+
+* Changed: Modified return value of `view.params` and `view.post()` to `MultiDict`
+
+* Added: decorator `require_role`
+
+
 #### 0.4.7 update 2019.08.25
 
 * Changed: template update
@@ -9,7 +16,7 @@
 
 * Changed(break): Rename decorator `auth_role` to `request_role`
 
-* Fixed: Correct return value of `view.params` and `view.post()` to `MultiDict`
+* Fixed: Correct return value of `view.params` and `view.post()` to `MultiDictProxy`
 
 
 #### 0.4.5 update 2019.08.24
