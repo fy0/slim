@@ -527,7 +527,7 @@ class AbstractSQLView(BaseView):
         return self.ability
 
     @property
-    def current_request_role(self) -> Optional[int, str]:
+    def current_request_role(self) -> Optional[Union[int, str]]:
         """
         Current role requesting by client.
         :return:
