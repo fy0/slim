@@ -50,7 +50,7 @@ def time_readable():
 
 
 class BoolParser:
-    def __new__(self, val):
+    def __new__(cls, val):
         is_true = val in ('true', 'True', '1')
         is_false = val in ('false', 'False', '0')
         if not (is_true or is_false):
@@ -59,7 +59,7 @@ class BoolParser:
 
 
 class BlobParser:
-    def __new__(self, val):
+    def __new__(cls, val):
         if isinstance(val, (memoryview, bytes)):
             return val
         # FIX: 其实这可能有点问题，因为None是一个合法的值
@@ -79,7 +79,7 @@ class BlobParser:
 
 
 class JSONParser:
-    def __new__(self, val):
+    def __new__(cls, val):
         if isinstance(val, str):
             return json.loads(val)
         return val

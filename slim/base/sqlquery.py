@@ -1,7 +1,9 @@
 import json
 import logging
+import traceback
 from enum import Enum
 from typing import Union, Iterable, List, TYPE_CHECKING, Dict, Set
+from multidict import MultiDict
 
 from ..utils import BlobParser, JSONParser, is_py36, dict_filter, dict_filter_inplace, BoolParser
 from ..exception import SyntaxException, ResourceException, InvalidParams, \
@@ -24,6 +26,26 @@ class SQL_TYPE(Enum):
     BLOB = BlobParser
     BOOLEAN = BoolParser
     JSON = JSONParser
+
+
+def make_array_parser(sql_type: SQL_TYPE):
+    class ArrayParser:
+        def __new__(cls, val):
+            if isinstance(val, str):
+                return list(map(sql_type.value, json.loads(val)))
+            if isinstance(val, list):
+                return list(map(sql_type.value, val))
+            return val
+    return ArrayParser
+
+
+class SQL_TYPE_ARRAY:
+    def __init__(self, sql_type):
+        self.sql_type = sql_type
+
+    @property
+    def value(self):
+        return make_array_parser(self.sql_type)
 
 
 class NamedObject:
@@ -354,9 +376,9 @@ class SQLQueryInfo:
 
     def check_query_permission(self, view: "AbstractSQLView"):
         user = view.current_user if view.can_get_user else None
-        return self.check_query_permission_full(user, view.table_name, view.ability)
+        return self.check_query_permission_full(user, view.table_name, view.ability, view)
 
-    def check_query_permission_full(self, user: "BaseUser", table: str, ability: "Ability"):
+    def check_query_permission_full(self, user: "BaseUser", table: str, ability: "Ability", view: "AbstractSQLView"):
         from .permission import A
 
         # QUERY 权限检查，通不过则报错
@@ -376,7 +398,7 @@ class SQLQueryInfo:
         self.set_select(new_select)
 
         # 设置附加条件
-        ability.setup_extra_query_conditions(user, table, self)
+        ability.setup_extra_query_conditions(user, table, self, view)
 
     def bind(self, view: "AbstractSQLView"):
         def check_column_exists(column):
@@ -503,9 +525,13 @@ class SQLValuesToWrite(dict):
             self.parse(post_data)
             if view: self.bind(view, action, records)
 
-    def parse(self, post_data):
+    def parse(self, post_data: MultiDict):
         self.clear()
         for k, v in post_data.items():
+            v_all = post_data.getall(k)
+            if len(v_all) > 1:
+                v = v_all
+
             if k.startswith('$'):
                 continue
             elif k == '_inner_data':
@@ -516,6 +542,7 @@ class SQLValuesToWrite(dict):
             elif '.' in k:
                 k, op = k.rsplit('.', 1)
                 v = UpdateInfo(k, op, v)
+
             self[k] = v
 
     def check_insert_permission(self, user: "BaseUser", table: str, ability: "Ability"):
@@ -585,6 +612,7 @@ class SQLValuesToWrite(dict):
                 else:
                     self[k] = conv(v)
             except:
+                traceback.print_exc()
                 raise InvalidPostData("Column bad value: %s" % k)
 
     def bind(self, view: "AbstractSQLView", action=None, records=None):

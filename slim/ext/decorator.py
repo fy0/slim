@@ -15,7 +15,7 @@ def require_role(role=None):
 def request_role(role=None):
     def _(func):
         async def __(view: AbstractSQLView, *args, **kwargs):
-            if role == view.current_request_role:
+            if role != view.current_request_role:
                 return view.finish(RETCODE.INVALID_ROLE)
             return await func(view, *args, **kwargs)
         return __

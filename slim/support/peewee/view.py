@@ -3,7 +3,7 @@ import peewee
 from typing import Type, Tuple, List, Iterable, Union
 
 try:
-    from playhouse.postgres_ext import JSONField as PG_JSONField, BinaryJSONField as PG_BinaryJSONField
+    from playhouse.postgres_ext import JSONField as PG_JSONField, BinaryJSONField as PG_BinaryJSONField, ArrayField as PG_ArrayField
     from playhouse.sqlite_ext import JSONField as SQLITE_JSONField
 except ImportError:
     # noinspection PyPep8Naming
@@ -18,7 +18,7 @@ except ImportError:
 from playhouse.shortcuts import model_to_dict
 
 from ...base.sqlquery import SQL_TYPE, SQLForeignKey, SQL_OP, SQLQueryInfo, SQLQueryOrder, ALL_COLUMNS, \
-    SQLValuesToWrite, UpdateInfo
+    SQLValuesToWrite, UpdateInfo, SQL_TYPE_ARRAY
 from ...exception import RecordNotFound, AlreadyExists, ResourceException, NotNullConstraintFailed
 from ...base.permission import DataRecord, Permissions
 from ...utils import to_bin, to_hex, pagination_calc, dict_filter, get_bytes_from_blob
@@ -271,7 +271,7 @@ class PeeweeViewOptions(ViewOptions):
         super().assign(obj)
 
 
-def field_class_to_sql_type(field: peewee.Field) -> SQL_TYPE:
+def field_class_to_sql_type(field: peewee.Field) -> Union[SQL_TYPE, SQL_TYPE_ARRAY]:
     if isinstance(field, peewee.ForeignKeyField):
         field = field.rel_field
 
@@ -288,6 +288,8 @@ def field_class_to_sql_type(field: peewee.Field) -> SQL_TYPE:
         return SQL_TYPE.BOOLEAN
     elif isinstance(field, peewee.BlobField):
         return SQL_TYPE.BLOB
+    elif isinstance(field, PG_ArrayField):
+        return SQL_TYPE_ARRAY(field_class_to_sql_type(field._ArrayField__field))
 
 
 class PeeweeView(AbstractSQLView):

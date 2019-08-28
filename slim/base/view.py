@@ -147,6 +147,10 @@ class BaseView(metaclass=MetaClassForInit):
     async def on_finish(self):
         pass
 
+    @property
+    def method(self):
+        return self._request.method
+
     async def get_x_forwarded_for(self) -> List[Union[IPv4Address, IPv6Address]]:
         lst = self._request.headers.getall(hdrs.X_FORWARDED_FOR, [])
         if not lst: return []
@@ -539,6 +543,7 @@ class AbstractSQLView(BaseView):
     def __init__(self, app: Application, aiohttp_request: BaseRequest = None):
         super().__init__(app, aiohttp_request)
         self._sql = None
+        self.current_interface = None
 
     async def _prepare(self):
         await super()._prepare()
@@ -664,6 +669,7 @@ class AbstractSQLView(BaseView):
         await self._call_handle(self.after_read, records)
 
     async def get(self):
+        self.current_interface = 'get'
         with ErrorCatchContext(self):
             info = SQLQueryInfo(self.params, view=self)
             await self._call_handle(self.before_query, info)
@@ -679,6 +685,7 @@ class AbstractSQLView(BaseView):
                 self.finish(RETCODE.NOT_FOUND)
 
     async def list(self):
+        self.current_interface = 'list'
         with ErrorCatchContext(self):
             page, size = self._get_list_page_and_size()
             info = SQLQueryInfo(self.params, view=self)
@@ -694,6 +701,7 @@ class AbstractSQLView(BaseView):
             self.finish(RETCODE.SUCCESS, pg)
 
     async def update(self):
+        self.current_interface = 'set'
         with ErrorCatchContext(self):
             info = SQLQueryInfo(self.params, self)
             raw_post = await self.post_data()
@@ -721,6 +729,7 @@ class AbstractSQLView(BaseView):
     set = update
 
     async def new(self):
+        self.current_interface = 'new'
         with ErrorCatchContext(self):
             raw_post = await self.post_data()
             values = SQLValuesToWrite(raw_post, self, A.CREATE)
@@ -738,6 +747,7 @@ class AbstractSQLView(BaseView):
                 self.finish(RETCODE.SUCCESS, len(records))
 
     async def delete(self):
+        self.current_interface = 'delete'
         with ErrorCatchContext(self):
             info = SQLQueryInfo(self.params, self)
             await self._call_handle(self.before_query, info)

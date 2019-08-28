@@ -1,11 +1,13 @@
 import copy
 import logging
 from typing import Dict, Tuple, Any, TYPE_CHECKING, Optional
+
 from .sqlfuncs import DataRecord
 from .user import BaseUser
 
 if TYPE_CHECKING:
     from .sqlquery import SQLQueryInfo
+    from slim.base.view import AbstractSQLView
 
 logger = logging.getLogger(__name__)
 
@@ -111,11 +113,11 @@ class Ability:
             self.query_condition_params_funcs.setdefault(table, [])
             self.query_condition_params_funcs[table].append(func)
 
-            """def func(ability: Ability, user, query: 'SQLQueryInfo'):
+            """def func(ability: Ability, user, query: 'SQLQueryInfo', view: "AbstractSQLView"):
                  pass
             """
 
-    def setup_extra_query_conditions(self, user, table, query: 'SQLQueryInfo'):
+    def setup_extra_query_conditions(self, user, table, query: 'SQLQueryInfo', view: "AbstractSQLView"):
         if table in self.query_condition_params:
             # TODO: Check once
             for items in self.query_condition_params[table]:
@@ -124,7 +126,10 @@ class Ability:
 
         if table in self.query_condition_params_funcs:
             for func in self.query_condition_params_funcs[table]:
-                func(self, user, query)
+                if func.__code__.co_argcount == 3:
+                    func(self, user, query)
+                else:
+                    func(self, user, query, view)
 
     def add_common_check(self, actions, table, func):
         """

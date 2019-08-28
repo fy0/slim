@@ -1,3 +1,12 @@
+#### 0.4.9 update 2019.08.28
+
+* Added: Peewee PostgreSQL ArrayField supported
+
+* Added: `BaseView.method`
+
+* Added: `AbstractSQLView.current_interface`
+
+
 #### 0.4.8 update 2019.08.27
 
 * Changed: Modified return value of `view.params` and `view.post()` to `MultiDict`
