@@ -527,6 +527,9 @@ class SQLValuesToWrite(dict):
 
     def parse(self, post_data: MultiDict):
         self.clear()
+        if isinstance(post_data, dict):
+            post_data = MultiDict(post_data)
+
         for k, v in post_data.items():
             v_all = post_data.getall(k)
             if len(v_all) > 1:
