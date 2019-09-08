@@ -1,3 +1,10 @@
+#### 0.4.10 update 2019.09.08
+
+* Added: Decorator `must_be_role` 
+
+* Fixed: Decorator `cooldown` not work
+
+
 #### 0.4.9 update 2019.08.28
 
 * Added: Peewee PostgreSQL ArrayField supported
@@ -11,7 +18,7 @@
 
 * Changed: Modified return value of `view.params` and `view.post()` to `MultiDict`
 
-* Added: decorator `require_role`
+* Added: Decorator `require_role`
 
 
 #### 0.4.7 update 2019.08.25

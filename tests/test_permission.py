@@ -136,7 +136,7 @@ def test_permission_role_bug():
     p = Permissions(None)
     p.add(None, Ability({'user': {'key': (A.READ,)}}))
     p.add('user', Ability({'user': {'key': (A.READ, A.WRITE)}}))
-    assert p.request_role(None, 'user').role is None
+    assert p.request_role(None, 'user') is None
 
 
 def test_global():

@@ -289,10 +289,17 @@ class Permissions:
         self.role_to_ability[role] = ability
 
     def request_role(self, user: Optional[BaseUser], role) -> Optional[Ability]:
+        # '' 视为 None 的等价角色
+        if role is '':
+            role = None
+
         if user is None:
-            return self.role_to_ability.get(None)
-        if role in user.roles:
-            return self.role_to_ability.get(role)
+            # 当用户不存在，那么角色仅有可能为None
+            if role is None:
+                return self.role_to_ability.get(None)
+        else:
+            if role in user.roles:
+                return self.role_to_ability.get(role)
 
 
 ALL_PERMISSION = object()
