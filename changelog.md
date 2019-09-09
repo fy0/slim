@@ -1,3 +1,11 @@
+#### 0.4.11 update 2019.09.09
+
+* Added: SQL Operator `contains` for ArrayField
+
+* Changed: Decorator `cooldown`'s parameter `interval_value_or_func` now accept async function
+
+
+
 #### 0.4.10 update 2019.09.08
 
 * Added: Decorator `must_be_role` 

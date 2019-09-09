@@ -1,4 +1,5 @@
 from slim.exception import SlimException
+from slim.utils import async_call
 from ..retcode import RETCODE
 from ..base.view import BaseView, AbstractSQLView
 
@@ -61,7 +62,7 @@ def get_cooldown_decorator(aioredis_instance: object, default_unique_id_func=get
                     # 检查是否使用间隔函数
                     if not isinstance(interval_value_or_func, int):
                         # 如果使用间隔函数，亦不排除直接退出的可能
-                        interval = interval_value_or_func(self, unique_id)
+                        interval = await async_call(interval_value_or_func, self, unique_id)
                         if self.is_finished: return
                     else:
                         interval = interval_value_or_func

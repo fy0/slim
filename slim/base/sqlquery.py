@@ -152,8 +152,9 @@ class SQL_OP(Enum):
     IS_NOT = ('isnot', 'is not')
     AND = ('and',)
     OR = ('or',)
+    CONTAINS = ('contains',)
 
-    ALL = set(EQ + NE + LT + LE + GE + GT + IN + IS + IS_NOT)
+    ALL = set(EQ + NE + LT + LE + GE + GT + IN + IS + IS_NOT + CONTAINS)
 
 
 SQL_OP.txt2op = {}

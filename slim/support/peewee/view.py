@@ -85,7 +85,8 @@ _peewee_method_map = {
     SQL_OP.IN: '__lshift__',  # __lshift__ = _e(OP.IN)
     SQL_OP.NOT_IN: 'not_in',
     SQL_OP.IS: '__rshift__',  # __rshift__ = _e(OP.IS)
-    SQL_OP.IS_NOT: '__rshift__'
+    SQL_OP.IS_NOT: '__rshift__',
+    SQL_OP.CONTAINS: 'contains'
 }
 
 
@@ -289,6 +290,7 @@ def field_class_to_sql_type(field: peewee.Field) -> Union[SQL_TYPE, SQL_TYPE_ARR
     elif isinstance(field, peewee.BlobField):
         return SQL_TYPE.BLOB
     elif isinstance(field, PG_ArrayField):
+        field: PG_ArrayField
         return SQL_TYPE_ARRAY(field_class_to_sql_type(field._ArrayField__field))
 
 
