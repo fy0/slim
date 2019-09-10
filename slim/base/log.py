@@ -1,4 +1,5 @@
 import logging
+import logging.config
 
 """
 CRITICAL = 50
@@ -15,6 +16,12 @@ logger = None
 is_enable = False
 
 
+logging.config.dictConfig({
+    'version': 1,
+    'disable_existing_loggers': True
+})
+
+
 def enable(level=logging.DEBUG):
     global logger, is_enable
 
@@ -27,5 +34,6 @@ def enable(level=logging.DEBUG):
         logger = logging.getLogger('slim')
         logger.setLevel(level)
         logger.addHandler(default_handler)
+        logger.propagate = False
 
         is_enable = True

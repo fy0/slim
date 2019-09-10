@@ -1,7 +1,7 @@
 from slim.base.permission import Ability, A, DataRecord
 
 
-visitor = Ability(None, {
+visitor = Ability({
     'example': {
         'id': (A.READ, A.QUERY),
         'state': (A.READ,),

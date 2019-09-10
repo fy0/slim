@@ -7,23 +7,53 @@ from types import FunctionType
 from typing import Tuple, Union, Dict, Iterable, Type, List, Set, Any, Optional
 from unittest import mock
 from aiohttp import web, hdrs
-from aiohttp.web_request import BaseRequest
-from multidict import CIMultiDictProxy
+from aiohttp.web_request import BaseRequest, FileField
+from multidict import CIMultiDictProxy, MultiDictProxy, MultiDict
 
-from slim.base.user import BaseUserViewMixin
+from .user import BaseUserViewMixin
 from .sqlquery import SQLQueryInfo, SQL_TYPE, SQLForeignKey, SQLValuesToWrite, ALL_COLUMNS, PRIMARY_KEY, SQL_OP
 from .app import Application
 from .helper import create_signed_value, decode_signed_value
 from .permission import Permissions, Ability, BaseUser, A, DataRecord
 from .sqlfuncs import AbstractSQLFunctions
 from ..retcode import RETCODE
-from ..utils import pagination_calc, MetaClassForInit, async_call, get_ioloop, sync_call
+from ..utils.jsdict import JsDict
+from ..utils import pagination_calc, MetaClassForInit, async_call, get_ioloop, sync_call, BlobParser, BoolParser, \
+    JSONParser, sentinel
 from ..utils.json_ex import json_ex_dumps
 from ..exception import RecordNotFound, SyntaxException, InvalidParams, SQLOperatorInvalid, ColumnIsNotForeignKey, \
     ColumnNotFound, InvalidRole, PermissionDenied, FinishQuitException, SlimException, TableNotFound, \
     ResourceException, NotNullConstraintFailed, AlreadyExists, InvalidPostData, NoUserViewMixinException
 
 logger = logging.getLogger(__name__)
+
+
+class ValueParser:
+    @staticmethod
+    def _normalize(val):
+        if isinstance(val, str):
+            return val.strip()
+        return val
+
+    def from_int(self, val):
+        val = self._normalize(val)
+        return int(val)
+
+    def from_float(self, val):
+        val = self._normalize(val)
+        return float(val)
+
+    def from_bool(self, val):
+        val = self._normalize(val)
+        return BoolParser(val)
+
+    def from_blob(self, val):
+        val = self._normalize(val)
+        return BlobParser(val)
+
+    def from_json(self, val):
+        val = self._normalize(val)
+        return JSONParser(val)
 
 
 class BaseView(metaclass=MetaClassForInit):
@@ -33,8 +63,6 @@ class BaseView(metaclass=MetaClassForInit):
     """
     _interface = {}
     _no_route = False
-
-    # permission: Permissions  # 3.6
 
     @classmethod
     def use(cls, name, method: [str, Set, List], url=None):
@@ -93,7 +121,7 @@ class BaseView(metaclass=MetaClassForInit):
         self._post_json_cache = None
         self._current_user = None
         self._current_user_roles = None
-        self.temp_storage = {}
+        self._ = self.temp_storage = JsDict()
 
     @property
     def is_finished(self):
@@ -118,6 +146,10 @@ class BaseView(metaclass=MetaClassForInit):
 
     async def on_finish(self):
         pass
+
+    @property
+    def method(self):
+        return self._request.method
 
     async def get_x_forwarded_for(self) -> List[Union[IPv4Address, IPv6Address]]:
         lst = self._request.headers.getall(hdrs.X_FORWARDED_FOR, [])
@@ -176,16 +208,21 @@ class BaseView(metaclass=MetaClassForInit):
             else:
                 self.response.del_cookie(i[1])
 
-    def finish(self, code, data=NotImplemented):
+    def finish(self, code, data=sentinel, msg=sentinel):
         """
         Set response as {'code': xxx, 'data': xxx}
         :param code:
         :param data:
+        :param msg: 可选
         :return:
         """
-        if data is NotImplemented:
+        if data is sentinel:
             data = RETCODE.txt_cn.get(code, None)
+        if msg is sentinel and code != RETCODE.SUCCESS:
+            msg = RETCODE.txt_cn.get(code, None)
         self.ret_val = {'code': code, 'data': data}  # for access in inhreads method
+        if msg is not sentinel:
+            self.ret_val['msg'] = msg
         self.response = web.json_response(self.ret_val, dumps=json_ex_dumps)
         logger.debug('finish: %s' % self.ret_val)
         self._finish_end()
@@ -209,9 +246,9 @@ class BaseView(metaclass=MetaClassForInit):
         self._cookie_set.append(('del', key))
 
     @property
-    def params(self) -> dict:
+    def params(self) -> "MultiDict[str]":
         if self._params_cache is None:
-            self._params_cache = dict(self._request.query)
+            self._params_cache = MultiDict(self._request.query)
         return self._params_cache
 
     async def _post_json(self) -> dict:
@@ -220,7 +257,7 @@ class BaseView(metaclass=MetaClassForInit):
             self._post_json_cache = dict(await self._request.json())
         return self._post_json_cache
 
-    async def post_data(self) -> dict:
+    async def post_data(self) -> "MultiDict[Union[str, bytes, FileField]]":
         if self._post_data_cache is not None:
             return self._post_data_cache
         if self._request.content_type == 'application/json':
@@ -228,7 +265,7 @@ class BaseView(metaclass=MetaClassForInit):
             self._post_data_cache = dict(await self._request.json())
         else:
             # post body: form data
-            self._post_data_cache = dict(await self._request.post())
+            self._post_data_cache = MultiDict(await self._request.post())
         logger.debug('raw post data: %s', self._post_data_cache)
         return self._post_data_cache
 
@@ -267,6 +304,7 @@ class BaseView(metaclass=MetaClassForInit):
 
     @property
     def headers(self) -> CIMultiDictProxy:
+        self._request: web.Request
         return self._request.headers
 
     @property
@@ -275,6 +313,7 @@ class BaseView(metaclass=MetaClassForInit):
         info matched by router
         :return:
         """
+        self._request: web.Request
         return self._request.match_info
 
     @classmethod
@@ -418,11 +457,10 @@ class AbstractSQLView(BaseView):
         # super().interface()  # 3.5, super(): empty __class__ cell
         cls.use('get', 'GET')
         cls.use_lst('list')
+        cls.use('set', 'POST')
         cls.use('update', 'POST')
         cls.use('new', 'POST')
         cls.use('delete', 'POST')
-        # deprecated
-        cls.use('set', 'POST')
 
     @classmethod
     def add_soft_foreign_key(cls, column, table_name, alias=None):
@@ -493,13 +531,19 @@ class AbstractSQLView(BaseView):
         return self.ability
 
     @property
-    def current_request_role(self) -> [int, str]:
+    def current_request_role(self) -> Optional[Union[int, str]]:
         """
-        Current role requested by client.
+        Current role requesting by client.
         :return:
         """
-        role_val = self.headers.get('Role')
-        return int(role_val) if role_val and role_val.isdigit() else role_val
+        role_val = self.headers.get('Role', None)
+        if role_val is not None:
+            return int(role_val) if role_val.isdigit() else role_val
+
+    def __init__(self, app: Application, aiohttp_request: BaseRequest = None):
+        super().__init__(app, aiohttp_request)
+        self._sql = None
+        self.current_interface = None
 
     async def _prepare(self):
         await super()._prepare()
@@ -617,14 +661,15 @@ class AbstractSQLView(BaseView):
 
         return page, client_size
 
-    async def check_records_permission(self, info, records):
+    async def check_records_permission(self, info, records, *, exception_cls: Type[SlimException]=PermissionDenied):
         user = self.current_user if self.can_get_user else None
         for record in records:
             columns = record.set_info(info, self.ability, user)
-            if not columns: raise RecordNotFound(self.table_name)
+            if not columns: raise exception_cls(self.table_name)
         await self._call_handle(self.after_read, records)
 
     async def get(self):
+        self.current_interface = 'get'
         with ErrorCatchContext(self):
             info = SQLQueryInfo(self.params, view=self)
             await self._call_handle(self.before_query, info)
@@ -632,6 +677,7 @@ class AbstractSQLView(BaseView):
 
             if record:
                 records = [record]
+                # , exception_cls=RecordNotFound
                 await self.check_records_permission(info, records)
                 data_dict = await self.load_fk(info, records)
                 self.finish(RETCODE.SUCCESS, data_dict[0])
@@ -639,6 +685,7 @@ class AbstractSQLView(BaseView):
                 self.finish(RETCODE.NOT_FOUND)
 
     async def list(self):
+        self.current_interface = 'list'
         with ErrorCatchContext(self):
             page, size = self._get_list_page_and_size()
             info = SQLQueryInfo(self.params, view=self)
@@ -646,17 +693,15 @@ class AbstractSQLView(BaseView):
             records, count = await self._sql.select_page(info, size, page)
             await self.check_records_permission(info, records)
 
-            if count:
-                if size == -1: size = count
-                pg = pagination_calc(count, size, page)
-                records = await self.load_fk(info, records)
-                pg["items"] = records
+            if size == -1: size = count
+            pg = pagination_calc(count, size, page)
+            records = await self.load_fk(info, records)
+            pg["items"] = records
 
-                self.finish(RETCODE.SUCCESS, pg)
-            else:
-                self.finish(RETCODE.NOT_FOUND)
+            self.finish(RETCODE.SUCCESS, pg)
 
     async def update(self):
+        self.current_interface = 'set'
         with ErrorCatchContext(self):
             info = SQLQueryInfo(self.params, self)
             raw_post = await self.post_data()
@@ -670,6 +715,7 @@ class AbstractSQLView(BaseView):
                 values.bind(self, A.WRITE, records)
                 await self._call_handle(self.before_update, raw_post, values, records)
                 logger.debug('update record(s): %s' % values)
+                # 注：此处returning为true是因为后续要检查数据的权限，和前端返回无关
                 new_records = await self._sql.update(records, values, returning=True)
                 await self.check_records_permission(None, new_records)
                 await self._call_handle(self.after_update, raw_post, values, records, new_records)
@@ -683,6 +729,7 @@ class AbstractSQLView(BaseView):
     set = update
 
     async def new(self):
+        self.current_interface = 'new'
         with ErrorCatchContext(self):
             raw_post = await self.post_data()
             values = SQLValuesToWrite(raw_post, self, A.CREATE)
@@ -700,6 +747,7 @@ class AbstractSQLView(BaseView):
                 self.finish(RETCODE.SUCCESS, len(records))
 
     async def delete(self):
+        self.current_interface = 'delete'
         with ErrorCatchContext(self):
             info = SQLQueryInfo(self.params, self)
             await self._call_handle(self.before_query, info)

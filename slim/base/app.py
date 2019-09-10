@@ -55,7 +55,7 @@ class CORSOptions:
 
 class Application:
     def __init__(self, *, cookies_secret: bytes, log_level=logging.DEBUG, session_cls=CookieSession,
-                 permission: Optional['Permissions'], client_max_size=2 * 1024 * 1024,
+                 permission: Optional['Permissions'] = None, client_max_size=2 * 1024 * 1024,
                  cors_options: Optional[Union[CORSOptions, List[CORSOptions]]] = None):
         """
         :param cookies_secret:
@@ -70,8 +70,9 @@ class Application:
         self.route = Route(self)
         if permission is ALL_PERMISSION:
             logger.warning('app.permission is ALL_PERMISSION, it means everyone has all permissions for any table')
+            logger.warning("This option should only be used in development environment")
             self.permission = Permissions(self)
-            self.permission.add(Ability(None, {'*': '*'}))  # everyone has all permission for all table
+            self.permission.add(None, Ability({'*': '*'}))  # everyone has all permission for all table
         elif permission is None or permission is EMPTY_PERMISSION:
             self.permission = Permissions(self)  # empty
         else:

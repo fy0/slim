@@ -1,11 +1,13 @@
 import copy
 import logging
 from typing import Dict, Tuple, Any, TYPE_CHECKING, Optional
+
 from .sqlfuncs import DataRecord
 from .user import BaseUser
 
 if TYPE_CHECKING:
     from .sqlquery import SQLQueryInfo
+    from slim.base.view import AbstractSQLView
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +49,7 @@ class AbilityColumn:
 
 
 class Ability:
-    def __init__(self, role: (str, int), data: dict = None, based_on=None):
+    def __init__(self, data: dict = None, *, based_on=None):
         """
         {
             'user': {
@@ -59,11 +61,10 @@ class Ability:
             'topic': '*',
             'test': ['query', 'read', 'write', 'create', 'delete'],
         }
-        :param role: 
-        :param data: 
+        :param data:
         :param based_on: 
         """
-        self.role = role
+        self.role = None
         if based_on:
             self.rules = copy.deepcopy(based_on.rules)
         else:
@@ -112,11 +113,11 @@ class Ability:
             self.query_condition_params_funcs.setdefault(table, [])
             self.query_condition_params_funcs[table].append(func)
 
-            """def func(ability: Ability, user, query: 'SQLQueryInfo'):
+            """def func(ability: Ability, user, query: 'SQLQueryInfo', view: "AbstractSQLView"):
                  pass
             """
 
-    def setup_extra_query_conditions(self, user, table, query: 'SQLQueryInfo'):
+    def setup_extra_query_conditions(self, user, table, query: 'SQLQueryInfo', view: "AbstractSQLView"):
         if table in self.query_condition_params:
             # TODO: Check once
             for items in self.query_condition_params[table]:
@@ -125,7 +126,10 @@ class Ability:
 
         if table in self.query_condition_params_funcs:
             for func in self.query_condition_params_funcs[table]:
-                func(self, user, query)
+                if func.__code__.co_argcount == 3:
+                    func(self, user, query)
+                else:
+                    func(self, user, query, view)
 
     def add_common_check(self, actions, table, func):
         """
@@ -279,21 +283,26 @@ class Permissions:
     def roles(self):
         return self.role_to_ability
 
-    def add(self, ability: Ability):
-        self.role_to_ability[ability.role] = ability
+    def add(self, role: Optional[str], ability: Ability):
+        assert isinstance(ability, Ability)
+        ability.role = role
+        self.role_to_ability[role] = ability
 
     def request_role(self, user: Optional[BaseUser], role) -> Optional[Ability]:
-        if user is None:
-            return self.role_to_ability.get(None)
-        if role in user.roles:
-            return self.role_to_ability.get(role)
+        # '' 视为 None 的等价角色
+        if role is '':
+            role = None
 
-    def copy(self) -> 'Permissions':
-        instance = Permissions()
-        # TODO: 这里理论上存在 BUG，子类继承权限后如果进行修改，那么父类的 ability 也会跟着变化
-        instance.role_to_ability = self.role_to_ability.copy()
-        return instance
+        if user is None:
+            # 当用户不存在，那么角色仅有可能为None
+            if role is None:
+                return self.role_to_ability.get(None)
+        else:
+            if role in user.roles:
+                return self.role_to_ability.get(role)
 
 
 ALL_PERMISSION = object()
 EMPTY_PERMISSION = object()
+
+NO_PERMISSION = EMPTY_PERMISSION

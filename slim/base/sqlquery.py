@@ -1,9 +1,11 @@
 import json
 import logging
+import traceback
 from enum import Enum
 from typing import Union, Iterable, List, TYPE_CHECKING, Dict, Set
+from multidict import MultiDict
 
-from ..utils import BlobConverter, JSONConverter, is_py36, dict_filter, dict_filter_inplace, BoolConverter
+from ..utils import BlobParser, JSONParser, is_py36, dict_filter, dict_filter_inplace, BoolParser
 from ..exception import SyntaxException, ResourceException, InvalidParams, \
     PermissionDenied, ColumnNotFound, ColumnIsNotForeignKey, SQLOperatorInvalid, InvalidRole, SlimException, \
     InvalidPostData, TableNotFound
@@ -21,9 +23,29 @@ class SQL_TYPE(Enum):
     INT = int
     FLOAT = float
     STRING = str
-    BLOB = BlobConverter
-    BOOLEAN = BoolConverter
-    JSON = JSONConverter
+    BLOB = BlobParser
+    BOOLEAN = BoolParser
+    JSON = JSONParser
+
+
+def make_array_parser(sql_type: SQL_TYPE):
+    class ArrayParser:
+        def __new__(cls, val):
+            if isinstance(val, str):
+                return list(map(sql_type.value, json.loads(val)))
+            if isinstance(val, list):
+                return list(map(sql_type.value, val))
+            return val
+    return ArrayParser
+
+
+class SQL_TYPE_ARRAY:
+    def __init__(self, sql_type):
+        self.sql_type = sql_type
+
+    @property
+    def value(self):
+        return make_array_parser(self.sql_type)
 
 
 class NamedObject:
@@ -130,8 +152,9 @@ class SQL_OP(Enum):
     IS_NOT = ('isnot', 'is not')
     AND = ('and',)
     OR = ('or',)
+    CONTAINS = ('contains',)
 
-    ALL = set(EQ + NE + LT + LE + GE + GT + IN + IS + IS_NOT)
+    ALL = set(EQ + NE + LT + LE + GE + GT + IN + IS + IS_NOT + CONTAINS)
 
 
 SQL_OP.txt2op = {}
@@ -354,9 +377,9 @@ class SQLQueryInfo:
 
     def check_query_permission(self, view: "AbstractSQLView"):
         user = view.current_user if view.can_get_user else None
-        return self.check_query_permission_full(user, view.table_name, view.ability)
+        return self.check_query_permission_full(user, view.table_name, view.ability, view)
 
-    def check_query_permission_full(self, user: "BaseUser", table: str, ability: "Ability"):
+    def check_query_permission_full(self, user: "BaseUser", table: str, ability: "Ability", view: "AbstractSQLView"):
         from .permission import A
 
         # QUERY 权限检查，通不过则报错
@@ -376,7 +399,7 @@ class SQLQueryInfo:
         self.set_select(new_select)
 
         # 设置附加条件
-        ability.setup_extra_query_conditions(user, table, self)
+        ability.setup_extra_query_conditions(user, table, self, view)
 
     def bind(self, view: "AbstractSQLView"):
         def check_column_exists(column):
@@ -495,15 +518,27 @@ class SQLValuesToWrite(dict):
     def __init__(self, post_data=None, view=None, action=None, records=None):
         super().__init__()
         self.returning = False
+        self._inner_data = {
+            'view': view
+        }
 
         if post_data:
             self.parse(post_data)
             if view: self.bind(view, action, records)
 
-    def parse(self, post_data):
+    def parse(self, post_data: MultiDict):
         self.clear()
+        if isinstance(post_data, dict):
+            post_data = MultiDict(post_data)
+
         for k, v in post_data.items():
+            v_all = post_data.getall(k)
+            if len(v_all) > 1:
+                v = v_all
+
             if k.startswith('$'):
+                continue
+            elif k == '_inner_data':
                 continue
             elif k == 'returning':
                 self.returning = True
@@ -511,27 +546,42 @@ class SQLValuesToWrite(dict):
             elif '.' in k:
                 k, op = k.rsplit('.', 1)
                 v = UpdateInfo(k, op, v)
+
             self[k] = v
 
     def check_insert_permission(self, user: "BaseUser", table: str, ability: "Ability"):
         from .permission import A
-        logger.debug('request permission: [%s] of table %r' % (A.CREATE, table))
-        available = ability.can_with_columns(user, A.CREATE, table, self.keys())
+        columns = self.keys()
+        logger.debug('request permission: [%s] of table %r, columns: %s' % (A.CREATE, table, columns))
+        is_empty_input = not columns
+
+        # 如果插入数据项为空，那么用户应该至少有一个列的插入权限
+        if is_empty_input:
+            if self._inner_data.get('view'):
+                columns = self._inner_data['view'].fields.keys()
+
+        available = ability.can_with_columns(user, A.CREATE, table, columns)
         if not available: raise PermissionDenied()
         dict_filter_inplace(self, available)
 
         valid = ability.can_with_columns(user, A.CREATE, table, available)
 
-        if len(valid) != len(self):
-            logger.debug("request permission failed. request / valid: %r, %r" % (list(self.keys()), valid))
-            raise PermissionDenied()
+        if is_empty_input:
+            if len(valid) <= 0:
+                logger.debug("request permission failed. request / valid: %r, %r" % (list(self.keys()), valid))
+                raise PermissionDenied()
+        else:
+            if len(valid) != len(self):
+                logger.debug("request permission failed. request / valid: %r, %r" % (list(self.keys()), valid))
+                raise PermissionDenied()
 
         logger.debug("request permission successed: %r" % list(self.keys()))
 
     def check_update_permission(self, user: "BaseUser", table: str, ability: "Ability", records):
         from .permission import A
-        logger.debug('request permission: [%s] of table %r' % (A.WRITE, table))
-        available = ability.can_with_columns(user, A.WRITE, table, self.keys())
+        columns = self.keys()
+        logger.debug('request permission: [%s] of table %r, columns: %s' % (A.WRITE, table, columns))
+        available = ability.can_with_columns(user, A.WRITE, table, columns)
         if not available: raise PermissionDenied()
         dict_filter_inplace(self, available)
 
@@ -566,6 +616,7 @@ class SQLValuesToWrite(dict):
                 else:
                     self[k] = conv(v)
             except:
+                traceback.print_exc()
                 raise InvalidPostData("Column bad value: %s" % k)
 
     def bind(self, view: "AbstractSQLView", action=None, records=None):

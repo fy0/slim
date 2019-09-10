@@ -2,7 +2,7 @@ from permissions.roles.visitor import visitor
 from slim.base.permission import Ability, A, DataRecord
 
 
-normal_user = Ability(None, {
+normal_user = Ability({
     'user': {
         'email': (A.CREATE,),
         'nickname': (A.READ, A.WRITE, A.CREATE),

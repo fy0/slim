@@ -5,12 +5,21 @@ HOST = '0.0.0.0'
 PORT = 9999
 DEBUG = True
 DATABASE_URI = "sqlite:///database.db"
+# DATABASE_URI = "postgresql://mydb:password@localhost:5432/mydb"
+# REDIS_URI = 'redis://localhost:6379'
 COOKIE_SECRET = b"6aOO5ZC55LiN5pWj6ZW/5oGo77yM6Iqx5p+T5LiN6YCP5Lmh5oSB44CC"
 
 PASSWORD_HASH_FUNC_NAME = 'sha512'
 PASSWORD_HASH_ITERATIONS = 10_0000  # 默认密码迭代次数，按2017年报告推荐至少1w次
 
+##########################################
+# 加载备用配置
+##########################################
+
 try:
-    from private import *
-except ImportError:
-    pass
+    import os, sys, traceback
+    if os.path.exists(os.path.join(os.path.dirname(__file__), 'private.py')):
+        from private import *
+except ImportError as e:
+    print('Load private config failed')
+    traceback.print_exc()

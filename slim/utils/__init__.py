@@ -4,8 +4,10 @@ import re
 import string
 import sys
 import time
+from typing import Optional
+
 from .async_run import *
-from .binhex import to_bin, to_hex
+from .binhex import to_bin, to_hex, get_bytes_from_blob
 from .cls_init import MetaClassForInit
 from .pagination import pagination_calc
 from .state_obj import StateObject
@@ -21,6 +23,7 @@ except ImportError:
 is_py36 = sys.version_info[0] >= 3 and sys.version_info[1] >= 6
 
 RegexPatternType = type(re.compile(''))
+sentinel = object()
 
 
 def random_str(random_length=16, chars=string.ascii_uppercase + string.digits):
@@ -41,23 +44,13 @@ def dict_filter_inplace(obj, keys):
         del obj[i]
 
 
-def get_bytes_from_blob(val) -> bytes:
-    """ 不同数据库从blob拿出的数据有所差别，有的是memoryview有的是bytes """
-    if isinstance(val, bytes):
-        return val
-    elif isinstance(val, memoryview):
-        return val.tobytes()
-    else:
-        raise TypeError('invalid type for get bytes')
-
-
 def time_readable():
     x = time.localtime(time.time())
     return time.strftime('%Y-%m-%d %H:%M:%S', x)
 
 
-class BoolConverter:
-    def __new__(self, val):
+class BoolParser:
+    def __new__(cls, val):
         is_true = val in ('true', 'True', '1')
         is_false = val in ('false', 'False', '0')
         if not (is_true or is_false):
@@ -65,8 +58,8 @@ class BoolConverter:
         return is_true
 
 
-class BlobConverter:
-    def __new__(self, val):
+class BlobParser:
+    def __new__(cls, val):
         if isinstance(val, (memoryview, bytes)):
             return val
         # FIX: 其实这可能有点问题，因为None是一个合法的值
@@ -85,8 +78,8 @@ class BlobConverter:
             return to_bin(val)
 
 
-class JSONConverter:
-    def __new__(self, val):
+class JSONParser:
+    def __new__(cls, val):
         if isinstance(val, str):
             return json.loads(val)
         return val

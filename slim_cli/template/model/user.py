@@ -1,12 +1,17 @@
 import hashlib
 import os
 import time
+import traceback
+from typing import Set, Optional
+
+import peewee
 from peewee import *
 from slim.base.user import BaseUser
-from slim.utils import StateObject, get_bytes_from_blob
+from slim.utils import StateObject, CustomID, get_bytes_from_blob
+from permissions.role_define import ACCESS_ROLE
 
 import config
-from model import BaseModel, db
+from model import BaseModel, db, CITextField
 
 
 class POST_STATE(StateObject):
@@ -20,22 +25,20 @@ class POST_STATE(StateObject):
 
 class User(BaseModel, BaseUser):
     email = TextField(index=True, unique=True, null=True, default=None)
-    nickname = TextField(index=True, unique=True, null=True)
+    username = CITextField(index=True, unique=True, null=True)
 
+    nickname = TextField(index=True, null=True)
     password = BlobField()
     salt = BlobField()
 
     time = BigIntegerField()  # 创建时间
     state = IntegerField(default=POST_STATE.NORMAL, index=True)  # 当前状态
 
-    token = BlobField(index=True, null=True)
-    token_time = BigIntegerField()
-
     class Meta:
-        table_name = 'user'
+        db_table = 'user'
 
     @property
-    def roles(self):
+    def roles(self) -> Set:
         """
         BaseUser.roles 的实现，返回用户可用角色
         :return:
@@ -43,8 +46,33 @@ class User(BaseModel, BaseUser):
         ret = {None}
         if self.state == POST_STATE.DEL:
             return ret
-        ret.add('user')
+        ret.add(ACCESS_ROLE.NORMAL_USER)
         return ret
+
+    @classmethod
+    def new(cls, username, password, *, email=None, nickname=None) -> Optional['User']:
+        values = {
+            'id': CustomID().to_bin(),
+            'email': email,
+            'username': username,
+            'time': int(time.time())
+        }
+
+        info = cls.gen_password_and_salt(password)
+        values.update(info)
+
+        try:
+            uid = User.insert(values).execute()
+            u = User.get_by_pk(uid)
+            return u
+        except peewee.IntegrityError as e:
+            # traceback.print_exc()
+            db.rollback()
+            if e.args[0].startswith('duplicate key'):
+                return
+        except peewee.DatabaseError:
+            traceback.print_exc()
+            db.rollback()
 
     @classmethod
     def gen_password_and_salt(cls, password_text):
@@ -57,36 +85,6 @@ class User(BaseModel, BaseUser):
             config.PASSWORD_HASH_ITERATIONS,
         )
         return {'password': dk, 'salt': salt}
-
-    @classmethod
-    def gen_token(cls):
-        """ 生成 access_token """
-        token = os.urandom(16)
-        token_time = int(time.time())
-        return {'token': token, 'token_time': token_time}
-
-    def refresh_token(self):
-        count = 0
-        while count < 10:
-            with db.atomic():
-                try:
-                    k = self.gen_token()
-                    self.token = k['token']
-                    self.token_time = k['token_time']
-                    self.save()
-                    return k
-                except DatabaseError:
-                    count += 1
-                    db.rollback()
-        raise ValueError("generate token failed")
-
-    @classmethod
-    def get_by_token(cls, token):
-        """ 根据 access_token 获取用户 """
-        try:
-            return cls.get(cls.token == token)
-        except DoesNotExist:
-            return None
 
     def set_password(self, new_password):
         """ 设置密码 """
@@ -108,7 +106,7 @@ class User(BaseModel, BaseUser):
             config.PASSWORD_HASH_ITERATIONS
         )
 
-        if self.password == dk:
+        if get_bytes_from_blob(self.password) == get_bytes_from_blob(dk):
             return self
 
     @classmethod
@@ -118,10 +116,15 @@ class User(BaseModel, BaseUser):
         return u._auth_base(password_text)
 
     @classmethod
-    def auth_by_nickname(cls, nickname, password_text):
-        try: u = cls.get(cls.nickname == nickname)
+    def auth_by_username(cls, username, password_text):
+        try: u = cls.get(cls.username == username)
         except DoesNotExist: return False
         return u._auth_base(password_text)
 
     def __repr__(self):
-        return '<User id:%x nickname:%r>' % (int.from_bytes(get_bytes_from_blob(self.id), 'big'), self.nickname)
+        if isinstance(self.id, (bytes, memoryview)):
+            return '<User id:%x username:%r>' % (int.from_bytes(get_bytes_from_blob(self.id), 'big'), self.username)
+        elif isinstance(self.id, int):
+            return '<User id:%d username:%r>' % (self.id, self.username)
+        else:
+            return '<User id:%s username:%r>' % (self.id, self.username)

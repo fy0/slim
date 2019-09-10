@@ -1,4 +1,3 @@
-# >= python3.6 only
 import json
 import requests
 
@@ -25,7 +24,7 @@ class UnexpectedMethod(Exception):
     pass
 
 
-def do_request(config, method, url, params=None, data=None, role=None):
+def do_request(config, method, url, params=None, post_data=None, role=None):
     headers = {}
     if params is None: params = {}
     auth_mode = config['remote'].get('authMode', 'access_token')
@@ -44,7 +43,7 @@ def do_request(config, method, url, params=None, data=None, role=None):
     if method == 'GET':
         resp = requests.get(url, params=params, headers=headers)
     elif method == 'POST':
-        resp = requests.post(url, params=params, data=data)
+        resp = requests.post(url, params=params, data=post_data, headers=headers)
     else:
         resp = None
 
@@ -65,23 +64,26 @@ class SlimViewRequest:
         self.path = path
         self.urlPrefix = "%s/api/%s" % (self.config['remote']['API_SERVER'], path)
 
+    def do_request(self, method, rel_path, params=None, post_data=None, role=None):
+        return do_request(self.config, method, self.urlPrefix + rel_path, params=params, post_data=post_data, role=role)
+
     def get(self, params=None, role=None):
         if params and 'loadfk' in params:
             params['loadfk'] = json.loads(params['loadfk'])
-        return do_request(self.config, 'GET', self.urlPrefix + '/get', params, role=role)
+        return self.do_request('GET', '/get', params, role=role)
 
     def list(self, params=None, page=1, size=None, role=None):
         if params and 'loadfk' in params:
             params['loadfk'] = json.loads(params['loadfk'])
-        url = self.urlPrefix + '/list/%s' % page
+        url = '/list/%s' % page
         if size: url += '/%s' % size
-        return do_request(self.config, 'GET', url, params, role=role)
+        return self.do_request('GET', url, params, role=role)
 
     def update(self, params, data, role=None):
-        return do_request(self.config, 'POST', self.urlPrefix + '/update', params, data, role)
+        return self.do_request('POST', '/update', params, data, role)
 
     def new(self, data, role=None):
-        return do_request(self.config, 'POST', self.urlPrefix + '/new', {}, data, role)
+        return self.do_request('POST', '/new', {}, data, role)
 
     def delete(self, params, role=None):
-        return do_request(self.config, 'POST', self.urlPrefix + '/delete', params, {}, role)
+        return self.do_request('POST', '/delete', params, None, role)

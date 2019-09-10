@@ -3,7 +3,7 @@ import peewee
 from typing import Type, Tuple, List, Iterable, Union
 
 try:
-    from playhouse.postgres_ext import JSONField as PG_JSONField, BinaryJSONField as PG_BinaryJSONField
+    from playhouse.postgres_ext import JSONField as PG_JSONField, BinaryJSONField as PG_BinaryJSONField, ArrayField as PG_ArrayField
     from playhouse.sqlite_ext import JSONField as SQLITE_JSONField
 except ImportError:
     # noinspection PyPep8Naming
@@ -18,10 +18,10 @@ except ImportError:
 from playhouse.shortcuts import model_to_dict
 
 from ...base.sqlquery import SQL_TYPE, SQLForeignKey, SQL_OP, SQLQueryInfo, SQLQueryOrder, ALL_COLUMNS, \
-    SQLValuesToWrite, UpdateInfo
+    SQLValuesToWrite, UpdateInfo, SQL_TYPE_ARRAY
 from ...exception import RecordNotFound, AlreadyExists, ResourceException, NotNullConstraintFailed
 from ...base.permission import DataRecord, Permissions
-from ...utils import to_bin, pagination_calc, dict_filter
+from ...utils import to_bin, to_hex, pagination_calc, dict_filter, get_bytes_from_blob
 from ...base.view import AbstractSQLView, AbstractSQLFunctions, ViewOptions
 
 logger = logging.getLogger(__name__)
@@ -61,6 +61,8 @@ class PeeweeDataRecord(DataRecord):
         for name, v in model_to_dict(self.val, recurse=False).items():
             if isinstance(fields[name], peewee.ForeignKeyField):
                 name = name + '_id'
+            elif isinstance(fields[name], peewee.BlobField):
+                v = get_bytes_from_blob(v)
             if self.selected != ALL_COLUMNS and (self.selected and (name not in self.selected)):
                 continue
             data[name] = v
@@ -83,7 +85,8 @@ _peewee_method_map = {
     SQL_OP.IN: '__lshift__',  # __lshift__ = _e(OP.IN)
     SQL_OP.NOT_IN: 'not_in',
     SQL_OP.IS: '__rshift__',  # __rshift__ = _e(OP.IS)
-    SQL_OP.IS_NOT: '__rshift__'
+    SQL_OP.IS_NOT: '__rshift__',
+    SQL_OP.CONTAINS: 'contains'
 }
 
 
@@ -98,7 +101,7 @@ class PeeweeContext:
         db = self.db
         if isinstance(exc_val, peewee.IntegrityError):
             db.rollback()
-            if exc_val.args[0].startswith('duplicate key'):
+            if exc_val.args[0].startswith('duplicate key') or '唯一约束' in exc_val.args[0]:
                 raise AlreadyExists()
             elif exc_val.args[0].startswith('NOT NULL constraint failed'):
                 raise NotNullConstraintFailed()
@@ -161,17 +164,16 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
     async def select_page(self, info: SQLQueryInfo, size=1, page=1) -> Tuple[Tuple[DataRecord, ...], int]:
         q = self._make_select(info)
         count = q.count()
-        if count == 0: raise RecordNotFound(self.vcls.table_name)
+
+        # 0.4.2: list api does not return NOT_FOUND anymore
+        # if count == 0: raise RecordNotFound(self.vcls.table_name)
 
         if size == -1:
             page = 1
             size = count
 
-        try:
-            func = lambda item: PeeweeDataRecord(None, item, view=self.vcls)
-            return tuple(map(func, q.paginate(page, size))), count
-        except self._model.DoesNotExist:
-            raise RecordNotFound(self.vcls.table_name)
+        func = lambda item: PeeweeDataRecord(None, item, view=self.vcls)
+        return tuple(map(func, q.paginate(page, size))), count
 
     def _build_write_condition(self, records: Iterable[DataRecord]):
         records_pk = []
@@ -202,6 +204,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
             if isinstance(db, peewee.PostgresqlDatabase):
                 q = model.update(**new_vals).where(cond)
                 if returning:
+                    # cond: peewee.Expression
                     ret = q.returning(*model._meta.fields.values()).execute()
                     to_record = lambda x: PeeweeDataRecord(None, x, view=self.vcls)
                     items = map(to_record, ret)
@@ -269,7 +272,7 @@ class PeeweeViewOptions(ViewOptions):
         super().assign(obj)
 
 
-def field_class_to_sql_type(field: peewee.Field) -> SQL_TYPE:
+def field_class_to_sql_type(field: peewee.Field) -> Union[SQL_TYPE, SQL_TYPE_ARRAY]:
     if isinstance(field, peewee.ForeignKeyField):
         field = field.rel_field
 
@@ -286,6 +289,9 @@ def field_class_to_sql_type(field: peewee.Field) -> SQL_TYPE:
         return SQL_TYPE.BOOLEAN
     elif isinstance(field, peewee.BlobField):
         return SQL_TYPE.BLOB
+    elif isinstance(field, PG_ArrayField):
+        field: PG_ArrayField
+        return SQL_TYPE_ARRAY(field_class_to_sql_type(field._ArrayField__field))
 
 
 class PeeweeView(AbstractSQLView):

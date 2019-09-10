@@ -36,7 +36,7 @@ class RETCODE(StateObject):
         ALREADY_EXISTS: '已存在',
 
         PERMISSION_DENIED: '无权访问',
-        INVALID_ROLE: '权限申请失败',
+        INVALID_ROLE: '无效的权限角色',
 
         CHECK_FAILURE: '校验失败',
         PARAM_REQUIRED: '缺少参数',

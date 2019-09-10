@@ -1,4 +1,4 @@
-from slim import Application, CORSOptions, ALL_PERMISSION, EMPTY_PERMISSION
+from slim import Application, CORSOptions, ALL_PERMISSION, NO_PERMISSION
 import config
 
 

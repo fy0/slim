@@ -1,7 +1,7 @@
 # coding:utf-8
 from slim.base.permission import A, Ability, DataRecord, Permissions
 
-ab = Ability('normal', {
+ab = Ability({
     # 测试不带通配的权限
     'user': {
         'username': (A.QUERY, A.READ),
@@ -134,9 +134,9 @@ def test_record_filter():
 
 def test_permission_role_bug():
     p = Permissions(None)
-    p.add(Ability(None, {'user': {'key': (A.READ,)}}))
-    p.add(Ability('user', {'user': {'key': (A.READ, A.WRITE)}}))
-    assert p.request_role(None, 'user').role is None
+    p.add(None, Ability({'user': {'key': (A.READ,)}}))
+    p.add('user', Ability({'user': {'key': (A.READ, A.WRITE)}}))
+    assert p.request_role(None, 'user') is None
 
 
 def test_global():
