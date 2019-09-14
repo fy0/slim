@@ -14,7 +14,7 @@ def _value_encode(obj):
 
 
 def _value_decode(data: bytes):
-    return msgpack.loads(data, encoding='utf-8')
+    return msgpack.loads(data, raw=False)
 
 
 def _create_signature(secret: bytes, s):
