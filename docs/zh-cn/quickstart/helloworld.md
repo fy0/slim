@@ -127,11 +127,11 @@ hello
 使用浏览器打开 http://0.0.0.0:9999/api/example/get 即可看到
 
 ```json
-{"code": -249, "data": "Nothing found from table 'example'", "msg": "\u672a\u627e\u5230"}
-
-或
-
-{"code": -249, "data": "Nothing found from table 'example'", "msg": "未找到"}
+{
+	"code": -249,
+	"data": "Nothing found from table 'example'",
+	"msg": "未找到"
+}
 ```
 
 因为还数据库example表中没有找到对应的数据
@@ -139,19 +139,78 @@ hello
 使用浏览器打开 http://0.0.0.0:9999/api/example/list/1 即可看到
 
 ```json
-{"code": 0, "data": {"cur_page": 1, "prev_page": null, "next_page": 2, "first_page": null, "last_page": null, "page_numbers": [], "info": {"page_size": 20, "page_count": 0, "items_count": 0}, "items": []}}
+{
+	"code": 0,
+	"data": {
+		"cur_page": 1,
+		"prev_page": null,
+		"next_page": 2,
+		"first_page": null,
+		"last_page": null,
+		"page_numbers": [],
+		"info": {
+			"page_size": 20,
+			"page_count": 0,
+			"items_count": 0
+		},
+		"items": []
+	}
+}
 ```
 
 使用浏览器向 http://0.0.0.0:9999/api/misc/hello POST数据即可看到
 
 ```json
-{"code": 0, "data": "Hi, visitor"}
+{
+	"code": 0,
+	"data": "Hi, visitor"
+}
 ```
 
 使用浏览器打开 http://0.0.0.0:9999/api/misc/info 即可看到获取综合信息
 
 ```json
-{"code": 0, "data": {"retcode": {"FAILED": -255, "TIMEOUT": -254, "UNKNOWN": -253, "TOO_FREQUENT": -252, "DEPRECATED": -251, "NOT_FOUND": -249, "ALREADY_EXISTS": -248, "PERMISSION_DENIED": -239, "INVALID_ROLE": -238, "CHECK_FAILURE": -229, "PARAM_REQUIRED": -228, "POSTDATA_REQUIRED": -227, "INVALID_PARAMS": -219, "INVALID_POSTDATA": -218, "SUCCESS": 0, "WS_DONE": 1}, "retinfo": {"0": "\u6210\u529f", "-255": "\u5931\u8d25", "-254": "\u8d85\u65f6", "-253": "\u672a\u77e5\u9519\u8bef", "-252": "\u8bf7\u6c42\u8fc7\u4e8e\u9891\u7e41", "-251": "\u6b64\u63a5\u53e3\u5df2\u4e0d\u63a8\u8350\u4f7f\u7528", "-249": "\u672a\u627e\u5230", "-248": "\u5df2\u5b58\u5728", "-239": "\u65e0\u6743\u8bbf\u95ee", "-238": "\u65e0\u6548\u7684\u6743\u9650\u89d2\u8272", "-229": "\u6821\u9a8c\u5931\u8d25", "-228": "\u7f3a\u5c11\u53c2\u6570", "-227": "\u7f3a\u5c11\u63d0\u4ea4\u5185\u5bb9", "-219": "\u975e\u6cd5\u53c2\u6570", "-218": "\u975e\u6cd5\u63d0\u4ea4\u5185\u5bb9", "1": "Websocket \u8bf7\u6c42\u5b8c\u6210"}}}
+{
+	"code": 0,
+	"data": {
+		"retcode": {
+			"FAILED": -255,
+			"TIMEOUT": -254,
+			"UNKNOWN": -253,
+			"TOO_FREQUENT": -252,
+			"DEPRECATED": -251,
+			"NOT_FOUND": -249,
+			"ALREADY_EXISTS": -248,
+			"PERMISSION_DENIED": -239,
+			"INVALID_ROLE": -238,
+			"CHECK_FAILURE": -229,
+			"PARAM_REQUIRED": -228,
+			"POSTDATA_REQUIRED": -227,
+			"INVALID_PARAMS": -219,
+			"INVALID_POSTDATA": -218,
+			"SUCCESS": 0,
+			"WS_DONE": 1
+		},
+		"retinfo": {
+			"0": "成功",
+			"-255": "失败",
+			"-254": "超时",
+			"-253": "未知错误",
+			"-252": "请求过于频繁",
+			"-251": "此接口已不推荐使用",
+			"-249": "未找到",
+			"-248": "已存在",
+			"-239": "无权访问",
+			"-238": "无效的权限角色",
+			"-229": "校验失败",
+			"-228": "缺少参数",
+			"-227": "缺少提交内容",
+			"-219": "非法参数",
+			"-218": "非法提交内容",
+			"1": "Websocket 请求完成"
+		}
+	}
+}
 ```
 
 所有接口请参考“简单示例”和“标准预设接口”
