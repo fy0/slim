@@ -1,4 +1,10 @@
 
+#### 0.4.13 update 2019.12.10
+
+* Fixed: No longer print finish info for every `view.finish` called, but print for every Request
+
+* Changed: New log format
+
 
 #### 0.4.12 update 2019.12.10
 
