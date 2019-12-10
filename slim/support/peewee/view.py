@@ -86,7 +86,10 @@ _peewee_method_map = {
     SQL_OP.NOT_IN: 'not_in',
     SQL_OP.IS: '__rshift__',  # __rshift__ = _e(OP.IS)
     SQL_OP.IS_NOT: '__rshift__',
-    SQL_OP.CONTAINS: 'contains'
+    SQL_OP.CONTAINS: 'contains',
+
+    SQL_OP.LIKE: '__mod__',
+    SQL_OP.ILIKE: '__pow__'
 }
 
 

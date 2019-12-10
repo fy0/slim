@@ -1,6 +1,5 @@
 # coding: utf-8
 from typing import Set
-
 from slim.base.permission import A, Ability, DataRecord, Permissions
 
 ab = Ability({
