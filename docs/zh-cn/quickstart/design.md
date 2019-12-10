@@ -278,7 +278,132 @@ is 和 isnot 还未彻底完成，但注意，这两个的值都只有 null 一�
 
 ## 选择查询列
 ---
+你可以通过select来实现该功能，前端后端均可。
 
+### 前端示例
+1. 如Icarus前端通过select: ['id', 'title', 'ref']对后端请求查询。
+注：以下代码示例在 Icarus/src/views/wiki/history.vue ，
+
+```javascript
+let getArticle = async () => {
+    let ret = await this.$api.wiki.get({
+        id: params.id,
+        select: ['id', 'title', 'ref']
+    }, this.basicRole)
+    if (ret.code === this.$api.retcode.SUCCESS) {
+        this.article = ret.data
+    } else if (ret.code === this.$api.retcode.NOT_FOUND) {
+        this.notFound = true
+    } else {
+        wrong = ret
+    }
+}
+
+```
+2. 前端请求经carus/src/netapi.js文件中的 SlimViewRequest 类传给slim框架，get函数如下：
+
+```javascript
+async get (params, role = null) {
+    if (params && params.loadfk) {
+        params.loadfk = JSON.stringify(params.loadfk)
+    }
+    return nget(`${this.urlPrefix}/get`, params, role)
+}
+```
+
+3. 查询传给slim框架后，slim执行 AbstractSQLView类的 get 函数 ，get函数通过调用 slim/base/sqlquery.py 文件中 SQLQueryInfo 类中的 parse 函数取出select所传递的字段名，并调用 AbstractSQLFunctions 类的 select_one 函数查询数据库表和 AbstractSQLView 类的 load_fk 函数查询外键完成数据查询。
+注：select_one 函数在数据库驱动中分别实现
+
+### 后端示例
+
+也可在你的后端代码中执行select查询，ORM帮我们完成这一切。
+
+如Icarus后端通过Topic.select(Topic.id)、WikiArticle.select(WikiArticle.id)或Comment.select(Comment.id)完成查询。
+
+注：以下代码示例在 Icarus/backend/model/esdb.py
+
+```python
+def update_all(reset=False):
+    if reset:
+        try:
+            es.indices.delete(index=INDEX_NAME)
+        except elasticsearch.exceptions.NotFoundError:
+            pass
+        create_index()
+
+    for i in Topic.select(Topic.id):
+        print('topic', to_hex(i.id))
+        es_update_topic(i.id)
+
+    for i in WikiArticle.select(WikiArticle.id):
+        print('wiki', to_hex(i.id))
+        es_update_wiki(i.id)
+
+    for i in Comment.select(Comment.id):
+        print('comment', to_hex(i.id))
+        es_update_comment(i.id)
+```
 
 ## 跨表查询
 ---
+当然如果你直接使用peewee等ORM来实现查询功能是没有问题，下面以lcarus为例来说明slim推荐做法：
+
+1、定义Model
+以下代码示例在Icarus/backend/model/manage_log.py 
+```python
+class ManageLog(BaseModel):
+    id = BlobField(primary_key=True)  # 使用长ID
+    user_id = BlobField(index=True, null=True)  # 操作用户
+    role = TextField(null=True)  # 操作身份
+    time = MyTimestampField(index=True)  # 操作时间
+    related_type = IntegerField()  # 被操作对象类型
+    related_id = BlobField(index=True)  # 被操作对象
+    related_user_id = BlobField(index=True, null=True)  # 被操作对象涉及用户
+    operation = IntegerField()  # 操作行为
+    value = BinaryJSONField(dumps=json_ex_dumps, null=True)  # 操作数据
+    note = TextField(null=True, default=None)
+```
+注：BaseModel继承自peewee.Model
+
+2、继承PeeweeView定义你需要视图，使用add_soft_foreign_key添加外键
+以下代码示例在Icarus/backend/view/logs.py 
+```python
+@route('log/manage')
+class LogManageView(PeeweeView):
+    model = ManageLog
+
+    @classmethod
+    def ready(cls):
+        cls.add_soft_foreign_key('user_id', 'user')
+```
+
+注：PeeweeView类继承自 AbstractSQLView 类， add_soft_foreign_key 函数在slim/base/view.py中AbstractSQLView定义。
+
+add_soft_foreign_key函数用于存储外键，但这不是一个外键（这样处理是为了避免“外键约束”）。
+
+如果add_soft_foreign_key函数中的数据库表不存在，则slim会在执行loadfk时报错
+
+3、进行查询
+以下代码示例在Icarus/src/views/wiki/history.vue
+
+```javascript
+let getHistory = async () => {
+    console.log(1111, this.$api.logManage, this.$api.user)
+    let ret = await this.$api.logManage.list({
+        related_id: params.id,
+        order: 'time.desc',
+        loadfk: { 'user_id': null }
+    }, pageNumber, null, this.basicRole)
+    if (ret.code === this.$api.retcode.SUCCESS) {
+        this.page = ret.data
+    } else if (ret.code === this.$api.retcode.NOT_FOUND) {
+        this.page.items = []
+    } else {
+        wrong = ret
+    }
+}
+```
+注：如果想了解前后端的交互过程可以参考以下代码：
+ 前端部分：Icarus/src/netapi.js 中的 class SlimViewRequest，里面定义了get/list/set/update/new/delete接口
+ 前端部分的set/update均对应后端中的update接口
+ 
