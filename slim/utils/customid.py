@@ -70,10 +70,10 @@ class CustomID(object):
         except TypeError:
             pass
 
-    def to_bin(self):
+    def to_bin(self) -> bytes:
         return self._id
 
-    def to_hex(self):
+    def to_hex(self) -> str:
         return str(self)
 
     digest = to_bin

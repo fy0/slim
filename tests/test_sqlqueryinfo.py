@@ -1,4 +1,4 @@
-from slim.base.sqlquery import SQLQueryInfo, SQLQueryOrder, ALL_COLUMNS
+from slim.base.sqlquery import SQLQueryInfo, SQLQueryOrder, ALL_COLUMNS, SQL_OP
 from slim.exception import SyntaxException, InvalidParams
 
 
@@ -78,7 +78,27 @@ def test_select():
     assert sqi.set_select({'1', '2', '3'}) is None
 
 
+def test_condition():
+    sqi = SQLQueryInfo()
+    sqi.parse_then_add_condition('a', '=', 'b')
+    assert sqi.conditions[0] == ['a', SQL_OP.EQ, 'b']
+
+    sqi = SQLQueryInfo()
+    sqi.parse_then_add_condition('a', 'like', 'b')
+    assert sqi.conditions[0] == ['a', SQL_OP.LIKE, 'b']
+
+    for i in SQL_OP.ALL:
+        sqi = SQLQueryInfo()
+        if i in SQL_OP.IN.value:
+            sqi.parse_then_add_condition('a', i, '[1,2]')
+            assert sqi.conditions[0] == ['a', SQL_OP.txt2op[i], [1,2]]
+        else:
+            sqi.parse_then_add_condition('a', i, 'b')
+            assert sqi.conditions[0] == ['a', SQL_OP.txt2op[i], 'b']
+
+
 if __name__ == '__main__':
-    test_new()
-    test_order()
-    test_select()
+    # test_new()
+    # test_order()
+    # test_select()
+    test_condition()

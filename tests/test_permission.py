@@ -1,4 +1,6 @@
-# coding:utf-8
+# coding: utf-8
+from typing import Set
+
 from slim.base.permission import A, Ability, DataRecord, Permissions
 
 ab = Ability({
@@ -35,15 +37,15 @@ ab = Ability({
 })
 
 
-def rule1_func1(ability, user, action, available_columns: list):
-    available_columns.extend(['a', 'b', 'c'])
+def rule1_func1(ability, user, action, available_columns: Set):
+    available_columns.update(['a', 'b', 'c'])
 
 
-def rule1_func2(ability, user, action, record: DataRecord, available_columns: list):
+def rule1_func2(ability, user, action, record: DataRecord, available_columns: Set):
     pass
 
 
-def rule1_func3(ability, user, action, record: DataRecord, available_columns: list):
+def rule1_func3(ability, user, action, record: DataRecord, available_columns: Set):
     available_columns.clear()
 
 
@@ -52,8 +54,8 @@ ab.add_record_check([A.WRITE], 'rule_test1', func=rule1_func2)
 ab.add_record_check([A.DELETE], 'rule_test1', func=rule1_func3)
 
 
-def rule2_func1(ability, user, action, available_columns: list):
-    available_columns.extend(['a', 'b'])
+def rule2_func1(ability, user, action, available_columns: Set):
+    available_columns.update(['a', 'b'])
 
 
 ab.add_common_check([A.CREATE, A.READ], 'rule_test2', func=rule2_func1)
@@ -83,10 +85,10 @@ def test_ability_column():
 
 
 def test_filter():
-    assert ab.can_with_columns(None, A.QUERY, 'user', ['username', 'nickname', 'password', 'salt']) == ['username', 'nickname', 'password']
-    assert ab.can_with_columns(None, A.READ, 'user', ['username', 'nickname', 'password', 'salt']) == ['username', 'nickname', 'password']
-    assert ab.can_with_columns(None, A.WRITE, 'user', ['username', 'nickname', 'password', 'salt']) == []
-    assert ab.can_with_columns(None, A.WRITE, 'topic', ['id', 'title', 'author']) == ['id', 'title', 'author']
+    assert ab.can_with_columns(None, A.QUERY, 'user', ['username', 'nickname', 'password', 'salt']) == {'username', 'nickname', 'password'}
+    assert ab.can_with_columns(None, A.READ, 'user', ['username', 'nickname', 'password', 'salt']) == {'username', 'nickname', 'password'}
+    assert ab.can_with_columns(None, A.WRITE, 'user', ['username', 'nickname', 'password', 'salt']) == set()
+    assert ab.can_with_columns(None, A.WRITE, 'topic', ['id', 'title', 'author']) == {'id', 'title', 'author'}
 
 
 class DictDataRecord(DataRecord):
@@ -128,8 +130,8 @@ def test_record_filter():
     assert ab.can_with_record(None, A.WRITE, record2, available=a2w) == []
 
     assert set(ab.can_with_record(None, A.READ, record2)) == {'a', 'b'}
-    assert ab.can_with_record(None, A.DELETE, record2) == []
-    assert ab.can_with_record(None, A.WRITE, record2) == []
+    assert ab.can_with_record(None, A.DELETE, record2) == set()
+    assert ab.can_with_record(None, A.WRITE, record2) == set()
 
 
 def test_permission_role_bug():
@@ -141,3 +143,7 @@ def test_permission_role_bug():
 
 def test_global():
     pass
+
+
+if __name__ == '__main__':
+    test_filter()

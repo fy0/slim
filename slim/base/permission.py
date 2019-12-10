@@ -1,6 +1,6 @@
 import copy
 import logging
-from typing import Dict, Tuple, Any, TYPE_CHECKING, Optional
+from typing import Dict, Tuple, Any, TYPE_CHECKING, Optional, List, Set, Iterable
 
 from .sqlfuncs import DataRecord
 from .user import BaseUser
@@ -14,12 +14,14 @@ logger = logging.getLogger(__name__)
 
 class A:
     QUERY = 'query'
+    QUERY_EX = 'query_ex'
     READ = 'read'
     WRITE = 'write'
     CREATE = 'create'
     DELETE = 'delete'
 
-    ALL = QUERY, READ, WRITE, CREATE, DELETE
+    ALL = {QUERY, READ, WRITE, CREATE, DELETE}
+    ALL_EXTRA = {QUERY, QUERY_EX, READ, WRITE, CREATE, DELETE}
 
 
 class AbilityTable:
@@ -57,6 +59,7 @@ class Ability:
                 'nickname': ['query', 'read'],
                 'password': ['query', 'read'],
                 '*': ['write'],
+                '|': ['create'],
             },
             'topic': '*',
             'test': ['query', 'read', 'write', 'create', 'delete'],
@@ -74,35 +77,60 @@ class Ability:
         self.query_condition_params_funcs = {}
         self.common_checks = []
         self.record_checks = []
+        assert isinstance(data, dict), "Ability's data Must be dict"
 
         if data:
-            # 权限继承对应到列
-            def convert(val: str):
-                if val == '*': return '*'
-                val = val.upper()
-                ret = []
-                if 'Q' in val: ret.append(A.QUERY)
-                if 'W' in val: ret.append(A.WRITE)
-                if 'R' in val: ret.append(A.READ)
-                if 'C' in val: ret.append(A.CREATE)
-                if 'D' in val: ret.append(A.DELETE)
-                return ret
-
-            def parse(v):
-                ret = copy.deepcopy(v)
-                if ret == str:
-                    ret = convert(ret)
-                elif ret == dict:
-                    for k, v in ret.items():
-                        ret[k] = convert(v)
-                return ret
-
             for k, v in data.items():
-                if isinstance(v, dict):
-                    if k in self.rules and isinstance(self.rules[k], dict):
-                        self.rules[k].update(parse(v))
-                        continue
-                self.rules[k] = parse(v)
+                if k == '*' or k == '|':
+                    # 如果出现默认权限或叠加权限，value应为合法的权限序列
+                    self.rules[k] = self._parse_permission_value(v)
+                    assert self.rules[k] is not None, f"Invalid actions: {k}, {v}"
+                    continue
+
+                elif isinstance(v, (str, list, tuple, set)):
+                    # 如果value为序列或字符串，那么格式化为规范形式
+                    # 即 {'a': '*'} 规范为 {'a': {'*': A.ALL}}
+                    # 或 {'a': A.ALL} 规范为 {'a': {'*': A.ALL}}
+                    self.rules[k] = {'*': self._parse_permission_value(v)}
+
+                elif isinstance(v, dict):
+                    # 如果Value为dict，那么以update的形式覆盖
+                    if k in self.rules:
+                        self.rules[k].update(self._parse_permission_value(v))
+                    else:
+                        self.rules[k] = self._parse_permission_value(v)
+
+    def _parse_permission_value(self, val) -> Set[str]:
+        """
+        从 obj 中取出权限列表
+        :param val:
+        :return: {A.QUERY, A.WRITE, ...}
+        """
+        if isinstance(val, str):
+            if val == '*':
+                return A.ALL
+            val = val.upper()
+            ret = set()
+            if 'Q' in val: ret.add(A.QUERY)
+            if 'QE' in val: ret.add(A.QUERY_EX)
+            if 'W' in val: ret.add(A.WRITE)
+            if 'R' in val: ret.add(A.READ)
+            if 'C' in val: ret.add(A.CREATE)
+            if 'D' in val: ret.add(A.DELETE)
+            return ret
+        elif isinstance(val, (list, tuple, set)):
+            ret = set()
+            for i in val:
+                if i not in A.ALL_EXTRA:
+                    logger.warning('Invalid permission action: %s', i)
+                else:
+                    ret.add(i)
+            return ret
+        elif isinstance(val, dict):
+            ret = {}
+            for k, v in val.items():
+                ret[k] = self._parse_permission_value(v)
+            return ret
 
     def add_query_condition(self, table, params=None, *, func=None):
         if params:
@@ -141,7 +169,7 @@ class Ability:
         """
         self.common_checks.append([table, actions, func])
 
-        """def func(ability, user, action, available_columns: list):
+        """def func(ability, user, action, available_columns: Set):
             pass
         """
 
@@ -159,28 +187,7 @@ class Ability:
             pass
         """
 
-    def _parse_permission(self, obj):
-        """
-        从 obj 中取出权限
-        :param obj:
-        :return: [A.QUERY, A.WRITE, ...]
-        """
-        if isinstance(obj, str):
-            if obj == '*':
-                return A.ALL
-            elif obj in A.ALL:
-                return obj,
-            else:
-                logger.warning('Invalid permission action: %s', obj)
-        elif isinstance(obj, (list, tuple)):
-            for i in obj:
-                if i not in A.ALL:
-                    logger.warning('Invalid permission action: %s', i)
-            return obj
-        elif isinstance(obj, dict):
-            return self._parse_permission(obj.get('*'))
-
-    def can_with_columns(self, user, action, table, columns):
+    def can_with_columns(self, user, action, table, columns: Iterable) -> Set:
         """
         根据权限进行列过滤
         注意一点，只要有一个条件能够通过权限检测，那么过滤后还会有剩余条件，最终就不会报错。
@@ -192,50 +199,48 @@ class Ability:
         :param columns: 列名列表
         :return: 可用列的列表
         """
+
         # TODO: 此过程可以加缓存
-        # 全局
+        actions_allowed_now: set
+        actions_append = set()
 
-        global_data = self.rules.get('*')
-        global_actions = self._parse_permission(global_data)
-        if global_actions and action in global_actions:
-            available = list(columns)
-        else:
-            available = []
+        # 取出全局默认权限
+        actions_allowed_now = self.rules.get('*', None) or set()
+        # 取出全局叠加权限
+        for i in self.rules.get('|', []):
+            actions_append.add(i)
 
-        # table
-        table_data = self.rules.get(table)
-        table_actions = self._parse_permission(table_data)
+        # 取出表权限，如果表权限存在，那么会覆盖全局默认权限
+        table_data = self.rules.get(table, {})
+        actions_allowed_now = table_data.get('*', None) or actions_allowed_now
+        # 取出表叠加权限
+        for i in table_data.get('|', []):
+            actions_append.add(i)
 
-        if table_actions and action in table_actions:
-            available = list(columns)
+        # 计算列权限
+        available = set()
 
-        # column
-        if type(table_data) == dict:
-            # 这意味着有详细的列权限设定，不然类型是 list
-            for column in columns:
-                column_actions = self._parse_permission(table_data.get(column))
-                if column_actions is not None:
-                    if action in column_actions:
-                        # 有权限，试图加入列表
-                        if column not in available:
-                            available.append(column)
-                    else:
-                        # 无权限，从列表剔除
-                        if column in available:
-                            available.remove(column)
+        for column in columns:
+            # 列权限 = (配置中的列权限 or 默认权限) | 叠加权限
+            column_actions = table_data.get(column, actions_allowed_now) | actions_append
 
+            # 将有权限的列加入可用列表
+            if action in column_actions:
+                available.add(column)
+
+        # 回调处理
         for check in self.common_checks:
             if check[0] == table and action in check[1]:
                 ret = check[-1](self, user, action, available)
                 if isinstance(ret, (tuple, set, list)):
                     # 返回列表则进行值覆盖
-                    available = list(ret)
+                    available = set(ret)
                 elif ret == '*':
                     # 返回 * 加上所有可用列
-                    available = list(columns)
+                    available = set(columns)
                 elif ret is False:
                     # 返回 false 清空
-                    available = []
+                    available = set()
                 if not available: break
 
         return available
@@ -246,29 +251,33 @@ class Ability:
         :param user:
         :param action:
         :param record:
-        :param available: 限定检查范围
+        :param available: 限定过权限检查的列，为None时，代表全部列（自动填充）
         :return: 可用列
         """
-        assert action not in (A.QUERY, A.CREATE), "meaningless action check with record: [%s]" % action
+        assert action not in (A.QUERY, A.QUERY_EX, A.CREATE), "meaningless action check with record: [%s]" % action
 
         # 先行匹配规则适用范围
         rules = []
         for rule in self.record_checks:
+            # rule: [table, actions, func]
             if record.table == rule[0] and action in rule[1]:
                 rules.append(rule)
 
         # 逐个过检查
-        if available is None: available = self.can_with_columns(user, action, record.table, record.keys())
-        else: available = list(available)
-        bak = available.copy()
+        if available is None:
+            # 使用表的所有可用列进行权限测试，留下可以通过的列
+            available = self.can_with_columns(user, action, record.table, record.keys())
+        else:
+            available = list(available)
 
         for rule in rules:
+            # rule: [table, actions, func]
             ret = rule[-1](self, user, action, record, available)
             if isinstance(ret, (tuple, set, list)):
+                # 返回列表，那么使用改列表
                 available = list(ret)
-            elif ret == '*':
-                available = list(bak)
             elif not ret:
+                # 没有返回值，清空
                 available = []
 
         return available

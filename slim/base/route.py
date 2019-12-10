@@ -24,7 +24,7 @@ def get_route_middleware(app):
             view_cls = data['view']
             func = data['handler']
 
-            view_instance = view_cls(app, request)
+            view_instance: BaseView = view_cls(app, request)
             handler_name = '%s.%s' % (view_cls.__name__, func.__name__)
             ascii_encodable_path = request.path.encode('ascii', 'backslashreplace').decode('ascii')
             logger.info("{} {} -> {}".format(request._method, ascii_encodable_path, handler_name))

@@ -202,18 +202,24 @@ class BaseView(metaclass=MetaClassForInit):
             return self.ret_val['code']
 
     def _finish_end(self):
+        if isinstance(self.ret_val, bytes):
+            logger.debug('finish: raw body(%d bytes)' % len(self.ret_val))
+        else:
+            logger.debug('finish: %s' % self.ret_val)
+
         for i in self._cookie_set or ():
             if i[0] == 'set':
                 self.response.set_cookie(i[1], i[2], **i[3])
             else:
                 self.response.del_cookie(i[1])
 
-    def finish(self, code, data=sentinel, msg=sentinel):
+    def finish(self, code: int, data=sentinel, msg=sentinel, *, headers=None):
         """
         Set response as {'code': xxx, 'data': xxx}
         :param code:
         :param data:
         :param msg: 可选
+        :param headers:
         :return:
         """
         if data is sentinel:
@@ -223,21 +229,20 @@ class BaseView(metaclass=MetaClassForInit):
         self.ret_val = {'code': code, 'data': data}  # for access in inhreads method
         if msg is not sentinel:
             self.ret_val['msg'] = msg
-        self.response = web.json_response(self.ret_val, dumps=json_ex_dumps)
-        logger.debug('finish: %s' % self.ret_val)
+        self.response = web.json_response(self.ret_val, dumps=json_ex_dumps, headers=headers)
         self._finish_end()
 
-    def finish_raw(self, body: bytes, status: int = 200, content_type: Optional[str] = None):
+    def finish_raw(self, body: bytes, status: int = 200, content_type: Optional[str] = None, *, headers=None):
         """
         Set raw response
+        :param headers:
         :param body:
         :param status:
         :param content_type:
         :return:
         """
         self.ret_val = body
-        self.response = web.Response(body=body, status=status, content_type=content_type)
-        logger.debug('finish: raw body(%d bytes)' % len(body))
+        self.response = web.Response(body=body, status=status, content_type=content_type, headers=headers)
         self._finish_end()
 
     def del_cookie(self, key):
@@ -349,7 +354,7 @@ class ViewOptions:
 
 
 class ErrorCatchContext:
-    def __init__(self, view: "AbstractSQLView"):
+    def __init__(self, view: "BaseView"):
         self.view = view
 
     def __enter__(self):
@@ -526,6 +531,7 @@ class AbstractSQLView(BaseView):
         get_ioloop().run_until_complete(func())
 
     def _load_role(self, role):
+        # TODO: 当未继承自UserView的时候给出不同的提示
         user = self.current_user if self.can_get_user else None
         self.ability = self.permission.request_role(user, role)
         return self.ability

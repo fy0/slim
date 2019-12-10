@@ -1,9 +1,21 @@
+
+
+#### 0.4.12 update 2019.12.10
+
+* Added: New SQL Operator `like` `ilike`
+
+* Added: New permission action: `QUERY_EX`
+
+* Added: Response headers for `view.finish`
+
+* Changed(break): The fourth parameter `available_columns` of callback function of `permission.add_common_check` is a Set now.
+
+
 #### 0.4.11 update 2019.09.09
 
 * Added: SQL Operator `contains` for ArrayField
 
 * Changed: Decorator `cooldown`'s parameter `interval_value_or_func` now accept async function
-
 
 
 #### 0.4.10 update 2019.09.08

@@ -153,19 +153,31 @@ class SQL_OP(Enum):
     AND = ('and',)
     OR = ('or',)
     CONTAINS = ('contains',)
+    LIKE = ('like',)
+    ILIKE = ('ilike',)
 
-    ALL = set(EQ + NE + LT + LE + GE + GT + IN + IS + IS_NOT + CONTAINS)
+    _COMMON = EQ + NE + LT + LE + GE + GT + IN + IS + IS_NOT + CONTAINS
+    _ALL = _COMMON + LIKE + ILIKE
 
+
+SQL_OP.COMMON = SQL_OP._COMMON.value
+SQL_OP.ALL = SQL_OP._ALL.value
 
 SQL_OP.txt2op = {}
 for i in SQL_OP:
-    if i == SQL_OP.ALL: continue
+    if i == SQL_OP._COMMON: continue
+    if i == SQL_OP._ALL: continue
     for opval in i.value:
         SQL_OP.txt2op[opval] = i
 
 
 class QueryConditions(list):
-    """ 查询条件，这是 SQLQueryInfo 的一部分。与 list 实际没有太大不同，独立为类型的目的是使其能与list区分开来 """
+    """
+    查询条件，这是 SQLQueryInfo 的一部分。与 list 实际没有太大不同，独立为类型的目的是使其能与list区分开来
+    i[0]: str
+    i[1]: SQL_OP
+    i[2]: Any
+    """
     def __contains__(self, item):
         for i in self:
             if i[0] == item:
@@ -377,18 +389,59 @@ class SQLQueryInfo:
 
     def check_query_permission(self, view: "AbstractSQLView"):
         user = view.current_user if view.can_get_user else None
-        return self.check_query_permission_full(user, view.table_name, view.ability, view)
+        self.check_query_permission_full(user, view.table_name, view.ability, view)
 
-    def check_query_permission_full(self, user: "BaseUser", table: str, ability: "Ability", view: "AbstractSQLView"):
+    def check_query_permission_full(self, user: "BaseUser", table: str, ability: "Ability", view: "AbstractSQLView", ignore_error=True):
         from .permission import A
 
-        # QUERY 权限检查，通不过则报错
-        checking_columns = []
-        for field_name, op, value in self.conditions:
-            checking_columns.append(field_name)
+        # QUERY 权限检查
+        # QUERY 的特殊之处在于即使没有查询条件也会查出数据
+        checking_columns = set()
+        checking_columns_qex = set()
 
-        if checking_columns and not ability.can_with_columns(user, A.QUERY, table, checking_columns):
-            raise PermissionDenied("None of these columns had permission to %s: %r of %r" % (A.QUERY, checking_columns, table))
+        if self.conditions:
+            # 按照目前的设计，存在condition的情况下才会检查condition的权限
+            is_qex_cond = lambda x: x[1] == SQL_OP.ILIKE or x[1] == SQL_OP.LIKE
+            is_q_cond = lambda x: not is_qex_cond(x)
+
+            for c in self.conditions:
+                field_name, op, value = c
+                if is_qex_cond(c):
+                    checking_columns_qex.add(field_name)
+                else:
+                    checking_columns.add(field_name)
+
+            def condition_filter(available_columns: Set, skip_func):
+                new_conditions = []
+                for i in self.conditions:
+                    if skip_func(i):
+                        # 如果不是要检查的列，那么直接填入
+                        new_conditions.append(i)
+                    else:
+                        # 如果是的话，将不在许可列中的条件剔除掉
+                        if i[0] in available_columns:
+                            new_conditions.append(i)
+
+                self.conditions[:] = new_conditions
+
+            def do_check(cs: Set, skip_func, action):
+                if cs:
+                    new_columns = ability.can_with_columns(user, action, table, cs)
+
+                    if not ignore_error:
+                        if len(cs) != len(new_columns):
+                            raise PermissionDenied("These columns has no permission to %s: %r of %r" % (action, cs - new_columns, table))
+
+                    condition_filter(new_columns, skip_func)
+
+            do_check(checking_columns, is_qex_cond, A.QUERY)
+            do_check(checking_columns_qex, is_q_cond, A.QUERY_EX)
+
+            # 所有查询条件都被权限机制清空，被认为是出乎意料的结果，所以抛出异常
+            # 否则用户会得到一个无条件查询出的数据，但在有条件情况下其实可能得不到
+            if not self.conditions:
+                raise PermissionDenied("No column had permission to %s: %r of %r" % (
+                    A.QUERY, checking_columns.union(checking_columns_qex), table))
 
         # READ 权限检查，通不过时将其过滤
         checking_columns = self.loadfk.keys()  # 外键过滤
