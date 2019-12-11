@@ -24,10 +24,12 @@ def get_route_middleware(app):
             view_cls = data['view']
             func = data['handler']
 
-            view_instance: BaseView = view_cls(app, request)
             handler_name = '%s.%s' % (view_cls.__name__, func.__name__)
             ascii_encodable_path = request.path.encode('ascii', 'backslashreplace').decode('ascii')
+
+            # GET /api/get -> TopicView.get
             logger.info("{} {} -> {}".format(request._method, ascii_encodable_path, handler_name))
+            view_instance: BaseView = view_cls(app, request)
 
             from .view import ErrorCatchContext
 

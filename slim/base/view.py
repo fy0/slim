@@ -254,6 +254,7 @@ class BaseView(metaclass=MetaClassForInit):
     def params(self) -> "MultiDict[str]":
         if self._params_cache is None:
             self._params_cache = MultiDict(self._request.query)
+            logger.debug('query parameters: %s', self._params_cache)
         return self._params_cache
 
     async def _post_json(self) -> dict:
@@ -271,7 +272,7 @@ class BaseView(metaclass=MetaClassForInit):
         else:
             # post body: form data
             self._post_data_cache = MultiDict(await self._request.post())
-        logger.debug('raw post data: %s', self._post_data_cache)
+        logger.debug('post data: %s', self._post_data_cache)
         return self._post_data_cache
 
     def set_cookie(self, key, value, *, path='/', expires=None, domain=None, max_age=None, secure=None,
@@ -582,9 +583,12 @@ class AbstractSQLView(BaseView):
         async def check(data, records):
             for column, fkvalues_lst in data.items():
                 for fkvalues in fkvalues_lst:
+                    # got nothing, skip
+                    if not records:
+                        continue
+
                     pks = []
                     all_ni = True
-                    vcls = self.app.tables[fkvalues['table']]
 
                     for i in records:
                         val = i.get(column, NotImplemented)
@@ -597,6 +601,7 @@ class AbstractSQLView(BaseView):
                         continue
 
                     # 3. query foreign keys
+                    vcls = self.app.tables[fkvalues['table']]
                     v = vcls(self.app, self._request)  # fake view
                     await v._prepare()
                     info2 = SQLQueryInfo()
@@ -699,7 +704,9 @@ class AbstractSQLView(BaseView):
             records, count = await self._sql.select_page(info, size, page)
             await self.check_records_permission(info, records)
 
-            if size == -1: size = count
+            if size == -1:
+                size = count if count != 0 else 1
+
             pg = pagination_calc(count, size, page)
             records = await self.load_fk(info, records)
             pg["items"] = records
@@ -762,15 +769,15 @@ class AbstractSQLView(BaseView):
             if record:
                 records = [record]
                 user = self.current_user if self.can_get_user else None
-                logger.debug('request permission: [%s] of table %r' % (A.DELETE, self.table_name))
+                logger.debug('request permission as %r: [%s] of table %r' % (self.ability.role, A.DELETE, self.table_name))
                 for record in records:
                     valid = self.ability.can_with_record(user, A.DELETE, record, available=record.keys())
 
                     if len(valid) == len(record.keys()):
-                        logger.debug("request permission successed: %r" % list(record.keys()))
+                        logger.debug("request permission successed as %r: %r" % (self.ability.role, list(record.keys())))
                     else:
                         logger.debug(
-                            "request permission failed. valid / requested: %r, %r" % (valid, list(record.keys())))
+                            "request permission failed as %r. valid / requested: %r, %r" % (self.ability.role, valid, list(record.keys())))
                         return self.finish(RETCODE.PERMISSION_DENIED)
 
                 await self._call_handle(self.before_delete, records)

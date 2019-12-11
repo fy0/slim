@@ -1,4 +1,13 @@
 
+#### 0.4.14 update 2019.12.11
+
+* Added: Print query parameters
+
+* Changed: Show current role while printing request permission log
+
+* Fixed: `view.list` throws `ZeroDivisionError` when table is no data and `LIST_PAGE_SIZE` set to `-1(unlimited)`
+
+
 #### 0.4.13 update 2019.12.10
 
 * Fixed: No longer print finish info for every `view.finish` called, but print for every Request
@@ -106,6 +115,7 @@
 * Fixed: compatible with peewee [3.8.2](https://github.com/coleifer/peewee/releases/tag/3.8.2).
 
 * Fixed: slim-cli not work
+
 
 #### 0.4.0 update 2019.01.24
 

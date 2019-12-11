@@ -605,7 +605,7 @@ class SQLValuesToWrite(dict):
     def check_insert_permission(self, user: "BaseUser", table: str, ability: "Ability"):
         from .permission import A
         columns = self.keys()
-        logger.debug('request permission: [%s] of table %r, columns: %s' % (A.CREATE, table, columns))
+        logger.debug('request permission as %r: [%s] of table %r, columns: %s' % (ability.role, A.CREATE, table, columns))
         is_empty_input = not columns
 
         # 如果插入数据项为空，那么用户应该至少有一个列的插入权限
@@ -621,19 +621,19 @@ class SQLValuesToWrite(dict):
 
         if is_empty_input:
             if len(valid) <= 0:
-                logger.debug("request permission failed. request / valid: %r, %r" % (list(self.keys()), valid))
+                logger.debug("request permission failed as %r. request / valid: %r, %r" % (ability.role, list(self.keys()), valid))
                 raise PermissionDenied()
         else:
             if len(valid) != len(self):
-                logger.debug("request permission failed. request / valid: %r, %r" % (list(self.keys()), valid))
+                logger.debug("request permission failed as %r. request / valid: %r, %r" % (ability.role, list(self.keys()), valid))
                 raise PermissionDenied()
 
-        logger.debug("request permission successed: %r" % list(self.keys()))
+        logger.debug("request permission successed as %r: %r" % (ability.role, list(self.keys())))
 
     def check_update_permission(self, user: "BaseUser", table: str, ability: "Ability", records):
         from .permission import A
         columns = self.keys()
-        logger.debug('request permission: [%s] of table %r, columns: %s' % (A.WRITE, table, columns))
+        logger.debug('request permission as %r: [%s] of table %r, columns: %s' % (ability.role, A.WRITE, table, columns))
         available = ability.can_with_columns(user, A.WRITE, table, columns)
         if not available: raise PermissionDenied()
         dict_filter_inplace(self, available)
@@ -641,10 +641,10 @@ class SQLValuesToWrite(dict):
         for record in records:
             valid = ability.can_with_record(user, A.WRITE, record, available=available)
             if len(valid) != len(self):
-                logger.debug("request permission failed. request / valid: %r, %r" % (list(self.keys()), valid))
+                logger.debug("request permission failed as %r. request / valid: %r, %r" % (ability.role, list(self.keys()), valid))
                 raise PermissionDenied()
 
-        logger.debug("request permission successed: %r" % list(self.keys()))
+        logger.debug("request permission successed as %r: %r" % (ability.role, list(self.keys())))
 
     def check_write_permission(self, view: "AbstractSQLView", action, records=None):
         from .permission import A
