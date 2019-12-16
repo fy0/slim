@@ -1,12 +1,12 @@
 import copy
 import logging
-from typing import Dict, Tuple, Any, TYPE_CHECKING, Optional, List, Set, Iterable
-
+from typing import Dict, Tuple, Any, TYPE_CHECKING, Optional, List, Set, Iterable, Union, Sequence
+from .sqlquery import SQLQueryInfo, SQL_OP
 from .sqlfuncs import DataRecord
 from .user import BaseUser
 
 if TYPE_CHECKING:
-    from .sqlquery import SQLQueryInfo
+    from .sqlquery import SQLQueryInfo, SQL_OP
     from slim.base.view import AbstractSQLView
 
 logger = logging.getLogger(__name__)
@@ -132,10 +132,21 @@ class Ability:
                 ret[k] = self._parse_permission_value(v)
             return ret
 
-    def add_query_condition(self, table, params=None, *, func=None):
+    def add_query_condition(self, table, params: Union[Sequence[Sequence], Tuple, List] = None, *, func=None):
         if params:
             self.query_condition_params.setdefault(table, [])
-            self.query_condition_params[table].append(params)
+            assert isinstance(params, (List, Tuple)), 'query condition params must be List or Tuple'
+
+            if params:
+                if isinstance(params[0], (List, Tuple)):
+                    # 第一种情况：[['a', '=', 'b']]
+                    for i in params:
+                        cond = SQLQueryInfo.check_condition_and_format(i)
+                        self.query_condition_params[table].append(cond)
+                else:
+                    # 第二种情况：['a', '=', 'b']
+                    cond = SQLQueryInfo.check_condition_and_format(params)
+                    self.query_condition_params[table].append(cond)
 
         if func:
             self.query_condition_params_funcs.setdefault(table, [])
@@ -149,8 +160,7 @@ class Ability:
         if table in self.query_condition_params:
             # TODO: Check once
             for items in self.query_condition_params[table]:
-                for i in items:
-                    query.add_condition(*i)
+                query.add_condition(*items)
 
         if table in self.query_condition_params_funcs:
             for func in self.query_condition_params_funcs[table]:

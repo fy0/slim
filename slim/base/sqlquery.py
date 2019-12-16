@@ -330,6 +330,21 @@ class SQLQueryInfo:
             new_data[k] = nv if isinstance(nv, List) else [nv]
         return new_data
 
+    @classmethod
+    def check_condition_and_format(cls, val: Iterable) -> List:
+        """
+        检查条件语句，并将其格式化为可用状态
+        :param val:
+        :return:
+        """
+        field_name, op, value = val
+        if not isinstance(op, SQL_OP):
+            if op not in SQL_OP.txt2op:
+                raise SQLOperatorInvalid(op, 'The condition is illegal: %s' % val)
+            else:
+                op = SQL_OP.txt2op.get(op)
+        return [field_name, op, value]
+
     def add_condition(self, field_name, op, value):
         """
         Add a query condition and validate it.
@@ -340,12 +355,8 @@ class SQLQueryInfo:
         :param value:
         :return: None
         """
-        if not isinstance(op, SQL_OP):
-            if op not in SQL_OP.txt2op:
-                raise SQLOperatorInvalid(op)
-            else:
-                op = SQL_OP.txt2op.get(op)
-        self.conditions.append([field_name, op, value])  # 注意，必须是list
+        cond = self.check_condition_and_format((field_name, op, value))
+        self.conditions.append(cond)
 
     def parse_then_add_condition(self, field_name, op_name, value):
         if op_name not in SQL_OP.txt2op:

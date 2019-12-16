@@ -97,6 +97,10 @@ def test_condition():
             assert sqi.conditions[0] == ['a', SQL_OP.txt2op[i], 'b']
 
 
+def test_query_condition_add2():
+    pass
+
+
 if __name__ == '__main__':
     # test_new()
     # test_order()
