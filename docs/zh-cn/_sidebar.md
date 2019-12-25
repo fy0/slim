@@ -12,4 +12,4 @@
 
 - 进阶
     - 绑定到其他数据库驱动
-    - [源码简介](quickstart/code.md)
+    - [代码结构](code/code.md)

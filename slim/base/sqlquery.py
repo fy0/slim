@@ -449,7 +449,7 @@ class SQLQueryInfo:
             do_check(checking_columns_qex, is_q_cond, A.QUERY_EX)
 
             # 所有查询条件都被权限机制清空，被认为是出乎意料的结果，所以抛出异常
-            # 否则用户会得到一个无条件查询出的数据，但在有条件情况下其实可能得不到
+            # 否则用户会得到一个无条件查询出的数据。
             if not self.conditions:
                 raise PermissionDenied("No column had permission to %s: %r of %r" % (
                     A.QUERY, checking_columns.union(checking_columns_qex), table))

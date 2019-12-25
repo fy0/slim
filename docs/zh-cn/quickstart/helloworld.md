@@ -1,9 +1,20 @@
 
 # 启程
 
+## 安装
+
+首先，使用 pip 安装 slim
+
+```bash
+sudo pip3 install slim
+```
+
+
 ## 简单示例
 
-model.py 这是一个简单的 peewee 使用 sqlite 为后端并创建数据表的例子
+这是一个简单的 peewee 使用 sqlite 为后端并创建数据表的例子
+
+model.py
 
 ```python
 
@@ -74,12 +85,6 @@ python app.py
 
 * config.py 文件
 
-首先，使用 pip 安装 slim
-
-```bash
-sudo pip3 install slim
-```
-
 安装完成后可以使用命令：
 
 ```bash
@@ -118,13 +123,13 @@ This option should only be used in development environment
 ```
 说明：slim cli工具自动生成的配置文件是随机的以9开头的四位端口号，格式为 9%03d
 
-使用浏览器打开 localhost:9999/api/aiohttp_request 或 localhost:9999/api/aiohttp_request 即可看到
+使用浏览器打开 http://localhost:9999/api/aiohttp_request 或 localhost:9999/api/aiohttp_request 即可看到
 
 ```html
 hello
 ```
 
-使用浏览器打开 http://0.0.0.0:9999/api/example/get 即可看到
+使用浏览器打开 http://localhost:9999/api/example/get 即可看到
 
 ```json
 {
@@ -136,7 +141,7 @@ hello
 
 因为还数据库example表中没有找到对应的数据
 
-使用浏览器打开 http://0.0.0.0:9999/api/example/list/1 即可看到
+使用浏览器打开 http://localhost:9999/api/example/list/1 即可看到
 
 ```json
 {
@@ -214,4 +219,3 @@ hello
 ```
 
 所有接口请参考“简单示例”和“标准预设接口”
-
