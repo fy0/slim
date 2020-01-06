@@ -4,11 +4,18 @@
 ## 概述
 ---
 
-如前文所说，slim 默认会将数据表封装为一套web接口，而这些接口遵循一些共同原则。
+slim 会将数据表封装为一套web接口，来进行增删改查操作。
 
-除了默认的接口之外，可以自行扩展新的接口，也可以重载或者关闭默认接口。
+此外，还可以自行扩展新的接口，也可以重载或者关闭默认接口。
 
-一般来说，我们利用 HTTP 请求附带的参数（params）来进行数据的查询和选择，等价于使用and连接的sql条件语句，同时支持部分运算符。
+
+我们有一个简单的基本原则：
+
+> 使用查询参数（通常叫做query string或parameters）来选择数据。
+> 使用POST数据，来代表添加或修改。
+
+
+，等价于使用and连接的sql条件语句，同时支持部分运算符。
 
 利用 HTTP POST 请求中可以附加的 body 信息来表示数据被添加或更新的内容。
 
@@ -50,6 +57,8 @@ class RETCODE(StateObject):
     FAILED = -255  # 失败
     TIMEOUT = -254  # 超时
     UNKNOWN = -253  # 未知错误
+    TOO_FREQUENT = -252  # 请求过于频繁
+    DEPRECATED = -251  # 已废弃
 
     NOT_FOUND = -249  # 未找到
     ALREADY_EXISTS = -248  # 已存在
@@ -65,7 +74,6 @@ class RETCODE(StateObject):
     INVALID_POSTDATA = -218  # 非法提交内容
 
     WS_DONE = 1  # Websocket 请求完成
-
 ```
 
 
