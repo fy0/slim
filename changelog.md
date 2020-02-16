@@ -1,4 +1,11 @@
 
+#### 0.4.15 update 2020.02.17
+
+* Changed: Prettier access log
+
+* Changed: Won't allowed bind aiohttp handler to router
+
+
 #### 0.4.14 update 2019.12.11
 
 * Added: Print query parameters

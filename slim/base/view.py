@@ -134,8 +134,10 @@ class BaseView(metaclass=MetaClassForInit):
             if func:
                 if asyncio.iscoroutinefunction(func):
                     self._current_user = await func()
+
         session_cls = self.app.options.session_cls
         self.session = await session_cls.get_session(self)
+        await async_call(self.prepare)
 
     async def prepare(self):
         pass
@@ -143,6 +145,8 @@ class BaseView(metaclass=MetaClassForInit):
     async def _on_finish(self):
         if self.session:
             await self.session.save()
+
+        await async_call(self.on_finish)
 
         if isinstance(self.ret_val, bytes):
             logger.debug('finish: raw body(%d bytes)' % len(self.ret_val))
@@ -254,7 +258,6 @@ class BaseView(metaclass=MetaClassForInit):
     def params(self) -> "MultiDict[str]":
         if self._params_cache is None:
             self._params_cache = MultiDict(self._request.query)
-            logger.debug('query parameters: %s', self._params_cache)
         return self._params_cache
 
     async def _post_json(self) -> dict:
@@ -272,7 +275,6 @@ class BaseView(metaclass=MetaClassForInit):
         else:
             # post body: form data
             self._post_data_cache = MultiDict(await self._request.post())
-        logger.debug('post data: %s', self._post_data_cache)
         return self._post_data_cache
 
     def set_cookie(self, key, value, *, path='/', expires=None, domain=None, max_age=None, secure=None,

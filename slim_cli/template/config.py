@@ -1,9 +1,11 @@
+import logging
+
 PROJECT_NAME = 'SlimApplication'
 VERSION = '1.0.0'
 
 HOST = '0.0.0.0'
 PORT = 9999
-DEBUG = True
+DEBUG = logging.INFO
 DATABASE_URI = "sqlite:///database.db"
 # DATABASE_URI = "postgresql://mydb:password@localhost:5432/mydb"
 # REDIS_URI = 'redis://localhost:6379'

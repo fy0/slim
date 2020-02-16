@@ -3,6 +3,8 @@ import asyncio
 from typing import Union, List, Optional, TYPE_CHECKING
 from aiohttp import web
 from aiohttp.web_urldispatcher import StaticResource
+
+from slim.ext.openapi.main import get_openapi
 from .session import CookieSession
 from ..utils import get_ioloop
 from ..utils.jsdict import JsDict
@@ -54,7 +56,8 @@ class CORSOptions:
 
 
 class Application:
-    def __init__(self, *, cookies_secret: bytes, log_level=logging.DEBUG, session_cls=CookieSession,
+    def __init__(self, *, cookies_secret: bytes, log_level=logging.INFO, session_cls=CookieSession,
+                 mountpoint: str = '/api',
                  permission: Optional['Permissions'] = None, client_max_size=2 * 1024 * 1024,
                  cors_options: Optional[Union[CORSOptions, List[CORSOptions]]] = None):
         """
@@ -64,10 +67,46 @@ class Application:
         :param session_cls:
         :param client_max_size: 2MB is default client_max_body_size of nginx
         """
+        from posixpath import join as urljoin
         from .route import get_route_middleware, Route
         from .permission import Permissions, Ability, ALL_PERMISSION, EMPTY_PERMISSION
 
+        self.mountpoint = mountpoint
         self.route = Route(self)
+
+        @self.route(urljoin(mountpoint, 'openapi.json'), 'GET')
+        async def openapi(request):
+            return web.json_response(get_openapi(self))
+
+        @self.route('/redoc', 'GET')
+        async def openapi(request):
+            return web.Response(content_type='text/html',body='''
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>ReDoc</title>
+    <!-- needed for adaptive design -->
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:300,400,700" rel="stylesheet">
+
+    <!--
+    ReDoc doesn't change outer page styles
+    -->
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <redoc spec-url='/api/openapi.json'></redoc>
+    <script src="https://cdn.jsdelivr.net/npm/redoc@next/bundles/redoc.standalone.js"> </script>
+  </body>
+</html>
+        ''')
+
         if permission is ALL_PERMISSION:
             logger.warning('app.permission is ALL_PERMISSION, it means everyone has all permissions for any table')
             logger.warning("This option should only be used in development environment")
@@ -102,10 +141,14 @@ class Application:
 
         for _, cls in self.route.views:
             if issubclass(cls, AbstractSQLView):
-                assert cls.table_name not in self.tables, "sorry, you bind the table (%r) to" \
-                                                          " multi views (%r, %r), it's not allowed." % (
-                                                              cls.table_name, self.tables[cls.table_name].__name__,
-                                                              cls.__name__)
+                def get_exists_view_full_name():
+                    view_cls = self.tables[cls.table_name]
+                    return '%s.%s' % (view_cls.__module__, view_cls.__name__)
+
+                if cls.table_name in self.tables:
+                    logger.error("The table (%r) is already binded to %r." % (cls.table_name, get_exists_view_full_name()))
+                    exit(-1)
+
                 self.tables[cls.table_name] = cls
                 if isinstance(cls.permission, Permissions):
                     self.table_permissions[cls.table_name] = cls.permission
