@@ -9,7 +9,3 @@ def test_version():
 
     m = re.search(r"version='(.+?)',", setup_file)
     assert m.group(1) == slim.__version__
-
-
-if __name__ == '__main__':
-    test_version()
