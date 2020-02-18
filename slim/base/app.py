@@ -57,7 +57,7 @@ class CORSOptions:
 
 class Application:
     def __init__(self, *, cookies_secret: bytes, log_level=logging.INFO, session_cls=CookieSession,
-                 mountpoint: str = '/api',
+                 mountpoint: str = '/api', doc_enable=True,
                  permission: Optional['Permissions'] = None, client_max_size=2 * 1024 * 1024,
                  cors_options: Optional[Union[CORSOptions, List[CORSOptions]]] = None):
         """
@@ -65,6 +65,8 @@ class Application:
         :param log_level:
         :param permission: `ALL_PERMISSION`, `EMPTY_PERMISSION` or a `Permissions` object
         :param session_cls:
+        :param mountpoint:
+        :param doc_enable:
         :param client_max_size: 2MB is default client_max_body_size of nginx
         """
         from posixpath import join as urljoin
@@ -73,14 +75,16 @@ class Application:
 
         self.mountpoint = mountpoint
         self.route = Route(self)
+        self.doc_enable = doc_enable
 
-        @self.route(urljoin(mountpoint, 'openapi.json'), 'GET')
-        async def openapi(request):
-            return web.json_response(get_openapi(self))
+        if self.doc_enable:
+            @self.route(urljoin(mountpoint, 'openapi.json'), 'GET')
+            async def openapi(request):
+                return web.json_response(get_openapi(self))
 
-        @self.route('/redoc', 'GET')
-        async def openapi(request):
-            return web.Response(content_type='text/html',body='''
+            @self.route('/redoc', 'GET')
+            async def openapi(request):
+                return web.Response(content_type='text/html',body='''
 <!DOCTYPE html>
 <html>
   <head>
@@ -105,7 +109,7 @@ class Application:
     <script src="https://cdn.jsdelivr.net/npm/redoc@next/bundles/redoc.standalone.js"> </script>
   </body>
 </html>
-        ''')
+            ''')
 
         if permission is ALL_PERMISSION:
             logger.warning('app.permission is ALL_PERMISSION, it means everyone has all permissions for any table')

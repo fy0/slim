@@ -1,12 +1,23 @@
+import pytest
+from peewee import SqliteDatabase, Model, TextField
+
+from slim import Application, ALL_PERMISSION
+from slim.support.peewee import PeeweeView
+
 from slim.base.sqlquery import SQLQueryInfo, SQLQueryOrder, ALL_COLUMNS, SQL_OP
-from slim.exception import SyntaxException, InvalidParams
+from slim.exception import SyntaxException, InvalidParams, ColumnNotFound
+from tests.tools import make_mocked_view_instance
+
+pytestmark = [pytest.mark.asyncio]
+app = Application(cookies_secret=b'123456', permission=ALL_PERMISSION)
+db = SqliteDatabase(":memory:")
 
 
-def test_new():
+async def test_new():
     sqi = SQLQueryInfo()
 
 
-def test_order():
+async def test_order():
     assert SQLQueryInfo.parse_order('a') == []
     assert SQLQueryInfo.parse_order('a,b,c') == []
     assert SQLQueryInfo.parse_order('a, b, c') == []
@@ -42,7 +53,7 @@ def test_order():
     assert sqi.orders == [SQLQueryOrder('A', 'asc')]
 
 
-def test_select():
+async def test_select():
     assert SQLQueryInfo.parse_select('aa') == {'aa'}
     assert SQLQueryInfo.parse_select('aa,') == {'aa'}
     assert SQLQueryInfo.parse_select('aa,bbb') == {'aa', 'bbb'}
@@ -78,7 +89,7 @@ def test_select():
     assert sqi.set_select({'1', '2', '3'}) is None
 
 
-def test_condition():
+async def test_very_simple_condition():
     sqi = SQLQueryInfo()
     sqi.parse_then_add_condition('a', '=', 'b')
     assert sqi.conditions[0] == ['a', SQL_OP.EQ, 'b']
@@ -97,12 +108,62 @@ def test_condition():
             assert sqi.conditions[0] == ['a', SQL_OP.txt2op[i], 'b']
 
 
-def test_query_condition_add2():
+class ATestModel(Model):
+    name = TextField()
+
+
+@app.route('test1')
+class ATestView(PeeweeView):
+    model = ATestModel
+
+
+async def test_condition_bind():
+    sqi = SQLQueryInfo()
+    sqi.parse_then_add_condition('name', '=', '1')
+    view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'GET', '/api/test1')
+    sqi.bind(view)
+
+
+async def test_condition_bind_error_column_not_found():
+    sqi = SQLQueryInfo()
+    sqi.parse_then_add_condition('name1', '=', '1')
+    view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'GET', '/api/test1')
+
+    with pytest.raises(ColumnNotFound) as e:
+        sqi.bind(view)
+
+    assert 'name1' in e.value.args[0]
+
+
+async def test_condition_bind_error_convert_failed():
+    sqi = SQLQueryInfo()
+    sqi.parse_then_add_condition('name', '=', {})
+    view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'GET', '/api/test1')
+
+    with pytest.raises(InvalidParams) as e:
+        sqi.bind(view)
+
+    assert 'name' in e.value.args[0]
+    assert "Couldn't interpret" in str(e.value)
+
+
+async def test_condition_bind_error_in_or_not_in_value():
+    # TODO: add condition 时就根据 in 这种运算符做了特殊解析，认为值校验的时机不一致，需要重新考量
     pass
+    '''
+    sqi = SQLQueryInfo()
+    sqi.parse_then_add_condition('name', 'in', 1)
+    view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'GET', '/api/test1')
+
+    with pytest.raises(InvalidParams) as e:
+        sqi.bind(view)
+
+    assert 'name' in e.value.args[0]
+    '''
 
 
 if __name__ == '__main__':
     # test_new()
     # test_order()
     # test_select()
-    test_condition()
+    test_very_simple_condition()

@@ -6,6 +6,7 @@ from posixpath import join as urljoin
 
 from aiohttp.abc import Request
 from slim.base.ws import WSRouter
+from slim.utils import get_class_full_name
 from ..utils.async_run import sync_call, async_call
 
 if TYPE_CHECKING:
@@ -27,7 +28,7 @@ def get_route_middleware(app: 'Application'):
             view_cls = data['view']
             func = data['handler']
 
-            handler_name = '%s.%s.%s' % (view_cls.__module__, view_cls.__name__, func.__name__)
+            handler_name = '%s.%s' % (get_class_full_name(view_cls), func.__name__)
             ascii_encodable_path = request.path_qs.encode('ascii', 'backslashreplace').decode('ascii')
             status_code = 200
 
@@ -87,7 +88,7 @@ def view_bind(app: 'Application', cls_url, view_cls: Type['BaseView']):
             if real_handler is None: continue  # TODO: delete
             assert real_handler is not None, "handler must be exists"
 
-            handler_name = '%s.%s.%s' % (view_cls.__module__, view_cls.__name__, real_handler.__name__)
+            handler_name = '%s.%s' % (get_class_full_name(view_cls), real_handler.__name__)
             if not iscoroutinefunction(real_handler):
                 logger.error("Interface function must be async: %r" % handler_name)
                 exit(-1)

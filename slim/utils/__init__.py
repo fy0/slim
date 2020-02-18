@@ -49,6 +49,10 @@ def time_readable():
     return time.strftime('%Y-%m-%d %H:%M:%S', x)
 
 
+def get_class_full_name(cls):
+    return '%s.%s' % (cls.__module__, cls.__qualname__)
+
+
 class BoolParser:
     def __new__(cls, val):
         is_true = val in ('true', 'True', '1')

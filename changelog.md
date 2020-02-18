@@ -1,9 +1,19 @@
 
-#### 0.4.15 update 2020.02.17
+#### 0.5.0 update 2020.02.19
+
+* Added: OpenAPI 3 supported
+
+* Added: More readable error texts for query condition parse.
+
+* Added: More tests for query parse and post data parse
 
 * Changed: Prettier access log
 
 * Changed: Won't allowed bind aiohttp handler to router
+
+* Changed: New validate and value parse mechanism
+
+* Removed: `slim.base.sqlquery.UpdateInfo`
 
 
 #### 0.4.14 update 2019.12.11

@@ -6,9 +6,12 @@ from ipaddress import ip_address, IPv4Address, IPv6Address
 from types import FunctionType
 from typing import Tuple, Union, Dict, Iterable, Type, List, Set, Any, Optional
 from unittest import mock
+
+import schematics
 from aiohttp import web, hdrs
 from aiohttp.web_request import BaseRequest, FileField
 from multidict import CIMultiDictProxy, MultiDictProxy, MultiDict
+from schematics.types import BaseType
 
 from .user import BaseUserViewMixin
 from .sqlquery import SQLQueryInfo, SQL_TYPE, SQLForeignKey, SQLValuesToWrite, ALL_COLUMNS, PRIMARY_KEY, SQL_OP
@@ -18,8 +21,9 @@ from .permission import Permissions, Ability, BaseUser, A, DataRecord
 from .sqlfuncs import AbstractSQLFunctions
 from ..retcode import RETCODE
 from ..utils.jsdict import JsDict
+from ..utils.cls_property import classproperty
 from ..utils import pagination_calc, MetaClassForInit, async_call, get_ioloop, sync_call, BlobParser, BoolParser, \
-    JSONParser, sentinel
+    JSONParser, sentinel, get_class_full_name
 from ..utils.json_ex import json_ex_dumps
 from ..exception import RecordNotFound, SyntaxException, InvalidParams, SQLOperatorInvalid, ColumnIsNotForeignKey, \
     ColumnNotFound, InvalidRole, PermissionDenied, FinishQuitException, SlimException, TableNotFound, \
@@ -386,7 +390,7 @@ class ErrorCatchContext:
                 self.view.finish(RETCODE.INVALID_PARAMS)
 
         elif isinstance(exc_val, InvalidPostData):
-            if len(exc_val.args) and exc_val.args[0].startswith('Column bad value'):
+            if len(exc_val.args):
                 self.view.finish(RETCODE.INVALID_POSTDATA, exc_val.args[0])
             else:
                 self.view.finish(RETCODE.INVALID_POSTDATA)
@@ -441,17 +445,16 @@ class AbstractSQLView(BaseView):
     LIST_PAGE_SIZE_CLIENT_LIMIT = None  # None 为与LIST_PAGE_SIZE相同，-1 为无限
     LIST_ACCEPT_SIZE_FROM_CLIENT = False
 
-    table_name = None
-    primary_key = None
-    fields = {}
-    foreign_keys = {}
-    foreign_keys_table_alias = {}
+    table_name: str = None
+    primary_key: str = None
+    data_model: Type[schematics.Model] = None
 
-    # table_name: str = None
-    # primary_key: str = None
-    # fields: Dict[str, SQL_TYPE] = {}
-    # foreign_keys: Dict[str, List[SQLForeignKey]] = {}
-    # foreign_keys_table_alias: Dict[str, str] = {}  # hide real table name
+    foreign_keys: Dict[str, List[SQLForeignKey]] = {}
+    foreign_keys_table_alias: Dict[str, str] = {}  # to hide real table name
+
+    @classproperty
+    def fields(cls) -> Dict[str, BaseType]:  # OrderedDict
+        return cls.data_model.fields
 
     @classmethod
     def _is_skip_check(cls):
@@ -481,12 +484,12 @@ class AbstractSQLView(BaseView):
         :return: True, None
         """
         if column in cls.fields:
-            table = SQLForeignKey(table_name, column, cls.fields[column], True)
+            table = SQLForeignKey(table_name, column, True)
 
             if alias:
                 if alias in cls.foreign_keys_table_alias:
                     logger.warning("This alias of table is already exists, overwriting: %s.%s to %s" %
-                                   (cls.__name__, column, table_name))
+                                   (get_class_full_name(cls), column, table_name))
                 cls.foreign_keys_table_alias[alias] = table
 
             if column not in cls.foreign_keys:
@@ -494,7 +497,7 @@ class AbstractSQLView(BaseView):
             else:
                 if not alias:
                     logger.warning("The soft foreign key will not work, an alias required: %s.%s to %r" %
-                                   (cls.__name__, column, table_name))
+                                   (get_class_full_name(cls), column, table_name))
                 cls.foreign_keys[column].append(table)
             return True
 
@@ -514,20 +517,22 @@ class AbstractSQLView(BaseView):
         BaseView.cls_init.__func__(cls)
         # super().cls_init()  # fixed in 3.6
 
-        assert isinstance(cls.LIST_PAGE_SIZE, int), '%s.LIST_PAGE_SIZE must be int' % cls.__name__
+        cls_full_name = get_class_full_name(cls)
+        assert isinstance(cls.LIST_PAGE_SIZE, int), '%s.LIST_PAGE_SIZE must be int' % cls_full_name
         assert cls.LIST_PAGE_SIZE == -1 or cls.LIST_PAGE_SIZE > 0, \
-            '%s.LIST_PAGE_SIZE must be -1 or more than 0' % cls.__name__
+            '%s.LIST_PAGE_SIZE must be -1 or more than 0' % cls_full_name
         assert cls.LIST_PAGE_SIZE_CLIENT_LIMIT is None or isinstance(cls.LIST_PAGE_SIZE_CLIENT_LIMIT, int), \
-            '%s.LIST_PAGE_SIZE_CLIENT_LIMIT must be None or int' % cls.__name__
+            '%s.LIST_PAGE_SIZE_CLIENT_LIMIT must be None or int' % cls_full_name
         if isinstance(cls.LIST_PAGE_SIZE_CLIENT_LIMIT, int):
             assert cls.LIST_PAGE_SIZE_CLIENT_LIMIT == -1 or cls.LIST_PAGE_SIZE_CLIENT_LIMIT > 0, \
-                '%s.LIST_PAGE_SIZE must be None or -1 or more than 0' % cls.__name__
+                '%s.LIST_PAGE_SIZE must be None or -1 or more than 0' % cls_full_name
 
         async def func():
             await cls._fetch_fields(cls)
             if not cls._is_skip_check():
                 assert cls.table_name
-                assert cls.fields
+                assert cls.data_model
+                # assert cls.fields
                 # assert cls.primary_key
                 # assert cls.foreign_keys
 
@@ -729,8 +734,11 @@ class AbstractSQLView(BaseView):
                 records = [record]
                 values.bind(self, A.WRITE, records)
                 await self._call_handle(self.before_update, raw_post, values, records)
-                logger.debug('update record(s): %s' % values)
-                # 注：此处returning为true是因为后续要检查数据的权限，和前端返回无关
+
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug('update record(s): %s' % values)
+
+                # 注：此处returning为true是因为后续要检查数据的权限，和前端要求无关
                 new_records = await self._sql.update(records, values, returning=True)
                 await self.check_records_permission(None, new_records)
                 await self._call_handle(self.after_update, raw_post, values, records, new_records)
@@ -796,7 +804,7 @@ class AbstractSQLView(BaseView):
         4 values must be set up in this function:
         1. cls.table_name: str
         2. cls.primary_key: str
-        3. cls.fields: Dict['column', SQL_TYPE]
+        3. cls.data_model: Type[schematics.Model]
         4. cls.foreign_keys: Dict['column', List[SQLForeignKey]]
 
         :param cls_or_self:

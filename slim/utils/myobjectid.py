@@ -51,31 +51,18 @@ class ObjectID(object):
         self.object_id = object_id
 
     def _parse_id(self, object_id):
-        if py_ver >= 3:
-            if type(object_id) == str:
-                if len(object_id) != 24:
-                    raise TypeError
-                object_id = binascii.unhexlify(bytes(object_id, 'utf-8'))
-
-            if type(object_id) == bytes:
-                if len(object_id) != 12:
-                    raise TypeError
-                self.time = struct.unpack(">i", object_id[0:4])[0]
-                self.object_id = object_id
-            else:
+        if type(object_id) == str:
+            if len(object_id) != 24:
                 raise TypeError
+            object_id = binascii.unhexlify(bytes(object_id, 'utf-8'))
+
+        if type(object_id) == bytes:
+            if len(object_id) != 12:
+                raise TypeError
+            self.time = struct.unpack(">i", object_id[0:4])[0]
+            self.object_id = object_id
         else:
-            if type(object_id) != str:
-                raise TypeError
-
-            if len(object_id) == 24:
-                object_id = binascii.unhexlify(object_id)
-
-            if len(object_id) == 12:
-                self.time = struct.unpack(">i", object_id[0:4])[0]
-                self.object_id = object_id
-            else:
-                raise TypeError
+            raise TypeError
 
     @classmethod
     def check_valid(cls, str_or_bytes):

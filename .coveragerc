@@ -4,3 +4,4 @@ omit = slim/utils/umsgpack.py
     slim/utils/debug/*
     slim/tests/*
     slim_cli/*
+    setup.py

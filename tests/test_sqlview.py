@@ -132,19 +132,17 @@ async def test_bind():
     assert set(view.model._meta.fields.values()) == set(view.model._meta.fields.values())
 
 
-async def test_get():
+async def test_get_without_stmt():
     # 1. success: no statement
-    request = make_mocked_request('GET', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
-    view = ATestView(app, request)
-    await view._prepare()
+    view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'GET', '/api/test1')
     await view.get()
     assert view.ret_val['code'] == RETCODE.SUCCESS
 
+
+async def test_get_with_simple_stmt_failed():
     # 2. failed: simple statement and not found
-    request = make_mocked_request('GET', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
-    view = ATestView(app, request)
-    view._params_cache = {'name': '1'}
-    await view._prepare()
+    params = {'name': '1'}
+    view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'GET', '/api/test1', params=params)
     await view.get()
     assert view.ret_val['code'] == RETCODE.NOT_FOUND
 
@@ -345,41 +343,37 @@ async def test_get_loadfk():
     assert len(view.ret_val['data']['items']) == 0
 
 
-async def test_new():
+async def test_new_simple():
     # 1. simple insert
-    request = make_mocked_request('POST', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
-    request._post = dict(name='Name6', binary=b'test6', count=1, json={'q': 1, 'w6': 2})
-    view = ATestView(app, request)
-    await view._prepare()
+    post = dict(name='Name6', binary=b'test6', count=1, json={'q': 1, 'w6': 2})
+    view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'POST', '/api/test1', post=post)
+
     await view.new()
     assert view.ret_val['code'] == RETCODE.SUCCESS
     assert view.ret_val['data'] == 1
 
+
+async def test_new_simple_with_return():
     # 2. insert and return records
-    request = make_mocked_request('POST', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
-    request._post = dict(name='Name6', binary=b'test6', count=1, json=json.dumps({'q': 1, 'w6': 2}))
-    request._post['returning'] = True
-    view = ATestView(app, request)
-    await view._prepare()
+    post = dict(name='Name6', binary=b'test6', count=1, json={'q': 1, 'w6': 2}, returning=True)
+    view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'POST', '/api/test1', post=post)
+
     await view.new()
     assert view.ret_val['code'] == RETCODE.SUCCESS
     assert view.ret_val['data']['name'] == 'Name6'
 
+
+async def test_new_failed():
     # 3. insert without necessary parameter
-    request = make_mocked_request('POST', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
-    request._post = dict(name='Name6',count=1)
-    view = ATestView(app, request)
-    await view._prepare()
+    post = dict(name='Name6', count=1)
+    view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'POST', '/api/test1', post=post)
     await view.new()
     assert view.ret_val['code'] == RETCODE.INVALID_POSTDATA
 
 
 async def test_new_without_data():
     assert ATestNewModel.create()
-    request = make_mocked_request('POST', '/api/test_new', headers={}, protocol=mock.Mock(), app=app)
-    request._post = {}
-    view = ATestNewView(app, request)
-    await view._prepare()
+    view: PeeweeView = await make_mocked_view_instance(app, ATestNewView, 'POST', '/api/test_new', post={})
     await view.new()
     assert view.ret_val['code'] == RETCODE.SUCCESS
 
@@ -390,46 +384,43 @@ async def test_update():
     a3 = ATestModel.create(name='Name3A', binary=b'test3A', count=3, json={'q': 1, 'w3a': 2})
 
     # 1. simple update
-    request = make_mocked_request('POST', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
-    request._post = dict(name='Name1AA', count='4')
-    view = ATestView(app, request)
-    view._params_cache = {'name': 'Name1A'}
-    await view._prepare()
+    params = {'name': 'Name1A'}
+    post = dict(name='Name1AA', count='4')
+    view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'POST', '/api/test_new',
+                                                       params=params, post=post)
+
     await view.update()
     assert view.ret_val['code'] == RETCODE.SUCCESS
     assert view.ret_val['data'] == 1
 
-    val = ATestModel.get(ATestModel.binary==b'test1A')
+    val = ATestModel.get(ATestModel.binary == b'test1A')
     assert val.name == 'Name1AA'
 
     # 2. simple update with returning
-    request = make_mocked_request('POST', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
-    request._post = dict(name='Name2AA', count='5')
-    request._post['returning'] = True
-    view = ATestView(app, request)
-    view._params_cache = {'name': 'Name2A'}
-    await view._prepare()
+    params = {'name': 'Name2A'}
+    post = dict(name='Name2AA', count='5', returning=True)
+    view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'POST', '/api/test_new',
+                                                       params=params, post=post)
+
     await view.update()
     assert view.ret_val['code'] == RETCODE.SUCCESS
     assert view.ret_val['data']['name'] == 'Name2AA'
 
     # 3. incr
-    request = make_mocked_request('POST', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
-    request._post = {'count.incr': 1, 'returning': True}
-    view = ATestView(app, request)
-    view._params_cache = {'name': 'Name3A'}
-    await view._prepare()
+    params = {'name': 'Name3A'}
+    post = {'count.incr': 1, 'returning': True}
+    view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'POST', '/api/test_new',
+                                                       params=params, post=post)
     await view.update()
     assert view.ret_val['code'] == RETCODE.SUCCESS
     assert view.ret_val['data']['name'] == 'Name3A'
     assert view.ret_val['data']['count'] == 4
 
     # 3. incr -1
-    request = make_mocked_request('POST', '/api/test1', headers={}, protocol=mock.Mock(), app=app)
-    request._post = {'count.incr': -2, 'returning': True}
-    view = ATestView(app, request)
-    view._params_cache = {'name': 'Name3A'}
-    await view._prepare()
+    params = {'name': 'Name3A'}
+    post = {'count.incr': -2, 'returning': True}
+    view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'POST', '/api/test_new',
+                                                       params=params, post=post)
     await view.update()
     assert view.ret_val['code'] == RETCODE.SUCCESS
     assert view.ret_val['data']['name'] == 'Name3A'
@@ -518,9 +509,8 @@ async def test_select():
 
 async def test_value_type():
     # 1. success
-    view = await make_mocked_view_instance(app, ATestView, 'POST', '/api/test1',
-                                           post={'name': 'Name1BB', 'binary': b'test1bb',
-                                                 'json': {'q': 1, 'w6': 2}, 'count': 4})
+    post = {'name': 'Name1BB', 'binary': b'test1bb', 'json': {'q': 1, 'w6': 2}, 'count': 4}
+    view = await make_mocked_view_instance(app, ATestView, 'POST', '/api/test1', post=post)
     await view.new()
     assert view.ret_val['code'] == RETCODE.SUCCESS
     assert view.ret_val['data'] == 1

@@ -4,7 +4,10 @@ import traceback
 from enum import Enum
 from typing import Union, Iterable, List, TYPE_CHECKING, Dict, Set
 from multidict import MultiDict
+from schematics.exceptions import DataError, ConversionError
+from schematics.types import BaseType
 
+from slim.base.const import ERR_TEXT_ROGUE_FIELD, ERR_TEXT_COLUMN_IS_NOT_FOREIGN_KEY
 from ..utils import BlobParser, JSONParser, is_py36, dict_filter, dict_filter_inplace, BoolParser
 from ..exception import SyntaxException, ResourceException, InvalidParams, \
     PermissionDenied, ColumnNotFound, ColumnIsNotForeignKey, SQLOperatorInvalid, InvalidRole, SlimException, \
@@ -117,10 +120,11 @@ class DataRecord:
 
 
 class SQLForeignKey:
-    def __init__(self, rel_table: str, rel_field: str, rel_type: SQL_TYPE, is_soft_key=False):
-        self.rel_table = rel_table
-        self.rel_field = rel_field
-        self.rel_type = rel_type
+    def __init__(self, rel_table: str, rel_field: str, is_soft_key=False):
+        self.rel_table = rel_table  # 关联的表
+        self.rel_field = rel_field  # 关联的列
+        # self.rel_type = rel_type  # 关联列类型
+        # rel_type: SQL_TYPE,
         self.is_soft_key = is_soft_key
 
 
@@ -199,14 +203,10 @@ class QueryConditions(list):
 class SQLQueryInfo:
     """ SQL查询参数。"""
     def __init__(self, params=None, view=None):
-        # self.select: Union[Set[str], object]
-        # self.orders: List[SQLQueryOrder]
-        # self.loadfk: Dict[str, List[Dict[str, object]]]
-
-        self.select = ALL_COLUMNS
+        self.select: Union[Set[str], ALL_COLUMNS] = ALL_COLUMNS
         self.conditions = QueryConditions()
-        self.orders = []
-        self.loadfk = {}
+        self.orders: List[SQLQueryOrder] = []
+        self.loadfk: Dict[str, List[Dict[str, object]]] = {}
 
         if params: self.parse(params)
         if view: self.bind(view)
@@ -470,7 +470,7 @@ class SQLQueryInfo:
             if column is PRIMARY_KEY:
                 return
             if column not in view.fields:
-                raise ColumnNotFound(column)
+                raise ColumnNotFound({column: [ERR_TEXT_ROGUE_FIELD]})
 
         # select check
         if self.select is ALL_COLUMNS:
@@ -487,6 +487,7 @@ class SQLQueryInfo:
         for i in self.conditions:
             field_name, op, value = i
             check_column_exists(field_name)
+
             if field_name == PRIMARY_KEY:
                 i[0] = field_name = view.primary_key
 
@@ -501,18 +502,26 @@ class SQLQueryInfo:
             check_column_exists(field_name)
             if field_name == PRIMARY_KEY:
                 i[0] = field_name = view.primary_key
-            field_type = view.fields[field_name]
-            conv = lambda x: None if x in ('null', None) else field_type.value(x)
+
+            field_type: BaseType = view.fields[field_name]
+            # TODO: 这里的 null 感觉有很大问题，或许应该明确一下字符串"null"和null？
+            conv = lambda x: None if x in ('null', None) else field_type(x)
+
             try:
                 # 注：外键的类型会是其指向的类型，这里不用担心
+                # TODO: value 为啥直接是 Iterable 了？这里需要复查
                 if op in (SQL_OP.IN, SQL_OP.NOT_IN):
                     assert isinstance(value, Iterable)
                     i[2] = list(map(conv, value))
                 else:
                     i[2] = conv(value)
 
+            except ConversionError as e:
+                raise InvalidParams({field_name: e.to_primitive()})
             except Exception as e:
-                raise InvalidParams("Column bad value: %s" % field_name)
+                # 这里本来设计了一个 condition name，但是觉得会对整体性造成破坏，就不用了
+                # cond_name = '%s.%s' % (field_name, op.value[0])
+                raise InvalidParams({field_name: ['Invalid value']})
 
         # order check
         for i, od in enumerate(self.orders):
@@ -534,11 +543,11 @@ class SQLQueryInfo:
 
                 # 检查列是否存在
                 if field_name not in the_view.fields:
-                    raise ColumnNotFound(field_name)
+                    raise ColumnNotFound({field_name: [ERR_TEXT_ROGUE_FIELD]})
 
                 # 检查列是否是合法的外键列
                 fks = the_view.foreign_keys.get(field_name, None)
-                if not fks: raise ColumnIsNotForeignKey(field_name)
+                if not fks: raise ColumnIsNotForeignKey({field_name: [ERR_TEXT_COLUMN_IS_NOT_FOREIGN_KEY]})
 
                 for values in values_lst:
                     # 检查是否采用别名将外键对应到特定表上
@@ -567,17 +576,6 @@ class SQLQueryInfo:
             check_loadfk_data(view, self.loadfk)
 
 
-class UpdateInfo:
-    def __init__(self, key, op, val):
-        assert op in ('incr', 'to')
-        self.key = key
-        self.op = op
-        self.val = val
-
-    def __repr__(self):
-        return '<%s %s>' % (self.op, self.val)
-
-
 class SQLValuesToWrite(dict):
     def __init__(self, post_data=None, view=None, action=None, records=None):
         super().__init__()
@@ -595,7 +593,10 @@ class SQLValuesToWrite(dict):
         if isinstance(post_data, dict):
             post_data = MultiDict(post_data)
 
+        self.incr_fields = set()
+
         for k, v in post_data.items():
+            # 提交多个相同值，等价于提交一个数组（用于formdata和urlencode形式）
             v_all = post_data.getall(k)
             if len(v_all) > 1:
                 v = v_all
@@ -608,8 +609,10 @@ class SQLValuesToWrite(dict):
                 self.returning = True
                 continue
             elif '.' in k:
+                # TODO: 不允许 incr 和普通赋值同时出现
                 k, op = k.rsplit('.', 1)
-                v = UpdateInfo(k, op, v)
+                if op == 'incr':
+                    self.incr_fields.add(k)
 
             self[k] = v
 
@@ -667,22 +670,6 @@ class SQLValuesToWrite(dict):
         else:
             raise SlimException("Invalid action to write: %r" % action)
 
-    def value_convert(self, view: "AbstractSQLView"):
-        for k, v in self.items():
-            field_type = view.fields[k]
-            conv = lambda x: None if x in ('null', None) else field_type.value(x)
-            try:
-                if isinstance(v, UpdateInfo):
-                    if v.op == 'to':
-                        self[k] = conv(v.val)
-                    elif v.op == 'incr':
-                        v.val = conv(v.val)
-                else:
-                    self[k] = conv(v)
-            except:
-                traceback.print_exc()
-                raise InvalidPostData("Column bad value: %s" % k)
-
     def bind(self, view: "AbstractSQLView", action=None, records=None):
         dict_filter_inplace(self, view.fields.keys())
 
@@ -693,4 +680,14 @@ class SQLValuesToWrite(dict):
         if action:
             self.check_write_permission(view, action, records)
 
-        self.value_convert(view)
+        # validate and format
+        try:
+            m = view.data_model(self, strict=False)
+            data = m.to_native()
+
+            for k in self:
+                self[k] = data.get(k)
+
+            self.incr_fields.intersection_update(self.keys())
+        except DataError as e:
+            raise InvalidPostData(e.to_primitive())
