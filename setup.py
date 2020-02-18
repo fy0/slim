@@ -67,10 +67,10 @@ setup(
     python_requires='>=3.6.0',
 
     extras_require={
-        'full': ['schematics', 'peewee', 'asyncpg', 'msgpack', 'psycopg2-binary'],
-        'peewee': ['schematics', 'peewee', 'psycopg2-binary'],
-        'asyncpg': ['schematics', 'asyncpg'],
-        'dev': ['schematics', 'pytest', 'pytest-cov', 'pytest-asyncio', 'peewee', 'asyncpg', 'msgpack', 'psycopg2-binary']
+        'full': ['peewee', 'asyncpg', 'msgpack', 'psycopg2-binary'],
+        'peewee': ['peewee', 'psycopg2-binary'],
+        'asyncpg': ['asyncpg'],
+        'dev': ['pytest', 'pytest-cov', 'pytest-asyncio', 'peewee', 'asyncpg', 'msgpack', 'psycopg2-binary']
     },
 
     entry_points={
