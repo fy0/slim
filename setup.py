@@ -19,7 +19,7 @@ def long_desc():
 
 setup(
     name='slim',
-    version='0.4.14',
+    version='0.5.0a',
 
     description=description(),
     long_description=long_desc(),
@@ -63,7 +63,7 @@ setup(
     include_package_data=True,
     platforms='any',
 
-    install_requires=['aiohttp', 'aiohttp_cors', 'click'],
+    install_requires=['aiohttp', 'aiohttp_cors', 'click', 'schematics'],
     python_requires='>=3.6.0',
 
     extras_require={
