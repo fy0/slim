@@ -504,8 +504,9 @@ class SQLQueryInfo:
                 i[0] = field_name = view.primary_key
 
             field_type: BaseType = view.fields[field_name]
+            # 此处会进行类型转换和校验
             # TODO: 这里的 null 感觉有很大问题，或许应该明确一下字符串"null"和null？
-            conv = lambda x: None if x in ('null', None) else field_type(x)
+            conv = lambda x: None if x in ('null', None) else field_type.validate(x)
 
             try:
                 # 注：外键的类型会是其指向的类型，这里不用担心
@@ -577,12 +578,10 @@ class SQLQueryInfo:
 
 
 class SQLValuesToWrite(dict):
-    def __init__(self, post_data=None, view=None, action=None, records=None):
+    def __init__(self, post_data=None, view: 'AbstractSQLView'=None, action=None, records=None):
         super().__init__()
         self.returning = False
-        self._inner_data = {
-            'view': view
-        }
+        self.view = view
 
         if post_data:
             self.parse(post_data)
@@ -603,8 +602,6 @@ class SQLValuesToWrite(dict):
 
             if k.startswith('$'):
                 continue
-            elif k == '_inner_data':
-                continue
             elif k == 'returning':
                 self.returning = True
                 continue
@@ -624,8 +621,8 @@ class SQLValuesToWrite(dict):
 
         # 如果插入数据项为空，那么用户应该至少有一个列的插入权限
         if is_empty_input:
-            if self._inner_data.get('view'):
-                columns = self._inner_data['view'].fields.keys()
+            if self.view:
+                columns = self.view.fields.keys()
 
         available = ability.can_with_columns(user, A.CREATE, table, columns)
         if not available: raise PermissionDenied()
@@ -682,12 +679,21 @@ class SQLValuesToWrite(dict):
 
         # validate and format
         try:
-            m = view.data_model(self, strict=False)
+            # 初次bind应该总在before_update / before_insert之前
+            # 因此进行带partial的校验（即忽略required=True项，因为接下来还会有补全的可能）
+            m = view.data_model(self, strict=False, validate=True, partial=True)
             data = m.to_native()
 
             for k in self:
                 self[k] = data.get(k)
 
             self.incr_fields.intersection_update(self.keys())
+        except DataError as e:
+            raise InvalidPostData(e.to_primitive())
+
+    def validate_before_execute_insert(self, view: "AbstractSQLView"):
+        # 只有在执行insert之前，需要校验插入项是否完整
+        try:
+            view.data_model(self, strict=False, validate=True, partial=False)
         except DataError as e:
             raise InvalidPostData(e.to_primitive())

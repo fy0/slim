@@ -725,13 +725,13 @@ class AbstractSQLView(BaseView):
         with ErrorCatchContext(self):
             info = SQLQueryInfo(self.params, self)
             raw_post = await self.post_data()
-            values = SQLValuesToWrite(raw_post)
 
             await self._call_handle(self.before_query, info)
             record = await self._sql.select_one(info)
 
             if record:
                 records = [record]
+                values = SQLValuesToWrite(raw_post)
                 values.bind(self, A.WRITE, records)
                 await self._call_handle(self.before_update, raw_post, values, records)
 
@@ -758,12 +758,16 @@ class AbstractSQLView(BaseView):
             values = SQLValuesToWrite(raw_post, self, A.CREATE)
             values_lst = [values]
 
-            logger.debug('insert record(s): %s' % values_lst)
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug('insert record(s): %s' % values_lst)
             # 注意，这里只给一个，new接口暂不支持一次insert多个
             await self._call_handle(self.before_insert, raw_post, values)
+
+            values.validate_before_execute_insert(self)
             records = await self._sql.insert(values_lst, returning=True)
             await self.check_records_permission(None, records)
             await self._call_handle(self.after_insert, raw_post, values_lst[0], records[0])
+
             if values.returning:
                 self.finish(RETCODE.SUCCESS, records[0])
             else:

@@ -1,6 +1,5 @@
 import string
-from typing import Dict, Any
-
+from schematics import Model
 from schematics.exceptions import ConversionError
 from schematics.types import HashType
 
@@ -21,9 +20,15 @@ class BlobType(HashType):
             return to_bin(value)
 
 
-def parse_condition(data: Dict[str, Any], view):
-    pass
+def schematics_to_json_schema(model: Model):
+    for k, v in model._fields.items():
+        pass
 
+    properties = {}
 
-def parse_data_for_write(data: Dict[str, Any], view):
-    pass
+    ret = {
+        "type": "object",
+        "properties": properties
+    }
+
+    return ret

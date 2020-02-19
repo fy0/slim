@@ -5,8 +5,7 @@ from schematics.models import Model, ValidationError, ConversionError
 from schematics.types import StringType, NumberType, DateTimeType, ModelType, BaseType, DictType, BooleanType, \
     ListType, IntType, FloatType
 from slim.base.sqlquery import SQLForeignKey
-
-from slim.base.validate import BlobType
+from slim.utils.schematics_ext import BlobType
 
 try:
     from playhouse.postgres_ext import JSONField as PG_JSONField, BinaryJSONField as PG_BinaryJSONField, ArrayField as PG_ArrayField
@@ -42,22 +41,29 @@ def field_class_to_schematics_field(field: peewee.Field) -> BaseType:
     if isinstance(field, peewee.ForeignKeyField):
         field = field.rel_field
 
+    kwargs = {}
+
+    # 检查是否 require
+    if not ((field.default is not None) or field.null or field.sequence or \
+            isinstance(field, peewee.AutoField)):
+        kwargs['required'] = True
+
     if isinstance(field, peewee.IntegerField):
-        return IntType()
+        return IntType(**kwargs)
     elif isinstance(field, peewee.FloatField):
-        return FloatType()
+        return FloatType(**kwargs)
     elif isinstance(field, (PG_JSONField, PG_BinaryJSONField, SQLITE_JSONField)):
         # 注意 SQLITE_JSONField 是一个 _StringField 所以要提前
-        return DictType(StringType)
+        return DictType(StringType, **kwargs)
     elif isinstance(field, peewee._StringField):
-        return StringType()
+        return StringType(**kwargs)
     elif isinstance(field, peewee.BooleanField):
-        return BooleanType()
+        return BooleanType(**kwargs)
     elif isinstance(field, peewee.BlobField):
-        return BlobType()
+        return BlobType(**kwargs)
     elif isinstance(field, PG_ArrayField):
         field: PG_ArrayField
-        return ListType(field_class_to_schematics_field(field._ArrayField__field))
+        return ListType(field_class_to_schematics_field(field._ArrayField__field), **kwargs)
 
 
 # noinspection PyProtectedMember
@@ -78,7 +84,8 @@ def get_pv_model_info(model: Union[peewee.Model, Type[peewee.Model]]):
         if isinstance(field, peewee.ForeignKeyField):
             rm = field.rel_model
             name = '%s_id' % name
-            foreign_keys[name] = [SQLForeignKey(get_pv_table_name(rm), get_pv_pk_name(rm), None)]
+            # TODO: 这里可能会出问题
+            foreign_keys[name] = [SQLForeignKey(get_pv_table_name(rm), get_pv_pk_name(rm))]
 
         peewee_fields[name] = field
         new_model_cls._append_field(name, field_class_to_schematics_field(field))
