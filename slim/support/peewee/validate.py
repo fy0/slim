@@ -48,6 +48,9 @@ def field_class_to_schematics_field(field: peewee.Field) -> BaseType:
             isinstance(field, peewee.AutoField)):
         kwargs['required'] = True
 
+    if field.help_text:
+        kwargs['metadata'] = {'description': field.help_text}
+
     if isinstance(field, peewee.IntegerField):
         return IntType(**kwargs)
     elif isinstance(field, peewee.FloatField):

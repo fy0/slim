@@ -72,10 +72,10 @@ class UserView(PeeweeView, UserMixin):
     model = User
 
     @classmethod
-    def interface(cls):
-        super().interface()
-        cls.discard('new')
-        cls.discard('delete')
+    def interface_define(cls):
+        super().interface_define()
+        cls.undefine('new')
+        cls.undefine('delete')
 
     @app.route.interface('POST')
     async def signup(self):

@@ -5,6 +5,7 @@ from aiohttp import web
 from aiohttp.web_urldispatcher import StaticResource
 
 from slim.ext.openapi.main import get_openapi
+from slim.ext.openapi.serve import doc_serve
 from .session import CookieSession
 from ..utils import get_ioloop
 from ..utils.jsdict import JsDict
@@ -22,20 +23,6 @@ class SlimTables(JsDict):
     # value: SQLView
     def __repr__(self):
         return '<SlimTables ' + dict.__repr__(self) + '>'
-
-
-class SlimPermissions(JsDict):
-    def __init__(self, default, **kwargs):
-        super().__init__(**kwargs)
-        setattr(self, '_default_val', default)
-
-    def __getitem__(self, item):
-        return self.get(item, self.get('_default_val'))
-
-    def __repr__(self):
-        return '<SlimPermissions ' + dict.__repr__(self) + '>'
-
-    __getattr__ = __getitem__
 
 
 class ApplicationOptions:
@@ -69,7 +56,6 @@ class Application:
         :param doc_enable:
         :param client_max_size: 2MB is default client_max_body_size of nginx
         """
-        from posixpath import join as urljoin
         from .route import get_route_middleware, Route
         from .permission import Permissions, Ability, ALL_PERMISSION, EMPTY_PERMISSION
 
@@ -78,38 +64,7 @@ class Application:
         self.doc_enable = doc_enable
 
         if self.doc_enable:
-            @self.route(urljoin(mountpoint, 'openapi.json'), 'GET')
-            async def openapi(request):
-                return web.json_response(get_openapi(self))
-
-            @self.route('/redoc', 'GET')
-            async def openapi(request):
-                return web.Response(content_type='text/html',body='''
-<!DOCTYPE html>
-<html>
-  <head>
-    <title>ReDoc</title>
-    <!-- needed for adaptive design -->
-    <meta charset="utf-8"/>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link href="https://fonts.googleapis.com/css?family=Montserrat:300,400,700|Roboto:300,400,700" rel="stylesheet">
-
-    <!--
-    ReDoc doesn't change outer page styles
-    -->
-    <style>
-      body {
-        margin: 0;
-        padding: 0;
-      }
-    </style>
-  </head>
-  <body>
-    <redoc spec-url='/api/openapi.json'></redoc>
-    <script src="https://cdn.jsdelivr.net/npm/redoc@next/bundles/redoc.standalone.js"> </script>
-  </body>
-</html>
-            ''')
+            doc_serve(self)
 
         if permission is ALL_PERMISSION:
             logger.warning('app.permission is ALL_PERMISSION, it means everyone has all permissions for any table')
@@ -123,7 +78,6 @@ class Application:
             permission.app = self
 
         self.tables = SlimTables()
-        self.table_permissions = SlimPermissions(self.permission)
 
         if log_level:
             log.enable(log_level)
@@ -154,8 +108,6 @@ class Application:
                     exit(-1)
 
                 self.tables[cls.table_name] = cls
-                if isinstance(cls.permission, Permissions):
-                    self.table_permissions[cls.table_name] = cls.permission
 
         # Configure default CORS settings.
         if self.cors_options:

@@ -100,11 +100,12 @@ def view_bind(app: 'Application', cls_url, view_cls: Type['BaseView']):
                 'view': view_cls,
                 'name': name,  # name of function
                 'handler': real_handler,
-                'handler_name': handler_name,
+                'handler_name': handler_name,  # qualified name
                 'route': {
                     'method': route_info['method'],  # Set[HttpMethod]
                     'relpath': route_key,
-                    'fullpath': urljoin(app.mountpoint, cls_url, route_key)
+                    'fullpath': urljoin(app.mountpoint, cls_url, route_key),
+                    'raw': route_info
                 }
             }
 

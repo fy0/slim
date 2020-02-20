@@ -69,37 +69,69 @@ class BaseView(metaclass=MetaClassForInit):
     _no_route = False
 
     @classmethod
-    def use(cls, name, method: [str, Set, List], url=None):
-        """ interface helper function"""
+    def _use(cls, name, method: [str, Set, List], url=None, summary=None, *, _sql_query=False, _sql_post=False):
         if not isinstance(method, (str, list, set, tuple)):
             raise BaseException('Invalid type of method: %s' % type(method).__name__)
 
         if isinstance(method, str):
             method = {method}
 
+        def solve(value):
+            if _sql_query or _sql_post:
+                value['_sql'] = {
+                    'query': _sql_query,
+                    'post': _sql_post,
+                }
+            return value
+
         # TODO: check methods available
-        cls._interface[name] = [{'method': method, 'url': url}]
+        cls._interface[name] = [solve({'method': method, 'url': url, 'summary': summary})]
 
     @classmethod
-    def use_lst(cls, name):
+    def use(cls, name, method: [str, Set, List], url=None, summary=None):
+        """ interface register function"""
+        return cls._use(name, method, url=url, summary=summary)
+
+    @classmethod
+    def _use_lst(cls, name, *, _sql_query=False, _sql_post=False, summary=None):
+        def solve(value):
+            if _sql_query or _sql_post:
+                value['_sql'] = {
+                    'query': _sql_query,
+                    'post': _sql_post
+                }
+            return value
+
         cls._interface[name] = [
-            {'method': {'GET'}, 'url': '%s/{page}' % name},
-            {'method': {'GET'}, 'url': '%s/{page}/{size}' % name},
+            solve({'method': {'GET'}, 'url': '%s/{page}' % name, 'summary': summary}),
+            solve({'method': {'GET'}, 'url': '%s/{page}/{size}' % name, 'summary': summary + '(自定义分页大小)'}),
         ]
 
     @classmethod
-    def discard(cls, name):
-        """ interface helper function"""
+    def use_lst(cls, name, summary=None):
+        return cls.use_lst(name, summary=summary)
+
+    @classmethod
+    def undefine(cls, name):
+        """ interface unregister"""
         cls._interface.pop(name, None)
 
     @classmethod
-    def interface(cls):
+    def interface_define(cls):
         pass
+
+    discard = undefine
+    interface = interface_define
 
     @classmethod
     def cls_init(cls):
         cls._interface = {}
-        cls.interface()
+        cls.interface_define()
+
+        # compatible with old version
+        if getattr(cls, 'interface', None):
+            cls.interface()
+
         for k, v in vars(cls).items():
             if isinstance(v, FunctionType):
                 if getattr(v, '_interface', None):
@@ -464,14 +496,14 @@ class AbstractSQLView(BaseView):
         return skip_check
 
     @classmethod
-    def interface(cls):
+    def interface_define(cls):
         # super().interface()  # 3.5, super(): empty __class__ cell
-        cls.use('get', 'GET')
-        cls.use_lst('list')
-        cls.use('set', 'POST')
-        cls.use('update', 'POST')
-        cls.use('new', 'POST')
-        cls.use('delete', 'POST')
+        cls._use('get', 'GET', _sql_query=True, summary='获取单项')
+        cls._use_lst('list', _sql_query=True, summary='获取列表')
+        cls._use('set', 'POST', _sql_query=True, _sql_post=True, summary='存入')
+        cls._use('update', 'POST', _sql_query=True, _sql_post=True)
+        cls._use('new', 'POST', _sql_post=True, summary='新建')
+        cls._use('delete', 'POST', _sql_query=True, summary='删除')
 
     @classmethod
     def add_soft_foreign_key(cls, column, table_name, alias=None):

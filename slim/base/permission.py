@@ -1,6 +1,10 @@
 import copy
 import logging
 from typing import Dict, Tuple, Any, TYPE_CHECKING, Optional, List, Set, Iterable, Union, Sequence
+
+from schematics import Model
+from schematics.types import DictType
+
 from .sqlquery import SQLQueryInfo, SQL_OP
 from .sqlfuncs import DataRecord
 from .user import BaseUser
@@ -296,16 +300,12 @@ class Ability:
 class Permissions:
     def __init__(self, app):
         self.app = app
-        self.role_to_ability = {}
-
-    @property
-    def roles(self):
-        return self.role_to_ability
+        self.roles: Dict[Any: Ability] = {}
 
     def add(self, role: Optional[str], ability: Ability):
         assert isinstance(ability, Ability)
         ability.role = role
-        self.role_to_ability[role] = ability
+        self.roles[role] = ability
 
     def request_role(self, user: Optional[BaseUser], role) -> Optional[Ability]:
         # '' 视为 None 的等价角色
@@ -315,10 +315,10 @@ class Permissions:
         if user is None:
             # 当用户不存在，那么角色仅有可能为None
             if role is None:
-                return self.role_to_ability.get(None)
+                return self.roles.get(None)
         else:
             if role in user.roles:
-                return self.role_to_ability.get(role)
+                return self.roles.get(role)
 
 
 ALL_PERMISSION = object()

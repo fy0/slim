@@ -6,7 +6,7 @@ class JsDict(dict):
         return self.get(item)
 
     def __repr__(self):
-        return '<jsDict ' + dict.__repr__(self) + '>'
+        return '<jsDict %s>' % dict.__repr__(self)
 
     __setattr__ = dict.__setitem__
     __delattr__ = dict.__delitem__
