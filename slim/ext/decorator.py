@@ -1,11 +1,34 @@
 from typing import TYPE_CHECKING
 
+from schematics import Model
+
+from slim.base._view.validate import view_validate_check
 from slim.exception import SlimException
 from slim.utils import async_call
 from ..retcode import RETCODE
 
 if TYPE_CHECKING:
     from ..base.view import BaseView, AbstractSQLView
+
+
+def validate_before(va_query: Model=None, va_post: Model=None):
+    """
+    `view.before_query`
+    `view.before_insert`
+    `view.before_update`
+    `view.before_delete`
+
+    :param va_query:
+    :param va_post:
+    :return:
+    """
+    def _(func):
+        async def __(view: 'AbstractSQLView', *args, **kwargs):
+            await view_validate_check(view, va_query, va_post)
+            if view.is_finished: return
+            return await func(view, *args, **kwargs)
+        return __
+    return _
 
 
 def deprecated(warn_text='The interface is deprecated. We plan to remove it from yyyy-mm-dd'):

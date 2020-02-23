@@ -1,12 +1,15 @@
+from slim.utils.jsdict import JsDict
 
-class DocMeta:
-    def __init__(self, summary=None, description=None):
+
+class ValidatorDoc(JsDict):
+    def __init__(self, description, schema=None, **kwargs):
         """
         :param summary:
         :param description:
         """
-        self.summary = summary
+        super().__init__(**kwargs)
         self.description = description
+        self.schema = schema
 
 
 class ApplicationDocInfo:

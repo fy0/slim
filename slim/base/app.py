@@ -1,11 +1,10 @@
 import logging
 import asyncio
-from typing import Union, List, Optional, TYPE_CHECKING
+from typing import Union, List, Optional, TYPE_CHECKING, Iterable
 from aiohttp import web
 from aiohttp.web_urldispatcher import StaticResource
 
-from slim.base.doc import ApplicationDocInfo
-from slim.ext.openapi.main import get_openapi
+from slim.base.types.doc import ApplicationDocInfo
 from slim.ext.openapi.serve import doc_serve
 from .session import CookieSession
 from ..utils import get_ioloop
@@ -61,6 +60,10 @@ class Application:
         from .route import get_route_middleware, Route
         from .permission import Permissions, Ability, ALL_PERMISSION, EMPTY_PERMISSION
 
+        self.on_startup = []
+        self.on_shutdown = []
+        self.on_cleanup = []
+
         self.mountpoint = mountpoint
         self.route = Route(self)
         self.doc_enable = doc_enable
@@ -97,7 +100,6 @@ class Application:
 
     def _prepare(self):
         from .view import AbstractSQLView
-        from .permission import Permissions
         self.route.bind()
 
         for _, cls in self.route.views:
@@ -141,13 +143,31 @@ class Application:
             cls._ready()
 
     def run(self, host, port):
-        self._raw_app.on_startup.append(self.on_startup)
-        self._raw_app.on_shutdown.append(self.on_shutdown)
-        self._raw_app.on_cleanup.append(self.on_cleanup)
+        def reg(mine, target):
+            assert isinstance(mine, Iterable)
+
+            for i in mine:
+                assert i, asyncio.Future
+
+                async def dummy(_raw_app):
+                    await i()
+                target.append(dummy)
+
+        reg(self.on_startup, self._raw_app.on_startup)
+        reg(self.on_shutdown, self._raw_app.on_shutdown)
+        reg(self.on_cleanup, self._raw_app.on_cleanup)
+
         self._prepare()
         web.run_app(host=host, port=port, app=self._raw_app)
 
-    def timer(self, interval_seconds, *, exit_when):
+    @staticmethod
+    def timer(interval_seconds, *, exit_when):
+        """
+        Set up a timer
+        :param interval_seconds:
+        :param exit_when:
+        :return:
+        """
         loop = get_ioloop()
 
         def wrapper(func):
@@ -166,12 +186,3 @@ class Application:
             return func
 
         return wrapper
-
-    async def on_startup(self, app):
-        pass
-
-    async def on_shutdown(self, app):
-        pass
-
-    async def on_cleanup(self, app):
-        pass

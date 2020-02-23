@@ -7,6 +7,7 @@ from posixpath import join as urljoin
 from aiohttp.abc import Request
 from schematics.exceptions import DataError
 
+from slim.base._view.validate import view_validate_check
 from slim.base.types.beacon import BeaconInfo, BeaconRouteInfo
 from slim.base.ws import WSRouter
 from slim.exception import InvalidPostData, InvalidParams
@@ -34,8 +35,8 @@ def get_route_middleware(app: 'Application'):
             ascii_encodable_path = request.path_qs.encode('ascii', 'backslashreplace').decode('ascii')
             status_code = 200
 
-            method = request._method
             view_instance: BaseView = beacon.view_cls(app, request)
+            method = view_instance.method
 
             from .view import ErrorCatchContext
 
@@ -46,28 +47,19 @@ def get_route_middleware(app: 'Application'):
                 resp = view_instance.response
             else:
                 # user's validator check
-                with ErrorCatchContext(view_instance):
-                    if beacon.va_query:
-                        try:
-                            # TODO: 这里有问题，对SQL请求来说，多个同名参数项，会在实际解析时会被折叠为一个数组，但是这里没有
-                            beacon.va_query(strict=False, validate=True, **view_instance.params)
-                        except DataError as e:
-                            raise InvalidParams(e.to_primitive())
+                await view_validate_check(view_instance, beacon.va_query, beacon.va_post)
 
-                    if beacon.va_post:
-                        try:
-                            beacon.va_post(strict=False, validate=True, **(await view_instance.post_data()))
-                        except DataError as e:
-                            raise InvalidPostData(e.to_primitive())
+                if view_instance.is_finished:
+                    resp = view_instance.response
+                else:
+                    # handle request
+                    await beacon.handler(view_instance)
 
-                # handle request
-                await beacon.handler(view_instance)
+                    # get response
+                    resp = view_instance.response
 
-                # get response
-                resp = view_instance.response
-
-                if not isinstance(resp, web_response.StreamResponse):
-                    status_code = 500
+                    if not isinstance(resp, web_response.StreamResponse):
+                        status_code = 500
 
             # GET /api/get -> TopicView.get 200
             logger.info("{} {:4s} -> {} {}".format(method, ascii_encodable_path, handler_name, status_code))
@@ -129,7 +121,9 @@ def view_bind(app: 'Application', cls_url, view_cls: Type['BaseView']):
                     'relpath': route_key,
                     'fullpath': urljoin(app.mountpoint, cls_url, route_key),
                     'raw': route_info
-                })
+                }),
+                'va_query': route_info.get('va_query'),
+                'va_post': route_info.get('va_post')
             })
 
             add_route(beacon_info)

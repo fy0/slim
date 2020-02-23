@@ -2,8 +2,9 @@
 from copy import deepcopy
 from typing import Type, TYPE_CHECKING
 
+from slim.base.types.beacon import BeaconInfo
 from slim.retcode import RETCODE
-from slim.utils.schematics_ext import schematics_field_to_schema
+from slim.utils.schematics_ext import schematics_field_to_schema, schematics_model_to_json_schema, field_metadata_assign
 
 if TYPE_CHECKING:
     from slim import Application
@@ -106,7 +107,16 @@ class OpenAPIGenerator:
         self._build_paths()
         self._build_main()
 
-    def _get_schema_from_field(self, field):
+    def _schematics_field_to_parameter(self, name, field):
+        return field_metadata_assign(field, {
+            'name': name,
+            'in': 'query',
+            'description': '',
+            'required': False,
+            "schema": self._get_schema_from_schematics_field(field)
+        })
+
+    def _get_schema_from_schematics_field(self, field):
         val = self._field_schema_cache.get(field)
 
         if not val:
@@ -135,13 +145,7 @@ class OpenAPIGenerator:
                 columns = available_columns[A.QUERY].union(available_columns[A.QUERY_EX])
                 for k in columns:
                     field = view_cls.fields[k]
-                    info = {
-                        'name': k,
-                        'in': 'query',
-                        'description': '',
-                        'required': False,
-                        "schema": self._get_schema_from_field(field)
-                    }
+                    info = self._schematics_field_to_parameter(k, field)
                     sql_query_parameters.append(info)
 
                 def get_schema_by_ability(a):
@@ -149,7 +153,7 @@ class OpenAPIGenerator:
 
                     for k in available_columns[a]:
                         field = view_cls.fields[k]
-                        _schema[k] = self._get_schema_from_field(field)
+                        _schema[k] = self._get_schema_from_schematics_field(field)
 
                     return _schema
 
@@ -160,15 +164,27 @@ class OpenAPIGenerator:
                     'sql_create_schema': get_schema_by_ability(A.CREATE),
 
                     'sql_cant_write': len(available_columns[A.WRITE]) == 0,
-                    'sql_cant_delete': len(available_columns[A.DELETE]) == 0,
                     'sql_cant_create': len(available_columns[A.CREATE]) == 0,
                 }
+
+    def _interface_solve(self, beacon_info: BeaconInfo, method, parameters, request_body_schema):
+        if beacon_info.va_query:
+            for k, v in beacon_info.va_query._fields.items():
+                parameters.append(self._schematics_field_to_parameter(k, v))
+
+        if method != 'GET':
+            if beacon_info.va_post:
+                return schematics_model_to_json_schema(beacon_info.va_post)
+
+            if request_body_schema:
+                return request_body_schema
 
     def _build_paths(self):
         from slim.base.view import BaseView, AbstractSQLView
         paths = {}
 
         for i in self.app.route._beacons.values():
+            i: BeaconInfo
             path_item_object = {}
 
             view_cls = i.view_cls
@@ -200,14 +216,6 @@ class OpenAPIGenerator:
                             request_body_schema = {
                                 "type": "object",
                                 "properties": view_info['sql_write_schema']
-                            }
-
-                        if inner_name == 'delete':
-                            if view_info['sql_cant_delete']:
-                                continue
-                            request_body_schema = {
-                                "type": "object",
-                                "properties": view_info['sql_delete_schema']
                             }
 
                         if inner_name == 'new':
@@ -275,6 +283,8 @@ class OpenAPIGenerator:
                                 "description": "数据项",
                                 "properties": view_info['sql_read_record_schema']
                             }
+
+                request_body_schema = self._interface_solve(i, method, parameters, request_body_schema)
 
                 request_body = {
                     "content": {

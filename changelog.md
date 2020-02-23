@@ -3,6 +3,8 @@
 
 * Added: OpenAPI 3 supported
 
+* Added: builtin support for data validate (schematics)
+
 * Added: More readable error texts for query condition parse.
 
 * Added: More tests for query parse and post data parse
@@ -11,7 +13,11 @@
 
 * Changed: Won't allowed bind aiohttp handler to router
 
-* Changed: New validate and value parse mechanism
+* Changed: Renamed `view.interface()` to `view.interface_register()`
+
+* Changed: Renamed `view.discard` to `view.unregister`
+
+* Changed(break): Remake `Application` event
 
 * Removed: `slim.base.sqlquery.UpdateInfo`
 

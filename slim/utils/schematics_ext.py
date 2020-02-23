@@ -1,5 +1,5 @@
 import string
-from typing import Dict
+from typing import Dict, Type
 
 from schematics import Model
 from schematics.exceptions import ConversionError
@@ -138,6 +138,19 @@ def _convert_attr(base: Dict, field: BaseType, attr_mapping: Dict):
     return base
 
 
+def field_metadata_assign(field, base):
+    m = field.metadata
+    if m and isinstance(m, dict):
+        def assign(name):
+            val = m.get(name)
+            if val: base[name] = val
+
+        assign('description')
+        assign('schema')
+        assign('example')
+
+    return base
+
 def schematics_field_to_schema(field: BaseType):
     base = TYPES_TO_JSON_SCHEMA.get(type(field))
 
@@ -155,22 +168,18 @@ def schematics_field_to_schema(field: BaseType):
     elif isinstance(field, DictType):
         pass
 
-    desc = field.metadata.get('description')
-    if desc:
-        base['description'] = desc
-
+    field_metadata_assign(field, base)
     return base
 
 
-def schematics_to_json_schema(model: Model, generate_required=True):
+def schematics_model_to_json_schema(model: Type[Model], generate_required=True):
     required = []
+    properties = {}
 
     for name, field in model._fields.items():
         field: BaseType
-        if field.required:
-            required.append(name)
-
-    properties = {}
+        properties[name] = schematics_field_to_schema(field)
+        if field.required: required.append(name)
 
     ret = {
         "type": "object",

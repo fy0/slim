@@ -3,7 +3,7 @@ from typing import Type, TYPE_CHECKING
 from slim.base.permission import Permissions
 
 if TYPE_CHECKING:
-    from slim.base.view.abstract_sql_view import AbstractSQLView
+    from slim.base._view.abstract_sql_view import AbstractSQLView
 
 
 class ViewOptions:

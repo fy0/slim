@@ -57,7 +57,7 @@ class BaseView(metaclass=MetaClassForInit):
     @classmethod
     def use(cls, name, method: [str, Set, List], url=None, summary=None, va_query=None, va_post=None):
         """ interface register function"""
-        return cls._use(name, method, url=url, summary=summary)
+        return cls._use(name, method, url=url, summary=summary, va_query=va_query, va_post=va_post)
 
     @classmethod
     def _use_lst(cls, name, *, _sql_query=False, _sql_post=False, _inner_name=None, summary=None, va_query=None, va_post=None):
