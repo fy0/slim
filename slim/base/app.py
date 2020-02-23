@@ -4,6 +4,7 @@ from typing import Union, List, Optional, TYPE_CHECKING
 from aiohttp import web
 from aiohttp.web_urldispatcher import StaticResource
 
+from slim.base.doc import ApplicationDocInfo
 from slim.ext.openapi.main import get_openapi
 from slim.ext.openapi.serve import doc_serve
 from .session import CookieSession
@@ -44,7 +45,7 @@ class CORSOptions:
 
 class Application:
     def __init__(self, *, cookies_secret: bytes, log_level=logging.INFO, session_cls=CookieSession,
-                 mountpoint: str = '/api', doc_enable=True,
+                 mountpoint: str = '/api', doc_enable=True, doc_info=ApplicationDocInfo(),
                  permission: Optional['Permissions'] = None, client_max_size=2 * 1024 * 1024,
                  cors_options: Optional[Union[CORSOptions, List[CORSOptions]]] = None):
         """
@@ -54,6 +55,7 @@ class Application:
         :param session_cls:
         :param mountpoint:
         :param doc_enable:
+        :param doc_info:
         :param client_max_size: 2MB is default client_max_body_size of nginx
         """
         from .route import get_route_middleware, Route
@@ -62,6 +64,7 @@ class Application:
         self.mountpoint = mountpoint
         self.route = Route(self)
         self.doc_enable = doc_enable
+        self.doc_info = doc_info
 
         if self.doc_enable:
             doc_serve(self)

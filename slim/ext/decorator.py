@@ -1,12 +1,27 @@
+from typing import TYPE_CHECKING
+
 from slim.exception import SlimException
 from slim.utils import async_call
 from ..retcode import RETCODE
-from ..base.view import BaseView, AbstractSQLView
+
+if TYPE_CHECKING:
+    from ..base.view import BaseView, AbstractSQLView
+
+
+def deprecated(warn_text='The interface is deprecated. We plan to remove it from yyyy-mm-dd'):
+    """
+    :return:
+    """
+    def _(func):
+        async def __(*args, **kwargs):
+            return await func(*args, **kwargs)
+        return __
+    return _
 
 
 def require_role(role=None):
     def _(func):
-        async def __(view: AbstractSQLView, *args, **kwargs):
+        async def __(view: 'AbstractSQLView', *args, **kwargs):
             if role not in view.roles:
                 return view.finish(RETCODE.INVALID_ROLE)
             return await func(view, *args, **kwargs)
@@ -16,7 +31,7 @@ def require_role(role=None):
 
 def must_be_role(role=None):
     def _(func):
-        async def __(view: AbstractSQLView, *args, **kwargs):
+        async def __(view: 'AbstractSQLView', *args, **kwargs):
             if role != view.current_request_role:
                 return view.finish(RETCODE.INVALID_ROLE)
             return await func(view, *args, **kwargs)
@@ -24,7 +39,7 @@ def must_be_role(role=None):
     return _
 
 
-async def get_ip(view: BaseView) -> bytes:
+async def get_ip(view: 'BaseView') -> bytes:
     return (await view.get_ip()).packed
 
 
@@ -33,7 +48,7 @@ def get_cooldown_decorator(aioredis_instance: object, default_unique_id_func=get
 
     def cooldown(interval_value_or_func, redis_key_template, *, unique_id_func=default_unique_id_func, cd_if_unsuccessed=None):
         def wrapper(func):
-            async def myfunc(self: BaseView, *args, **kwargs):
+            async def myfunc(self: 'BaseView', *args, **kwargs):
                 # 有可能在刚进入的时候，上一轮已经finish了，那么直接退出
                 if self.is_finished: return
 

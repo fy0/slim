@@ -22,35 +22,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class SQL_TYPE(Enum):
-    INT = int
-    FLOAT = float
-    STRING = str
-    BLOB = BlobParser
-    BOOLEAN = BoolParser
-    JSON = JSONParser
-
-
-def make_array_parser(sql_type: SQL_TYPE):
-    class ArrayParser:
-        def __new__(cls, val):
-            if isinstance(val, str):
-                return list(map(sql_type.value, json.loads(val)))
-            if isinstance(val, list):
-                return list(map(sql_type.value, val))
-            return val
-    return ArrayParser
-
-
-class SQL_TYPE_ARRAY:
-    def __init__(self, sql_type):
-        self.sql_type = sql_type
-
-    @property
-    def value(self):
-        return make_array_parser(self.sql_type)
-
-
 class NamedObject:
     def __init__(self, name):
         self.name = name

@@ -5,7 +5,8 @@ from typing import List, Tuple, Iterable, Union
 
 from slim.support.peewee.data_record import PeeweeDataRecord
 from ...base.sqlquery import SQL_OP, SQLQueryOrder, SQLQueryInfo, DataRecord, SQLValuesToWrite
-from ...base.view import AbstractSQLFunctions
+from ...base.sqlfuncs import AbstractSQLFunctions
+
 from ...exception import RecordNotFound, AlreadyExists, ResourceException, NotNullConstraintFailed
 
 logger = logging.getLogger(__name__)

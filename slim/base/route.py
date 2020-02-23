@@ -1,11 +1,15 @@
 import logging
 from asyncio import iscoroutinefunction, Future
-from typing import Iterable, Type, TYPE_CHECKING
+from typing import Iterable, Type, TYPE_CHECKING, Dict
 from aiohttp import web, web_response
 from posixpath import join as urljoin
 
 from aiohttp.abc import Request
+from schematics.exceptions import DataError
+
+from slim.base.types.beacon import BeaconInfo, BeaconRouteInfo
 from slim.base.ws import WSRouter
+from slim.exception import InvalidPostData, InvalidParams
 from slim.utils import get_class_full_name
 from ..utils.async_run import sync_call, async_call
 
@@ -24,15 +28,14 @@ def get_route_middleware(app: 'Application'):
         if not app.route._is_beacon(handler):
             return await handler(request)
         else:
-            data = app.route._beacons[handler]
-            view_cls = data['view']
-            func = data['handler']
+            beacon = app.route._beacons[handler]
+            handler_name = beacon.handler_name
 
-            handler_name = '%s.%s' % (get_class_full_name(view_cls), func.__name__)
             ascii_encodable_path = request.path_qs.encode('ascii', 'backslashreplace').decode('ascii')
             status_code = 200
 
-            view_instance: BaseView = view_cls(app, request)
+            method = request._method
+            view_instance: BaseView = beacon.view_cls(app, request)
 
             from .view import ErrorCatchContext
 
@@ -42,12 +45,32 @@ def get_route_middleware(app: 'Application'):
             if view_instance.is_finished:
                 resp = view_instance.response
             else:
-                resp = await func(view_instance) or view_instance.response
+                # user's validator check
+                with ErrorCatchContext(view_instance):
+                    if beacon.va_query:
+                        try:
+                            # TODO: 这里有问题，对SQL请求来说，多个同名参数项，会在实际解析时会被折叠为一个数组，但是这里没有
+                            beacon.va_query(strict=False, validate=True, **view_instance.params)
+                        except DataError as e:
+                            raise InvalidParams(e.to_primitive())
+
+                    if beacon.va_post:
+                        try:
+                            beacon.va_post(strict=False, validate=True, **(await view_instance.post_data()))
+                        except DataError as e:
+                            raise InvalidPostData(e.to_primitive())
+
+                # handle request
+                await beacon.handler(view_instance)
+
+                # get response
+                resp = view_instance.response
+
                 if not isinstance(resp, web_response.StreamResponse):
                     status_code = 500
 
             # GET /api/get -> TopicView.get 200
-            logger.info("{} {:4s} -> {} {}".format(request._method, ascii_encodable_path, handler_name, status_code))
+            logger.info("{} {:4s} -> {} {}".format(method, ascii_encodable_path, handler_name, status_code))
 
             if logger.isEnabledFor(logging.DEBUG):
                 logger.debug('query parameters: %s', view_instance.params)
@@ -74,7 +97,7 @@ def view_bind(app: 'Application', cls_url, view_cls: Type['BaseView']):
     if view_cls._no_route: return
     cls_url = cls_url or view_cls.__class__.__name__.lower()
 
-    def add_route(beacon_info):
+    def add_route(beacon_info: BeaconInfo):
         route = beacon_info['route']
         for method in route['method']:
             async def beacon(request): pass
@@ -88,7 +111,7 @@ def view_bind(app: 'Application', cls_url, view_cls: Type['BaseView']):
             if real_handler is None: continue  # TODO: delete
             assert real_handler is not None, "handler must be exists"
 
-            handler_name = '%s.%s' % (get_class_full_name(view_cls), real_handler.__name__)
+            handler_name = '%s.%s' % (get_class_full_name(view_cls), name or real_handler.__name__)
             if not iscoroutinefunction(real_handler):
                 logger.error("Interface function must be async: %r" % handler_name)
                 exit(-1)
@@ -96,23 +119,25 @@ def view_bind(app: 'Application', cls_url, view_cls: Type['BaseView']):
             cls_url = cls_url or view_cls.__class__.__name__.lower()
             route_key = route_info['url'] or name
 
-            beacon_info = {
-                'view': view_cls,
+            beacon_info = BeaconInfo({
+                'view_cls': view_cls,
                 'name': name,  # name of function
                 'handler': real_handler,
                 'handler_name': handler_name,  # qualified name
-                'route': {
+                'route': BeaconRouteInfo({
                     'method': route_info['method'],  # Set[HttpMethod]
                     'relpath': route_key,
                     'fullpath': urljoin(app.mountpoint, cls_url, route_key),
                     'raw': route_info
-                }
-            }
+                })
+            })
 
             add_route(beacon_info)
 
 
 class Route:
+    _beacons: Dict[Future, BeaconInfo]
+
     def __init__(self, app):
         self.funcs = []
         self.views = []
@@ -126,15 +151,16 @@ class Route:
         self._beacons = {}
 
     @staticmethod
-    def interface(method, url=None):
+    def interface(method, url=None, *, summary=None, va_query=None, va_post=None):  # va_header, etc.
         def wrapper(func):
-            func._interface = (method, url)
+            meta = {
+                'summary': summary,
+                'va_query': va_query,
+                'va_post': va_post
+            }
+            func._interface = (method, url, meta)
             return func
         return wrapper
-
-    @staticmethod
-    def discard(name, method='ALL'):
-        pass
 
     def _is_beacon(self, func):
         return func in self._beacons

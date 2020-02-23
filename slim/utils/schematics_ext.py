@@ -6,7 +6,7 @@ from schematics.exceptions import ConversionError
 from schematics.types import HashType, BaseType, NumberType, UUIDType, StringType, IntType, LongType, FloatType, \
     DecimalType, MD5Type, SHA1Type, BooleanType, DateType, DateTimeType, UTCDateTimeType, TimestampType, TimedeltaType, \
     GeoPointType, MultilingualStringType, EmailType, IPv4Type, IPv6Type, URLType, IPAddressType, MACAddressType, \
-    ListType
+    ListType, DictType
 
 from slim.utils import to_bin
 
@@ -66,6 +66,7 @@ JSON_SCHEMA_TO_TYPES = {
 TYPES_TO_JSON_SCHEMA = {
     # types.compound
     ListType: {"type": "array"},
+    DictType: {"type": "object"},
 
     # types.net
     IPv4Type: {"type": "string", "format": "ipv4"},
@@ -88,7 +89,7 @@ TYPES_TO_JSON_SCHEMA = {
 
     MD5Type: {"type": "string"},  # no format
     SHA1Type: {"type": "string"},  # no format
-    BlobType: {'type': "string"},
+    BlobType: {'type': "string", "example": "0f12", "pattern": "^([a-fA-F0-9]{2})+$"},
     HashType: None,
 
     BooleanType: {"type": "boolean"},
@@ -142,6 +143,8 @@ def schematics_field_to_schema(field: BaseType):
 
     if base:
         base = base.copy()
+    else:
+        base = {}
 
     if isinstance(field, StringType):
         _convert_attr(base, field, string_type_mapping)
@@ -149,6 +152,8 @@ def schematics_field_to_schema(field: BaseType):
         _convert_attr(base, field, number_type_mapping)
     elif isinstance(field, ListType):
         _convert_attr(base, field, list_type_mapping)
+    elif isinstance(field, DictType):
+        pass
 
     desc = field.metadata.get('description')
     if desc:
