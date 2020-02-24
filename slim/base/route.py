@@ -123,7 +123,8 @@ def view_bind(app: 'Application', cls_url, view_cls: Type['BaseView']):
                     'raw': route_info
                 }),
                 'va_query': route_info.get('va_query'),
-                'va_post': route_info.get('va_post')
+                'va_post': route_info.get('va_post'),
+                'deprecated': route_info.get('deprecated')
             })
 
             add_route(beacon_info)
@@ -136,7 +137,6 @@ class Route:
         self.funcs = []
         self.views = []
         self.statics = []
-        self.aiohttp_views = []
         self.websockets = []
 
         self.app = app
@@ -145,12 +145,13 @@ class Route:
         self._beacons = {}
 
     @staticmethod
-    def interface(method, url=None, *, summary=None, va_query=None, va_post=None):  # va_header, etc.
+    def interface(method, url=None, *, summary=None, va_query=None, va_post=None, deprecated=False):  # va_header, etc.
         def wrapper(func):
             meta = {
                 'summary': summary,
                 'va_query': va_query,
-                'va_post': va_post
+                'va_post': va_post,
+                'deprecated': deprecated
             }
             func._interface = (method, url, meta)
             return func
@@ -170,8 +171,6 @@ class Route:
             elif isinstance(obj, type):
                 if issubclass(obj, WSRouter):
                     self.websockets.append((url, obj()))
-                elif issubclass(obj, web.View):
-                    self.aiohttp_views.append((url, obj))
                 elif issubclass(obj, BaseView):
                     if method is None:
                         # internal view, can't request over http
@@ -205,9 +204,6 @@ class Route:
 
         for url, wsh in self.websockets:
             raw_router.add_get(url, wsh._handle)
-
-        for url, cls in self.aiohttp_views:
-            raw_router.add_route('*', url, cls)
 
         for url, methods, func in self.funcs:
             for method in methods:

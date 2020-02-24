@@ -77,7 +77,7 @@ std_resp_schema = {
     "properties": {
         "code": {
             "type": "number",
-            "description": '系统返回值代码，成功为0，失败为负数。  \n参见 https://fy0.github.io/slim/#/quickstart/design?id=返回值 '
+            "description": '系统返回值代码，成功为0，失败为非零。  \n参见 https://fy0.github.io/slim/#/quickstart/design?id=返回值 '
         },
         "data": {
             "description": "数据项"
@@ -312,6 +312,9 @@ class OpenAPIGenerator:
                     "parameters": parameters,
                     "responses": responses
                 }
+
+                if i.deprecated:
+                    path['deprecated'] = True
 
                 if need_response and request_body_schema:
                     path["requestBody"] = request_body

@@ -584,18 +584,3 @@ async def test_ready():
 
 
 app._prepare()
-
-
-if __name__ == '__main__':
-    from slim.utils.async_run import sync_call
-    sync_call(test_bind)
-    sync_call(test_get)
-    sync_call(test_get_loadfk)
-    sync_call(test_new)
-    sync_call(test_update)
-    sync_call(test_is)
-    sync_call(test_delete)
-    sync_call(test_select)
-    sync_call(test_value_type)
-    sync_call(test_in)
-    sync_call(test_ready)

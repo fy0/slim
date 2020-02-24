@@ -151,6 +151,7 @@ def field_metadata_assign(field, base):
 
     return base
 
+
 def schematics_field_to_schema(field: BaseType):
     base = TYPES_TO_JSON_SCHEMA.get(type(field))
 

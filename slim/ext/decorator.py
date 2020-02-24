@@ -1,3 +1,4 @@
+import logging
 from typing import TYPE_CHECKING
 
 from schematics import Model
@@ -9,6 +10,9 @@ from ..retcode import RETCODE
 
 if TYPE_CHECKING:
     from ..base.view import BaseView, AbstractSQLView
+
+
+logger = logging.getLogger(__name__)
 
 
 def validate_before(va_query: Model=None, va_post: Model=None):
@@ -27,6 +31,7 @@ def validate_before(va_query: Model=None, va_post: Model=None):
             await view_validate_check(view, va_query, va_post)
             if view.is_finished: return
             return await func(view, *args, **kwargs)
+        __.__doc__ = func.__doc__
         return __
     return _
 
@@ -36,6 +41,8 @@ def deprecated(warn_text='The interface is deprecated. We plan to remove it from
     :return:
     """
     def _(func):
+        logger.warning(warn_text)
+
         async def __(*args, **kwargs):
             return await func(*args, **kwargs)
         return __
@@ -48,6 +55,7 @@ def require_role(role=None):
             if role not in view.roles:
                 return view.finish(RETCODE.INVALID_ROLE)
             return await func(view, *args, **kwargs)
+        __.__doc__ = func.__doc__
         return __
     return _
 
@@ -58,6 +66,7 @@ def must_be_role(role=None):
             if role != view.current_request_role:
                 return view.finish(RETCODE.INVALID_ROLE)
             return await func(view, *args, **kwargs)
+        __.__doc__ = func.__doc__
         return __
     return _
 
@@ -108,6 +117,7 @@ def get_cooldown_decorator(aioredis_instance: object, default_unique_id_func=get
                     # 所有跳过条件都不存在，设置正常的expire并退出
                     await redis.set(key, '1', expire=interval)
                     return ret
+            myfunc.__doc__ = func.__doc__
             return myfunc
         return wrapper
     return cooldown

@@ -1,15 +1,16 @@
 import time
 import binascii
-from slim.utils import ObjectID
+from slim.utils import CustomID
 
 
 def test_my_object_id():
-    a = ObjectID()
-    b = ObjectID('56222d21293b328eb0000002')
-    c = ObjectID('56222d21293b328eb0000002')
+    a = CustomID()
+    print(a.to_hex())
+    b = CustomID('5e53a2e10000000123cb6558')
+    c = CustomID('5e53a2e10000000123cb6558')
     time.sleep(1)
-    d = ObjectID()
-    e = ObjectID()
+    d = CustomID()
+    e = CustomID()
 
     # 明确时间差距
     assert a > b
@@ -23,8 +24,8 @@ def test_my_object_id():
     assert len(a.to_bin()) == 12
     assert str(binascii.hexlify(a.to_bin()), 'utf-8') == str(a)
 
-    assert str(b) == '56222d21293b328eb0000002'
-    assert b.to_bin() == b'V"-!);2\x8e\xb0\x00\x00\x02'
+    assert str(b) == '5e53a2e10000000123cb6558'
+    assert b.to_bin() == b'^S\xa2\xe1\x00\x00\x00\x01#\xcbeX'
 
     # 相等
     assert a != b
@@ -77,6 +78,6 @@ def test_my_object_id():
         assert isinstance(e, TypeError)
 
     # 其他
-    assert repr(a).startswith('ObjectID')
-    assert ObjectID.check_valid(a.digest())
-    assert ObjectID.check_valid(a.hexdigest())
+    assert repr(a).startswith('CustomID')
+    assert CustomID.check_valid(a.digest())
+    assert CustomID.check_valid(a.hexdigest())

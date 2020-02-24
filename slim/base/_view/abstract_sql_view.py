@@ -6,6 +6,8 @@ from typing import Tuple, Union, Dict, Iterable, Type, List, Set, Any, Optional
 import schematics
 from aiohttp.web_request import BaseRequest, FileField
 from schematics.types import BaseType
+
+from slim.base.types import InnerInterfaceName
 from .base_view import BaseView
 from .err_catch_context import ErrorCatchContext
 from .view_options import ViewOptions
@@ -21,14 +23,6 @@ from slim.utils.cls_property import classproperty
 from slim.utils import pagination_calc, async_call, get_ioloop, get_class_full_name
 
 logger = logging.getLogger(__name__)
-
-
-class InnerInterfaceName:
-    GET = 'get'
-    LIST = 'list'
-    SET = 'set'
-    NEW = 'new'
-    DELETE = 'delete'
 
 
 class AbstractSQLView(BaseView):
@@ -63,7 +57,8 @@ class AbstractSQLView(BaseView):
         super().interface_register()
 
         cls._use('get', 'GET', _sql_query=True, summary='获取单项', _inner_name=InnerInterfaceName.GET)
-        cls._use_lst('list', _sql_query=True, summary='获取列表', _inner_name=InnerInterfaceName.LIST)
+        cls._use_lst('list', _sql_query=True, summary='获取列表', _inner_name=InnerInterfaceName.LIST,
+                     summary_with_size='获取列表(自定义分页大小)', _inner_name_with_size=InnerInterfaceName.LIST_WITH_SIZE)
         cls._use('set', 'POST', _sql_query=True, _sql_post=True, summary='写入', _inner_name=InnerInterfaceName.SET)
         cls._use('update', 'POST', _sql_query=True, _sql_post=True, _inner_name=InnerInterfaceName.SET)
         cls._use('new', 'POST', _sql_post=True, summary='新建', _inner_name=InnerInterfaceName.NEW)
