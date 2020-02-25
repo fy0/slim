@@ -4,5 +4,5 @@ import permissions.roles_apply
 
 if __name__ == '__main__':
     import model._models
-    import view._views
+    import api._views
     app.run(host=config.HOST, port=config.PORT)

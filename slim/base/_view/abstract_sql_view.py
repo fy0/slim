@@ -60,7 +60,6 @@ class AbstractSQLView(BaseView):
         cls._use_lst('list', _sql_query=True, summary='获取列表', _inner_name=InnerInterfaceName.LIST,
                      summary_with_size='获取列表(自定义分页大小)', _inner_name_with_size=InnerInterfaceName.LIST_WITH_SIZE)
         cls._use('set', 'POST', _sql_query=True, _sql_post=True, summary='写入', _inner_name=InnerInterfaceName.SET)
-        cls._use('update', 'POST', _sql_query=True, _sql_post=True, _inner_name=InnerInterfaceName.SET)
         cls._use('new', 'POST', _sql_post=True, summary='新建', _inner_name=InnerInterfaceName.NEW)
         cls._use('delete', 'POST', _sql_query=True, summary='删除', _inner_name=InnerInterfaceName.DELETE)
 
@@ -312,7 +311,7 @@ class AbstractSQLView(BaseView):
 
             self.finish(RETCODE.SUCCESS, pg)
 
-    async def update(self):
+    async def set(self):
         self.current_interface = InnerInterfaceName.SET
         with ErrorCatchContext(self):
             info = SQLQueryInfo(self.params, self)
@@ -340,8 +339,6 @@ class AbstractSQLView(BaseView):
                     self.finish(RETCODE.SUCCESS, len(new_records))
             else:
                 self.finish(RETCODE.NOT_FOUND)
-
-    set = update
 
     async def new(self, values: SQLValuesToWrite = None):
         self.current_interface = InnerInterfaceName.NEW

@@ -23,7 +23,7 @@
 
 * Python 3.6+
 
-* 支持且仅支持 peewee 和 asyncpg
+* 目前仅支持 peewee 作为 ORM
 
 
 ### 其他

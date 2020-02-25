@@ -54,7 +54,7 @@ setup(
                                                  'slim_cli.template.permissions',
                                                  'slim_cli.template.permissions.roles',
                                                  'slim_cli.template.permissions.tables',
-                                                 'slim_cli.template.view',
+                                                 'slim_cli.template.api',
                                                  'slim_cli.template.tools',
                                                  'slim_cli.template.model'],
     package_dir={
