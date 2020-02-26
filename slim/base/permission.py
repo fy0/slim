@@ -303,7 +303,7 @@ class Permissions:
         self.roles: Dict[Any: Ability] = {}
 
     def add(self, role: Optional[str], ability: Ability):
-        assert isinstance(ability, Ability)
+        assert isinstance(ability, Ability), 'ability is ' + str(type(ability))
         ability.role = role
         self.roles[role] = ability
 
@@ -323,5 +323,3 @@ class Permissions:
 
 ALL_PERMISSION = object()
 EMPTY_PERMISSION = object()
-
-NO_PERMISSION = EMPTY_PERMISSION

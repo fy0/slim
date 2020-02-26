@@ -6,7 +6,7 @@ from ...retcode import RETCODE
 from ...support.asyncpg import query
 from ...utils import to_bin, pagination_calc, dict_filter, bool_parse
 from ...exception import SyntaxException
-from ...base.view import AbstractSQLView, AbstractSQLFunctions, ViewOptions
+from ...base.view import AbstractSQLView, AbstractSQLFunctions, SQLViewOptions
 
 # noinspection SqlDialectInspection,SqlNoDataSourceInspection
 _field_query = '''SELECT a.attname as name, col_description(a.attrelid,a.attnum) as comment,
@@ -169,7 +169,7 @@ class AsyncpgSQLFunctions(AbstractSQLFunctions):
         return RETCODE.SUCCESS, AsyncpgDataRecord(self.vcls.table_name, ret)
 
 
-class AsyncpgViewOptions(ViewOptions):
+class AsyncpgSQLViewOptions(SQLViewOptions):
     def __init__(self, *, list_page_size=20, list_accept_size_from_client=False, permission: Permissions = None,
                  conn=None, table_name: str=None):
         self.conn = conn
@@ -187,7 +187,7 @@ class AsyncpgViewOptions(ViewOptions):
 
 class AsyncpgView(AbstractSQLView):
     is_base_class = True
-    options_cls = AsyncpgViewOptions
+    options_cls = AsyncpgSQLViewOptions
     conn = None
     table_name = None
 

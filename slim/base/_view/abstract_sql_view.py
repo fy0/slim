@@ -10,7 +10,7 @@ from schematics.types import BaseType
 from slim.base.types import InnerInterfaceName
 from .base_view import BaseView
 from .err_catch_context import ErrorCatchContext
-from .view_options import ViewOptions
+from .view_options import SQLViewOptions
 from slim.exception import SlimException, PermissionDenied, FinishQuitException, InvalidParams, RecordNotFound, \
     InvalidRole
 
@@ -26,13 +26,13 @@ logger = logging.getLogger(__name__)
 
 
 class AbstractSQLView(BaseView):
-    _sql_cls = AbstractSQLFunctions
-    is_base_class = True  # skip cls_init check
-
-    options_cls = ViewOptions
     LIST_PAGE_SIZE = 20  # list 单次取出的默认大小，若为-1取出所有
     LIST_PAGE_SIZE_CLIENT_LIMIT = None  # None 为与LIST_PAGE_SIZE相同，-1 为无限
-    LIST_ACCEPT_SIZE_FROM_CLIENT = False
+    LIST_ACCEPT_SIZE_FROM_CLIENT = False  # 是否允许客户端指定 page size
+
+    options_cls = SQLViewOptions
+    _sql_cls = AbstractSQLFunctions
+    is_base_class = True  # skip cls_init check
 
     table_name: str = None
     primary_key: str = None
@@ -59,7 +59,7 @@ class AbstractSQLView(BaseView):
         cls._use('get', 'GET', _sql_query=True, summary='获取单项', _inner_name=InnerInterfaceName.GET)
         cls._use_lst('list', _sql_query=True, summary='获取列表', _inner_name=InnerInterfaceName.LIST,
                      summary_with_size='获取列表(自定义分页大小)', _inner_name_with_size=InnerInterfaceName.LIST_WITH_SIZE)
-        cls._use('set', 'POST', _sql_query=True, _sql_post=True, summary='写入', _inner_name=InnerInterfaceName.SET)
+        cls._use('set', 'POST', _sql_query=True, _sql_post=True, summary='更新', _inner_name=InnerInterfaceName.SET)
         cls._use('new', 'POST', _sql_post=True, summary='新建', _inner_name=InnerInterfaceName.NEW)
         cls._use('delete', 'POST', _sql_query=True, summary='删除', _inner_name=InnerInterfaceName.DELETE)
 
@@ -95,7 +95,7 @@ class AbstractSQLView(BaseView):
     @classmethod
     def _check_view_options(cls):
         options = getattr(cls, 'options', None)
-        if options and isinstance(options, ViewOptions):
+        if options and isinstance(options, SQLViewOptions):
             options.assign(cls)
 
     @classmethod
@@ -406,6 +406,11 @@ class AbstractSQLView(BaseView):
         pass
 
     async def before_query(self, info: SQLQueryInfo):
+        """
+        在发生查询时触发，触发接口是new以外的全部接口
+        :param info:
+        :return:
+        """
         pass
 
     async def after_read(self, records: List[DataRecord]):
@@ -416,7 +421,7 @@ class AbstractSQLView(BaseView):
         """
         pass
 
-    async def before_insert(self, raw_post: Dict, values: SQLValuesToWrite):
+    async def before_insert(self, values: SQLValuesToWrite):
         """
         一对一
         :param raw_post:
@@ -425,7 +430,7 @@ class AbstractSQLView(BaseView):
         """
         pass
 
-    async def after_insert(self, raw_post: Dict, values: SQLValuesToWrite, record: DataRecord):
+    async def after_insert(self, values: SQLValuesToWrite, record: DataRecord):
         """
         一对一
         Emitted before finish
@@ -436,7 +441,7 @@ class AbstractSQLView(BaseView):
         """
         pass
 
-    async def before_update(self, raw_post: Dict, values: SQLValuesToWrite, records: List[DataRecord]):
+    async def before_update(self, values: SQLValuesToWrite, records: List[DataRecord]):
         """
         一对多，当有一个权限检查失败时即返回异常
         raw_post 权限过滤和列过滤前，values 过滤后
@@ -447,7 +452,7 @@ class AbstractSQLView(BaseView):
         """
         pass
 
-    async def after_update(self, raw_post: Dict, values: SQLValuesToWrite,
+    async def after_update(self, values: SQLValuesToWrite,
                            old_records: List[DataRecord], records: List[DataRecord]):
         """
         :param old_records:

@@ -1,2 +1,2 @@
 from permissions.roles.visitor import visitor
-from permissions.roles.normal_user import normal_user
+from permissions.roles.user import user

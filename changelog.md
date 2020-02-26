@@ -21,6 +21,8 @@
 
 * Removed: `slim.base.sqlquery.UpdateInfo`
 
+* Fixed: Ctrl+C works on windows
+
 
 #### 0.4.14 update 2019.12.11
 

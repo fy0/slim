@@ -1,6 +1,5 @@
-slim
+slim==0.5.0a
 aiohttp>=3
-peewee
-wtforms
+peewee==3.13.1
 msgpack
 psycopg2-binary

@@ -2,10 +2,13 @@ import logging
 
 PROJECT_NAME = 'SlimApplication'
 VERSION = '1.0.0'
+DESC = 'A Web Application powered by slim'
 
 HOST = '0.0.0.0'
 PORT = 9999
-DEBUG = logging.INFO
+
+DOC_ENABLE = True
+DEBUG_LEVEL = logging.INFO
 DATABASE_URI = "sqlite:///database.db"
 # DATABASE_URI = "postgresql://mydb:password@localhost:5432/mydb"
 # REDIS_URI = 'redis://localhost:6379'

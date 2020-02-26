@@ -1,2 +1,3 @@
-import view.index
-import view.example
+import api.index
+import api.example
+import api.user

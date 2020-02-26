@@ -2,6 +2,7 @@
 from copy import deepcopy
 from typing import Type, TYPE_CHECKING
 
+from slim.base.types import InnerInterfaceName as IIN
 from slim.base.types.beacon import BeaconInfo
 from slim.retcode import RETCODE
 from slim.utils.schematics_ext import schematics_field_to_schema, schematics_model_to_json_schema, field_metadata_assign
@@ -165,6 +166,7 @@ class OpenAPIGenerator:
 
                     'sql_cant_write': len(available_columns[A.WRITE]) == 0,
                     'sql_cant_create': len(available_columns[A.CREATE]) == 0,
+                    'sql_cant_delete': len(available_columns[A.DELETE]) == 0,
                 }
 
     def _interface_solve(self, beacon_info: BeaconInfo, method, parameters, request_body_schema):
@@ -210,7 +212,7 @@ class OpenAPIGenerator:
                         sql_post = raw['_sql'].get('post')
                         inner_name = raw['inner_name']
 
-                        if inner_name == 'set':
+                        if inner_name == IIN.SET:
                             if view_info['sql_cant_write']:
                                 continue
                             request_body_schema = {
@@ -218,7 +220,7 @@ class OpenAPIGenerator:
                                 "properties": view_info['sql_write_schema']
                             }
 
-                        if inner_name == 'new':
+                        if inner_name == IIN.NEW:
                             if view_info['sql_cant_create']:
                                 continue
                             request_body_schema = {
@@ -226,9 +228,13 @@ class OpenAPIGenerator:
                                 "properties": view_info['sql_create_schema']
                             }
 
-                        is_list = raw['inner_name'] in {'list', 'list_size'}
+                        if inner_name == IIN.DELETE:
+                            if view_info['sql_cant_create']:
+                                continue
 
-                        if raw['inner_name'] == 'list':
+                        is_list = raw['inner_name'] in {IIN.LIST, IIN.LIST_WITH_SIZE}
+
+                        if raw['inner_name'] == IIN.LIST:
                             parameters.extend([
                                 {
                                     "name": "page",
@@ -241,7 +247,7 @@ class OpenAPIGenerator:
                                 }
                             ])
 
-                        if raw['inner_name'] == 'list_size':
+                        if raw['inner_name'] == IIN.LIST_WITH_SIZE:
                             parameters.extend([
                                 {
                                     "name": "page",

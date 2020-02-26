@@ -1,5 +1,6 @@
-from app import app
 from slim.support.peewee import PeeweeView
+
+from app import app
 from model.example import Example
 
 

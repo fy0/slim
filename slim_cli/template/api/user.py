@@ -1,18 +1,20 @@
 import binascii
+from typing import Dict, List, Union, Type
 
 from slim.base.view import BaseView
+from slim.ext.decorator import require_role
 from slim.utils import sentinel, to_bin
 from slim.base.user import BaseAccessTokenUserViewMixin, BaseUserViewMixin, BaseUser
-from app import app
-from model.user import User
-from typing import Dict, List, Union, Type
 from slim.base.sqlquery import SQLValuesToWrite, DataRecord
 from slim.retcode import RETCODE
 from slim.support.peewee import PeeweeView
 
+from app import app
+from api.validate.user import SigninDataModel, SignupDataModel
+from api import run_in_thread
+from model.user import User
 from model.user_token import UserToken
-from view import ValidateForm
-from wtforms import validators as va, StringField, IntegerField, ValidationError
+from permissions.role_define import ACCESS_ROLE
 
 
 class UserMixin(BaseAccessTokenUserViewMixin):
@@ -32,7 +34,7 @@ class UserMixin(BaseAccessTokenUserViewMixin):
         return t
 
     def teardown_user_token(self: Union['BaseUserViewMixin', 'BaseView'], token=sentinel):
-        """ invalidate the token here"""
+        """ invalidate the token here """
         u = self.current_user
         if u:
             if token is None:
@@ -48,25 +50,6 @@ class UserMixin(BaseAccessTokenUserViewMixin):
             UserToken.delete().where(UserToken.user_id == u.id, UserToken.id == token).execute()
 
 
-class SigninByEmailForm(ValidateForm):
-    """ 邮箱登录验证表单 """
-    email = StringField('email', validators=[va.required(), va.Length(3, 30), va.Email()])
-    password = StringField('password', validators=[va.required()])
-
-
-class SigninByUsernameForm(ValidateForm):
-    """ 用户名登录验证表单 """
-    username = StringField('username', validators=[va.required(), va.Length(2, 30)])
-    password = StringField('password', validators=[va.required()])
-
-
-class SignupForm(ValidateForm):
-    """ 注册验证表单 """
-    username = StringField('username', validators=[va.required(), va.Length(2, 30)])
-    email = StringField('email', validators=[va.optional(), va.Length(3, 30), va.Email()])
-    password = StringField('password', validators=[va.required()])
-
-
 @app.route('user')
 class UserView(PeeweeView, UserMixin):
     model = User
@@ -77,53 +60,54 @@ class UserView(PeeweeView, UserMixin):
         cls.unregister('new')
         cls.unregister('delete')
 
-    @app.route.interface('POST')
+    @app.route.interface('POST', summary='注册', va_post=SignupDataModel)
     async def signup(self):
-        """ 创建账户 """
-        data = await self.post_data()
+        """
+        用户注册接口
+        User Signup Interface
+        """
+        vpost: SignupDataModel = self._.validated_post
 
-        form = SignupForm(**data)
-        if not form.validate():
-            return self.finish(RETCODE.INVALID_POSTDATA, form.errors)
-
-        u = User.new(data['username'], data['password'], email=data.get('email', None), nickname=data.get('nickname', None))
+        u = User.new(vpost.username, vpost.password, email=vpost.email, nickname=vpost.nickname)
         if not u:
             self.finish(RETCODE.FAILED, msg='注册失败！')
         else:
             t: UserToken = await self.setup_user_token(u.id)
             self.finish(RETCODE.SUCCESS, {'id': u.id, 'username': u.username, 'access_token': t.get_token()})
 
-    @app.route.interface('POST')
+    @app.route.interface('POST', summary='登录', va_post=SigninDataModel)
     async def signin(self):
-        # get post data
-        post = await self.post_data()
-        use_mail = post.get('email', None)
+        """
+        用户登录接口
+        User Signin Interface
+        """
+        vpost: SigninDataModel = self._.validated_post
 
         # check auth method
-        if use_mail:
-            account_key = 'email'
-            va_form_cls = SigninByEmailForm
+        if vpost.email:
+            field_value = vpost.email
             auth_method = User.auth_by_mail
-        else:
-            account_key = 'username'
-            va_form_cls = SigninByUsernameForm
+        elif vpost.username:
+            field_value = vpost.username
             auth_method = User.auth_by_username
-
-        # parameters validate
-        form = va_form_cls(**post)
-        if not form.validate():
-            return self.finish(RETCODE.FAILED, form.errors)
+        else:
+            return self.finish(RETCODE.FAILED, msg='必须提交用户名或邮箱中的一个作为登录凭据')
 
         # auth and generate access token
-        user = auth_method(post[account_key], post['password'])
+        user = await run_in_thread(auth_method, field_value, vpost.password)
+
         if user:
             t: UserToken = await self.setup_user_token(user.id)
             self.finish(RETCODE.SUCCESS, {'id': user.id, 'access_token': t.get_token()})
         else:
             self.finish(RETCODE.FAILED, msg='用户名或密码不正确')
 
-    @app.route.interface('POST')
+    @app.route.interface('POST', summary='登出')
+    @require_role(ACCESS_ROLE.USER)
     async def signout(self):
+        """
+        退出登录
+        """
         if self.current_user:
             self.teardown_user_token()
             self.finish(RETCODE.SUCCESS)

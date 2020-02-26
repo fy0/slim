@@ -1,10 +1,12 @@
+import os
+
 from permissions.roles import *
 from permissions.tables._vars import add_post_visible_limit
 from slim.base.permission import Ability, A, DataRecord
 from slim.base.sqlquery import SQLQueryInfo, SQL_OP
 from slim.utils import get_bytes_from_blob
 
-TABLE_NAME = 'user'
+TABLE_NAME = os.path.basename(__file__).split('.', 1)[0]
 
 
 # 如果查询的是自己，多附带部分信息
@@ -15,7 +17,7 @@ def func(ability: Ability, user, query: 'SQLQueryInfo'):
             query.select.add('token_time')
 
 
-normal_user.add_query_condition(TABLE_NAME, func=func)
+user.add_query_condition(TABLE_NAME, func=func)
 
 
 # 阻止其他人写入自己的个人资料

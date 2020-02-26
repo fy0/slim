@@ -8,12 +8,12 @@ from slim.support.peewee.validate import get_pv_model_info
 from ...base.sqlquery import SQLForeignKey
 from ...base.permission import DataRecord, Permissions
 from ...utils import get_class_full_name
-from ...base.view import AbstractSQLView, ViewOptions
+from ...base.view import AbstractSQLView, SQLViewOptions
 
 logger = logging.getLogger(__name__)
 
 
-class PeeweeViewOptions(ViewOptions):
+class PeeweeSQLViewOptions(SQLViewOptions):
     def __init__(self, *, list_page_size=20, list_accept_size_from_client=False, permission: Permissions = None,
                  model: peewee.Model = None):
         self.model = model
@@ -29,7 +29,7 @@ class PeeweeViewOptions(ViewOptions):
 class PeeweeView(AbstractSQLView):
     is_base_class = True
     _sql_cls = PeeweeSQLFunctions
-    options_cls = PeeweeViewOptions
+    options_cls = PeeweeSQLViewOptions
     model = None
     _peewee_fields = {}
 

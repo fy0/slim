@@ -2,7 +2,7 @@ import asyncio
 import logging
 import time
 from types import FunctionType
-from typing import Set, List, Union, Optional
+from typing import Set, List, Union, Optional, Dict
 from unittest import mock
 
 from aiohttp import hdrs, web
@@ -32,6 +32,9 @@ class BaseView(metaclass=MetaClassForInit):
     """
     _interface = {}
     _no_route = False
+
+    ret_val: Optional[Dict]
+    ret_headers: Optional[Dict]
 
     @classmethod
     def _use(cls, name, method: [str, Set, List], url=None, summary=None, *,
@@ -122,6 +125,7 @@ class BaseView(metaclass=MetaClassForInit):
             self._request = aiohttp_request
 
         self.ret_val = None
+        self.ret_headers = None
         self.response = None
         self.session = None
         self._cookie_set = None
@@ -229,10 +233,10 @@ class BaseView(metaclass=MetaClassForInit):
     def finish(self, code: int, data=sentinel, msg=sentinel, *, headers=None):
         """
         Set response as {'code': xxx, 'data': xxx}
-        :param code:
-        :param data:
-        :param msg: 可选
-        :param headers:
+        :param code: Result code
+        :param data: Response data
+        :param msg: Message, optional
+        :param headers: Response header
         :return:
         """
         if data is sentinel:
@@ -242,6 +246,7 @@ class BaseView(metaclass=MetaClassForInit):
         self.ret_val = {'code': code, 'data': data}  # for access in inhreads method
         if msg is not sentinel:
             self.ret_val['msg'] = msg
+        self.ret_headers = headers
         self.response = web.json_response(self.ret_val, dumps=json_ex_dumps, headers=headers)
         self._finish_end()
 

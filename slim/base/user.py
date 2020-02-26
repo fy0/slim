@@ -88,10 +88,3 @@ class BaseAccessTokenUserViewMixin(BaseUserViewMixin):
     def get_user_token(self: Union[BaseUserViewMixin, 'BaseView']):
         """Get access token for specified user"""
         return self.headers.get('AccessToken', None)
-
-
-# noinspection PyAbstractClass
-class BaseAccessTokenInParamUserViewMixin(BaseUserViewMixin):
-    def get_user_token(self: Union[BaseUserViewMixin, 'BaseView']):
-        """Get access token for specified user"""
-        return self.params.get('AccessToken', None)

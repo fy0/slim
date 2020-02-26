@@ -1,6 +1,8 @@
 from app import app
 from permissions.roles import *
-from permissions.tables import *
+import permissions.tables
 
-app.permission.add(None, visitor)
-app.permission.add('normal_user', normal_user)
+from .role_define import ACCESS_ROLE
+
+app.permission.add(ACCESS_ROLE.VISITOR, visitor)
+app.permission.add(ACCESS_ROLE.USER, user)

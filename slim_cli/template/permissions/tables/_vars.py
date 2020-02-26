@@ -11,4 +11,4 @@ post_state_conditions = [
 
 def add_post_visible_limit(table):
     visitor.add_query_condition(table, post_state_conditions)
-    normal_user.add_query_condition(table, post_state_conditions)
+    user.add_query_condition(table, post_state_conditions)

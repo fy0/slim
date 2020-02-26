@@ -1,7 +1,12 @@
-from wtforms import Form
-import locale
+from asyncio import futures
+from concurrent.futures import ThreadPoolExecutor
 
-class ValidateForm(Form):
-    class Meta:
-        locales = ['zh_CN']
-        # locales = [locale.getdefaultlocale()[0]]
+from slim.utils import get_ioloop
+
+thread_executor = ThreadPoolExecutor(max_workers=4)
+
+
+def run_in_thread(fn, *args, **kwargs):
+    return futures.wrap_future(
+        thread_executor.submit(fn, *args, **kwargs), loop=get_ioloop()
+    )
