@@ -1,7 +1,7 @@
 
 - 快速开始
     - [启程](quickstart/intro.md)
-    - [视图和拦截器](quickstart/view_and_handlers.md)
+    - [视图和拦截器](quickstart/view_and_interceptors.md)
     - [查询和修改](quickstart/query_and_modify.md)
     - [注释和文档](quickstart/comment_and_doc.md)
     - [角色和权限](quickstart/permission.md)

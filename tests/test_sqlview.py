@@ -379,7 +379,7 @@ async def test_new_without_data():
     assert view.ret_val['code'] == RETCODE.SUCCESS
 
 
-async def test_update():
+async def test_set():
     a1 = ATestModel.create(name='Name1A', binary=b'test1A', count=1, json={'q': 1, 'w1a': 2})
     a2 = ATestModel.create(name='Name2A', binary=b'test2A', count=2, json={'q': 1, 'w2a': 2})
     a3 = ATestModel.create(name='Name3A', binary=b'test3A', count=3, json={'q': 1, 'w3a': 2})
@@ -390,7 +390,7 @@ async def test_update():
     view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'POST', '/api/test_new',
                                                        params=params, post=post)
 
-    await view.update()
+    await view.set()
     assert view.ret_val['code'] == RETCODE.SUCCESS
     assert view.ret_val['data'] == 1
 
@@ -403,7 +403,7 @@ async def test_update():
     view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'POST', '/api/test_new',
                                                        params=params, post=post)
 
-    await view.update()
+    await view.set()
     assert view.ret_val['code'] == RETCODE.SUCCESS
     assert view.ret_val['data']['name'] == 'Name2AA'
 
@@ -412,7 +412,7 @@ async def test_update():
     post = {'count.incr': 1, 'returning': True}
     view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'POST', '/api/test_new',
                                                        params=params, post=post)
-    await view.update()
+    await view.set()
     assert view.ret_val['code'] == RETCODE.SUCCESS
     assert view.ret_val['data']['name'] == 'Name3A'
     assert view.ret_val['data']['count'] == 4
@@ -422,7 +422,7 @@ async def test_update():
     post = {'count.incr': -2, 'returning': True}
     view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'POST', '/api/test_new',
                                                        params=params, post=post)
-    await view.update()
+    await view.set()
     assert view.ret_val['code'] == RETCODE.SUCCESS
     assert view.ret_val['data']['name'] == 'Name3A'
     assert view.ret_val['data']['count'] == 2

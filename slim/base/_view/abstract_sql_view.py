@@ -299,7 +299,7 @@ class AbstractSQLView(BaseView):
             page, size = self._get_list_page_and_size()
             info = SQLQueryInfo(self.params, view=self)
             await self._call_handle(self.before_query, info)
-            records, count = await self._sql.select_page(info, size, page)
+            records, count = await self._sql.select_page(info, page, size)
             await self.check_records_permission(info, records)
 
             if size == -1:
@@ -315,16 +315,15 @@ class AbstractSQLView(BaseView):
         self.current_interface = InnerInterfaceName.SET
         with ErrorCatchContext(self):
             info = SQLQueryInfo(self.params, self)
-            raw_post = await self.post_data()
 
             await self._call_handle(self.before_query, info)
             record = await self._sql.select_one(info)
 
             if record:
                 records = [record]
-                values = SQLValuesToWrite(raw_post)
+                values = SQLValuesToWrite(await self.post_data())
                 values.bind(self, A.WRITE, records)
-                await self._call_handle(self.before_update, raw_post, values, records)
+                await self._call_handle(self.before_update, values, records)
 
                 if logger.isEnabledFor(logging.DEBUG):
                     logger.debug('update record(s): %s' % values)
@@ -332,7 +331,7 @@ class AbstractSQLView(BaseView):
                 # 注：此处returning为true是因为后续要检查数据的权限，和前端要求无关
                 new_records = await self._sql.update(records, values, returning=True)
                 await self.check_records_permission(None, new_records)
-                await self._call_handle(self.after_update, raw_post, values, records, new_records)
+                await self._call_handle(self.after_update, values, records, new_records)
                 if values.returning:
                     self.finish(RETCODE.SUCCESS, new_records[0])
                 else:
@@ -340,7 +339,7 @@ class AbstractSQLView(BaseView):
             else:
                 self.finish(RETCODE.NOT_FOUND)
 
-    async def new(self, values: SQLValuesToWrite = None):
+    async def new(self):
         self.current_interface = InnerInterfaceName.NEW
         with ErrorCatchContext(self):
             raw_post = await self.post_data()
@@ -349,13 +348,12 @@ class AbstractSQLView(BaseView):
 
             if logger.isEnabledFor(logging.DEBUG):
                 logger.debug('insert record(s): %s' % values_lst)
-            # 注意，这里只给一个，new接口暂不支持一次insert多个
-            await self._call_handle(self.before_insert, raw_post, values)
 
+            await self._call_handle(self.before_insert, values_lst)
             values.validate_before_execute_insert(self)
             records = await self._sql.insert(values_lst, returning=True)
             await self.check_records_permission(None, records)
-            await self._call_handle(self.after_insert, raw_post, values_lst[0], records[0])
+            await self._call_handle(self.after_insert, values_lst, records)
 
             if values.returning:
                 self.finish(RETCODE.SUCCESS, records[0])
@@ -407,7 +405,8 @@ class AbstractSQLView(BaseView):
 
     async def before_query(self, info: SQLQueryInfo):
         """
-        在发生查询时触发，触发接口是new以外的全部接口
+        在发生查询时触发。
+        触发接口：get list set delete
         :param info:
         :return:
         """
@@ -415,55 +414,53 @@ class AbstractSQLView(BaseView):
 
     async def after_read(self, records: List[DataRecord]):
         """
-        一对多，当有一个权限检查失败时即返回异常
+        触发接口：get list new set
         :param records:
         :return:
         """
         pass
 
-    async def before_insert(self, values: SQLValuesToWrite):
+    async def before_insert(self, values_lst: List[SQLValuesToWrite]):
         """
-        一对一
-        :param raw_post:
-        :param values:
+        插入操作之前
+        触发接口：new
+        :param values_lst:
         :return:
         """
         pass
 
-    async def after_insert(self, values: SQLValuesToWrite, record: DataRecord):
+    async def after_insert(self, values_lst: List[SQLValuesToWrite], records: List[DataRecord]):
         """
-        一对一
-        Emitted before finish
-        :param raw_post:
-        :param values:
-        :param record:
+        插入操作之后
+        触发接口：new
+        :param values_lst:
+        :param records:
         :return:
         """
         pass
 
     async def before_update(self, values: SQLValuesToWrite, records: List[DataRecord]):
         """
-        一对多，当有一个权限检查失败时即返回异常
-        raw_post 权限过滤和列过滤前，values 过滤后
-        :param raw_post:
+        触发接口：set
         :param values:
         :param records:
         :return:
         """
         pass
 
-    async def after_update(self, values: SQLValuesToWrite,
-                           old_records: List[DataRecord], records: List[DataRecord]):
+    async def after_update(self, values: SQLValuesToWrite, old_records: List[DataRecord],
+                           new_records: List[DataRecord]):
         """
-        :param old_records:
-        :param raw_post:
+        触发接口：set
         :param values:
-        :param records:
+        :param old_records:
+        :param new_records:
         :return:
         """
 
     async def before_delete(self, records: List[DataRecord]):
         """
+        触发接口：delete
         :param records:
         :return:
         """
@@ -471,6 +468,7 @@ class AbstractSQLView(BaseView):
 
     async def after_delete(self, deleted_records: List[DataRecord]):
         """
+        触发接口：delete
         :param deleted_records:
         :return:
         """

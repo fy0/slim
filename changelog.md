@@ -1,5 +1,5 @@
 
-#### 0.5.0 update 2020.02.19
+#### 0.5.0 update 2020.02.28
 
 * Added: OpenAPI 3 supported
 
@@ -18,6 +18,8 @@
 * Changed: Renamed `view.discard` to `view.unregister`
 
 * Changed(break): Remake `Application` event
+
+* Changed(break): Interceptors definition of `AbstractSQLView`
 
 * Removed: `slim.base.sqlquery.UpdateInfo`
 

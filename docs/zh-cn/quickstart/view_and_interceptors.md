@@ -272,12 +272,79 @@ class TopicView(PeeweeView):
 
 自动生成的几个接口除了list之外，都只作用于单条数据。这是出于安全性的考虑，因为批量进行增删改的场景较少，但如果出现漏洞，批量接口却能在极短时间内造成很大的破坏。
 
-但也不排除以后会存在增加接口的可能，因此针对行为，而非接口设定了拦截器：
+但也不排除以后会存在增加接口的可能，因此针对行为，而不是接口设定了以下拦截器：
 
+```python
+async def before_query(self, info: SQLQueryInfo):
+    """
+    在发生查询时触发。
+    触发接口：get list set delete
+    :param info:
+    :return:
+    """
+    pass
 
+async def after_read(self, records: List[DataRecord]):
+    """
+    触发接口：get list new set
+    :param records:
+    :return:
+    """
+    pass
 
-增：new
-删：delete
-改：set
-查：get list
+async def before_insert(self, values_lst: List[SQLValuesToWrite]):
+    """
+    插入操作之前
+    触发接口：new
+    :param values_lst:
+    :return:
+    """
+    pass
 
+async def after_insert(self, values_lst: List[SQLValuesToWrite], records: List[DataRecord]):
+    """
+    插入操作之后
+    触发接口：new
+    :param values_lst:
+    :param records:
+    :return:
+    """
+    pass
+
+async def before_update(self, values: SQLValuesToWrite, records: List[DataRecord]):
+    """
+    触发接口：set
+    :param values:
+    :param records:
+    :return:
+    """
+    pass
+
+async def after_update(self, values: SQLValuesToWrite, old_records: List[DataRecord],
+                       new_records: List[DataRecord]):
+    """
+    触发接口：set
+    :param values:
+    :param old_records:
+    :param new_records:
+    :return:
+    """
+
+async def before_delete(self, records: List[DataRecord]):
+    """
+    触发接口：delete
+    :param records:
+    :return:
+    """
+    pass
+
+async def after_delete(self, deleted_records: List[DataRecord]):
+    """
+    触发接口：delete
+    :param deleted_records:
+    :return:
+    """
+    pass
+```
+
+不过，其实我不认为这是最佳方案。如果有更加 pythonic 的方案，请告诉我。
