@@ -347,4 +347,6 @@ async def after_delete(self, deleted_records: List[DataRecord]):
     pass
 ```
 
-不过，其实我不认为这是最佳方案。如果有更加 pythonic 的方案，请告诉我。
+不过，写起来仍然有些别扭，这是我目前能想到的最不差的API设计。
+
+如果有更好的方案，请告诉我。

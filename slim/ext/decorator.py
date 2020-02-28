@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING
 from schematics import Model
 
 from slim.base._view.validate import view_validate_check
-from slim.exception import SlimException
 from slim.utils import async_call
 from ..retcode import RETCODE
 
@@ -15,13 +14,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def validate_before(va_query: Model=None, va_post: Model=None):
+def append_validate(va_query: Model = None, va_post: Model = None):
     """
-    `view.before_query`
-    `view.before_insert`
-    `view.before_update`
-    `view.before_delete`
-
     :param va_query:
     :param va_post:
     :return:
@@ -31,6 +25,7 @@ def validate_before(va_query: Model=None, va_post: Model=None):
             await view_validate_check(view, va_query, va_post)
             if view.is_finished: return
             return await func(view, *args, **kwargs)
+        # __.__meta__ = func.__meta__
         __.__doc__ = func.__doc__
         return __
     return _
@@ -121,3 +116,11 @@ def get_cooldown_decorator(aioredis_instance: object, default_unique_id_func=get
             return myfunc
         return wrapper
     return cooldown
+
+
+class D:
+    append_validate = append_validate
+    get_cooldown_decorator = get_cooldown_decorator
+    must_be_role = must_be_role
+    require_role = require_role
+    # deprecated = deprecated

@@ -49,7 +49,7 @@ class ErrorCatchContext:
             self.view.finish(RETCODE.FAILED, exc_val.args[0])
 
         elif isinstance(exc_val, ColumnNotFound):
-            self.view.finish(RETCODE.FAILED, "Column not found: %r" % exc_val.args[0])
+            self.view.finish(RETCODE.FAILED, exc_val.args[0], msg='Column not found')
 
         elif isinstance(exc_val, RecordNotFound):
             if len(exc_val.args) > 0:

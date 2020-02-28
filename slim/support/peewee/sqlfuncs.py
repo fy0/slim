@@ -107,7 +107,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
         except self._model.DoesNotExist:
             raise RecordNotFound(self.vcls.table_name)
 
-    async def select_page(self, info: SQLQueryInfo, size=1, page=1) -> Tuple[Tuple[DataRecord, ...], int]:
+    async def select_page(self, info: SQLQueryInfo, page=1, size=1) -> Tuple[Tuple[DataRecord, ...], int]:
         q = self._make_select(info)
         count = q.count()
 

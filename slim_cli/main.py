@@ -41,6 +41,10 @@ def gen(project_dir, project_name):
         txt = r.txt.replace('localhost:9999', 'localhost:' + port)
         r.txt = txt
 
+    with ReplaceManager(join(project_dir, 'requirements.txt')) as r:
+        import slim
+        r.txt = r.txt.replace('SLIM_VERSION', slim.__version__)
+
     return True
 
 

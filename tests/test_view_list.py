@@ -1,3 +1,5 @@
+import time
+
 import pytest
 from slim.support.peewee import PeeweeView
 from peewee import *
@@ -37,6 +39,30 @@ async def test_view_list_bug():
     await view.list()  # BUG 情况会抛出一个 ZeroDivisionError
 
 
-if __name__ == '__main__':
-    loop = get_ioloop()
-    loop.run_until_complete(test_view_list_bug())
+class Topic(Model):
+    title = CharField(index=True, max_length=255)
+    time = BigIntegerField(index=True)
+    content = TextField()
+
+    class Meta:
+        database = db
+
+
+db.create_tables([Topic], safe=True)
+
+
+Topic.create(time=time.time(), title='Hello', content='World')
+Topic.create(time=time.time(), title='Hello2', content='World')
+Topic.create(time=time.time(), title='Hello3', content='World')
+Topic.create(time=time.time(), title='Hello4', content='World')
+
+
+@app.route('/topic')
+class TopicView(PeeweeView):
+    model = Topic
+
+
+async def test_list_items_exists():
+    view: PeeweeView = await make_mocked_view_instance(app, TopicView, 'POST', '/api/topic/list/1')
+    await view.list()
+    assert len(view.ret_val['data']['items']) == view.ret_val['data']['info']['items_count']

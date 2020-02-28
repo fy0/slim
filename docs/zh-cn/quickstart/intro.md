@@ -54,7 +54,7 @@ app = Application(
 )
 
 
-@app.route('/topic')
+@app.route('topic')
 class TopicView(PeeweeView):
     model = Topic
 
@@ -164,3 +164,7 @@ tree -I "__pycache__|__init__.py|database.db"  --dirsfirst
 
 ## 扩展阅读
 
+- [视图和拦截器](quickstart/view_and_interceptors.md)
+- [查询和修改](quickstart/query_and_modify.md)
+- [注释和文档](quickstart/comment_and_doc.md)
+- [用户和权限](quickstart/user_and_permission.md)

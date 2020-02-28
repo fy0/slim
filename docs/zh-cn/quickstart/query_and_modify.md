@@ -18,7 +18,7 @@ class Topic(Model):
 
 # ...
 
-@app.route('/topic')
+@app.route('topic')
 class TopicView(PeeweeView):
     model = Topic
 ```
@@ -44,42 +44,149 @@ class TopicView(PeeweeView):
 举例来说，当我们想获得 id 为 1 的 Topic，进行以下请求：
 
 ```shell script
-http http://localhost:9999/topic/get?id=1
+http http://localhost:9999/api/topic/get?id=1
 ```
 
 返回结果如下：
-```
-...
+```json
+{
+    "code": 0,
+    "data": {
+        "content": "World",
+        "id": 1,
+        "time": 1582862999,
+        "title": "Hello"
+    }
+}
 ```
 
 获得标题为 hello 的 Topic，进行以下请求：
 
 ```shell script
-http http://localhost:9999/topic/get?title=hello
+http http://localhost:9999/api/topic/get?title=hello
 ```
 
 获得 id 为 1 且标题为 hello 的 Topic：
 
 ```shell script
-http http://localhost:9999/topic/get?id=1&title=hello
-```
-
-获得创建时间晚于2020年1月1日的所有文章：
-
-```shell script
-http http://localhost:9999/topic/get?time.ge=1577808000
+http http://localhost:9999/api/topic/get?id=1&title=hello
 ```
 
 获得创建时间晚于2020年1月1日的所有文章，并以时间降序排序：
 
 ```shell script
-http http://localhost:9999/topic/get?time.ge=1577808000&order=time.desc
+http http://localhost:9999/api/topic/list/1?time.ge=1577808000&order=time.desc
+```
+
+```json
+{
+    "code": 0,
+    "data": {
+        "cur_page": 1,
+        "first_page": null,
+        "info": {
+            "items_count": 4,
+            "page_count": 1,
+            "page_size": 20
+        },
+        "items": [
+            {
+                "content": "World",
+                "id": 4,
+                "time": 1582870631,
+                "title": "Hello4"
+            },
+            {
+                "content": "World",
+                "id": 3,
+                "time": 1582870629,
+                "title": "Hello3"
+            },
+            {
+                "content": "World",
+                "id": 2,
+                "time": 1582870628,
+                "title": "Hello2"
+            },
+            {
+                "content": "World",
+                "id": 1,
+                "time": 1582870627,
+                "title": "Hello"
+            }
+        ],
+        "last_page": null,
+        "next_page": null,
+        "page_numbers": [
+            1
+        ],
+        "prev_page": null
+    }
+}
 ```
 
 请注意：
-**需要用Query string选择数据的API是除了new之外的所有API，他们都遵从相同的规则。**
 
-此外，所有查询条件是and关系。这诚然会造成一些现实，但在绝大多数情况下够用而且不会引发性能和安全问题。
+**除了 new 之外的所有API，都需要用Query string选择数据，他们都遵从相同的规则。**
+
+此外，所有查询条件是and关系。这会造成一些限制，但在绝大多数情况下够用而且不会引发性能和安全问题。
+
+
+## 选择查询列
+
+在查询时，可能并非所有列都是需要的。我们可以通过在请求参数中添加select字段来选择希望存在的列，格式为：
+
+```
+?select=column1, column2
+```
+
+逗号后面的空格可以省略。
+
+例如，我们希望显示文章标题列表，此时直接使用 list 接口会连同文章内容一起得到，我们可以这样：
+
+```shell script
+http "http://localhost:9999/api/topic/list/1?time.ge=1577808000&order=time.desc&select=id,title"
+```
+
+```json
+{
+    "code": 0,
+    "data": {
+        "cur_page": 1,
+        "first_page": null,
+        "info": {
+            "items_count": 4,
+            "page_count": 1,
+            "page_size": 20
+        },
+        "items": [
+            {
+                "id": 4,
+                "title": "Hello4"
+            },
+            {
+                "id": 3,
+                "title": "Hello3"
+            },
+            {
+                "id": 2,
+                "title": "Hello2"
+            },
+            {
+                "id": 1,
+                "title": "Hello"
+            }
+        ],
+        "last_page": null,
+        "next_page": null,
+        "page_numbers": [
+            1
+        ],
+        "prev_page": null
+    }
+}
+```
+
 
 ## 接口权限
 
@@ -89,17 +196,36 @@ http http://localhost:9999/topic/get?time.ge=1577808000&order=time.desc
 
 一、关闭接口
 
+```python
+@app.route('user')
+class UserViewView(PeeweeView, UserViewMixin):
+    model = User
+
+    @classmethod
+    def interface(cls):
+        super().interface()
+        cls.discard('new')
+        cls.discard('delete')
+```
+
 二、设定权限
+
+```
+待编写
+```
 
 三、设定准入角色
 
+```
+待编写 使用装饰器
+```
 
 ## 查询运算符
 
 回顾一下这个请求：
 
 ```shell script
-http http://localhost:9999/topic/get?time.ge=1577808000
+http http://localhost:9999/api/topic/get?time.ge=1577808000
 ```
 
 这里使用了一个运算符，`time.ge`，即大于等于(GreaterEqual)。
@@ -180,3 +306,80 @@ class RETCODE(StateObject):
 
 ## 修改/新建
 
+与使用query string代表查询相对应，我们使用post body来代表对数据记录的修改/新建。
+
+```json
+{
+    "title": "Hello Again",
+    "content": "Content changed"
+}
+```
+
+修改文章内容：
+
+```shell script
+http -f POST "http://localhost:9999/api/topic/set?id=1" title="Hello Again" content="Content changed"
+```
+
+返回结果
+
+```json
+{
+    "code": 0,
+    "data": 1
+}
+```
+
+新建一篇文章：
+
+```shell script
+http -f POST "http://localhost:9999/api/topic/new" title="Hello Again" content="Content changed" time=1578729600 returning=true
+```
+
+返回结果
+
+```json
+{
+    "code": 0,
+    "data": {
+        "content": "Content changed",
+        "id": 78,
+        "time": 1578729600,
+        "title": "Hello Again"
+    }
+}
+```
+
+## 与拦截器结合使用
+
+上一小节中我们通过向`new`接口发送请求，新建了一条记录。
+
+但这个请求需要我们每次手写 time 参数，十分不便。关于这点，有两种解决方案：
+
+其一，修改数据表的声明，添加default的内容。这对时间来说足矣。
+
+```python
+import time
+
+class Topic(Model):
+    title = CharField(index=True, max_length=255)
+    time = BigIntegerField(index=True, default=time.time)  # 时间戳
+    content = TextField()
+
+    class Meta:
+        database = db
+```
+
+其二，使用拦截器 `before_insert`
+
+```python
+import time
+
+@app.route('topic')
+class TopicView(PeeweeView):
+    model = Topic
+
+    async def before_insert(self, values_lst: List[SQLValuesToWrite]):
+        for values in values_lst:
+            values['time'] = int(time.time())
+```

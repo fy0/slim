@@ -28,6 +28,6 @@
 
 ### 其他
 
-* [基础设计](quickstart/design.md)
+* [基础设计](quickstart/_design.md)
 
 * [简单例子](quickstart/helloworld.md)

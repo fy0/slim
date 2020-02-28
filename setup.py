@@ -30,7 +30,7 @@ setup(
     license='zlib',
 
     classifiers=[
-        'Development Status :: 3 - Alpha',
+        'Development Status :: 4 - Beta',
 
         'Intended Audience :: Developers',
         'Topic :: Internet :: WWW/HTTP',
@@ -46,6 +46,7 @@ setup(
         'Programming Language :: Python :: 3 :: Only',
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7'
+        'Programming Language :: Python :: 3.8'
     ],
 
     keywords='slim web framework model aiohttp asyncpg peewee',
@@ -55,6 +56,7 @@ setup(
                                                  'slim_cli.template.permissions.roles',
                                                  'slim_cli.template.permissions.tables',
                                                  'slim_cli.template.api',
+                                                 'slim_cli.template.api.validate',
                                                  'slim_cli.template.tools',
                                                  'slim_cli.template.model'],
     package_dir={

@@ -18,7 +18,8 @@ from permissions.role_define import ACCESS_ROLE
 
 
 class UserMixin(BaseAccessTokenUserViewMixin):
-    """ 用户Mixin，用于与View """
+    """ 用户Mixin，用于View继承 """
+
     @property
     def user_cls(self):
         return User
@@ -28,13 +29,13 @@ class UserMixin(BaseAccessTokenUserViewMixin):
         if t: return User.get_by_pk(t.user_id)
 
     async def setup_user_token(self, user_id, key=None, expires=30):
-        """ setup user token """
+        """ signin, setup user token """
         t = UserToken.new(user_id)
         await t.init(self)
         return t
 
     def teardown_user_token(self: Union['BaseUserViewMixin', 'BaseView'], token=sentinel):
-        """ invalidate the token here """
+        """ signout, invalidate the token here """
         u = self.current_user
         if u:
             if token is None:

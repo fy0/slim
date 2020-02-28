@@ -617,7 +617,10 @@ class SQLValuesToWrite(dict):
         columns = self.keys()
         logger.debug('request permission as %r: [%s] of table %r, columns: %s' % (ability.role, A.WRITE, table, columns))
         available = ability.can_with_columns(user, A.WRITE, table, columns)
-        if not available: raise PermissionDenied()
+
+        if not available:
+            raise PermissionDenied()
+
         dict_filter_inplace(self, available)
 
         for record in records:
@@ -642,8 +645,7 @@ class SQLValuesToWrite(dict):
         dict_filter_inplace(self, view.fields.keys())
 
         if len(self) == 0:
-            logger.debug('No values to write after filtered by table fields: %s' % view.table_name)
-            # raise InvalidPostData()
+            raise InvalidPostData('Invalid post values for table: %s' % view.table_name)
 
         if action:
             self.check_write_permission(view, action, records)
@@ -663,7 +665,7 @@ class SQLValuesToWrite(dict):
             raise InvalidPostData(e.to_primitive())
 
     def validate_before_execute_insert(self, view: "AbstractSQLView"):
-        # 只有在执行insert之前，需要校验插入项是否完整
+        # 在执行insert之前，需要校验插入项是否完整（所有require项存在）
         try:
             view.data_model(self, strict=False, validate=True, partial=False)
         except DataError as e:
