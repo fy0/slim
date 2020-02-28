@@ -19,7 +19,7 @@
 
 * Changed(break): Remake `Application` event
 
-* Changed(break): Interceptors definition of `AbstractSQLView`
+* Changed(break): Interceptors definition of `AbstractSQLView` changed includes `before_insert` and `after_insert`
 
 * Removed: `slim.base.sqlquery.UpdateInfo`
 

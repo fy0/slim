@@ -19,7 +19,7 @@ def long_desc():
 
 setup(
     name='slim',
-    version='0.5.0a2',
+    version='0.5.0a3',
 
     description=description(),
     long_description=long_desc(),
@@ -45,7 +45,7 @@ setup(
         'Programming Language :: Python',
         'Programming Language :: Python :: 3 :: Only',
         'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7'
+        'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8'
     ],
 

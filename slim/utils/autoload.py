@@ -19,8 +19,6 @@ def import_path(path, depth=-1):
                 modname = os.path.relpath(fn)[:-3].replace(os.path.sep, '.')
 
                 logger.debug('Auto load module: "%s"' % modname)
-                spec = importlib.util.spec_from_file_location(modname, os.path.join(path, i))
-                foo = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(foo)
+                importlib.import_module(modname, os.path.abspath(os.path.join(path, i)))
         elif os.path.isdir(fn):
             import_path(fn, depth-1)
