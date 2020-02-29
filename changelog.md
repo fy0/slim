@@ -7,7 +7,9 @@
 
 * Added: More readable error texts for query condition parse.
 
-* Added: More tests for query parse and post data parse
+* Added: Test tool function `slim.tools.test_tool.invoke_interface`
+
+* Added: More tests
 
 * Changed: Prettier access log
 

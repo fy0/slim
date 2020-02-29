@@ -18,3 +18,5 @@
 * returning 移向 headers
 
 * test tools
+
+* redoc 界面上提供角色切换

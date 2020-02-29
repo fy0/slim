@@ -1,5 +1,5 @@
 from asyncio import Future
-from typing import Type, TYPE_CHECKING, Set, Dict
+from typing import Type, TYPE_CHECKING, Set, Dict, Callable, Any, Awaitable
 
 from schematics import Model
 
@@ -22,6 +22,7 @@ class BeaconInfo(JsDict):
     handler: Future
     handler_name: str
     route: BeaconRouteInfo
+    beacon_func: Callable[[Any], Awaitable[None]]
 
     va_query: Type[Model]
     va_post: Type[Model]

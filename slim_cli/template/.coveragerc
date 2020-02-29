@@ -1,0 +1,6 @@
+[run]
+omit = docs/*
+    bak/*
+    setup.py
+
+source = ./

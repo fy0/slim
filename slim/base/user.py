@@ -29,20 +29,12 @@ class BaseUserViewMixin:
     from model.user import User
 
     class UserViewMixin(BaseUserViewMixin):
-        @property
-        def user_cls(self) -> Type[BaseUser]:
-            return User
-
+        pass
     """
 
     def get_current_user(self: Union['BaseUserViewMixin', 'BaseView']):
         key = self.get_user_token()
         if key: return self.get_user_by_token(key)
-
-    @property
-    @abstractmethod
-    def user_cls(self) -> Type[BaseUser]:
-        pass
 
     @abstractmethod
     def get_user_token(self: Union['BaseUserViewMixin', 'BaseView']):

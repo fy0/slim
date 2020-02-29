@@ -1,10 +1,11 @@
 import logging
 from asyncio import iscoroutinefunction, Future
-from typing import Iterable, Type, TYPE_CHECKING, Dict
+from typing import Iterable, Type, TYPE_CHECKING, Dict, Callable, Awaitable, Any
 from aiohttp import web, web_response
 from posixpath import join as urljoin
 
 from aiohttp.abc import Request
+from aiohttp.web_response import Response
 from schematics.exceptions import DataError
 
 from slim.base._view.validate import view_validate_check
@@ -22,10 +23,10 @@ logger = logging.getLogger(__name__)
 # __all__ = ('Route',)
 
 
-def get_route_middleware(app: 'Application'):
+def get_request_solver(app: 'Application'):
     @web.middleware
     # noinspection PyProtectedMember
-    async def route_middleware(request: Request, handler):
+    async def route_middleware(request: Request, handler: Callable, hack_view: Callable = None) -> Awaitable[Response]:
         if not app.route._is_beacon(handler):
             return await handler(request)
         else:
@@ -37,6 +38,9 @@ def get_route_middleware(app: 'Application'):
 
             view_instance: BaseView = beacon.view_cls(app, request)
             method = view_instance.method
+
+            # hack for test tool
+            if hack_view: hack_view(view_instance)
 
             from .view import ErrorCatchContext
 
@@ -93,8 +97,10 @@ def view_bind(app: 'Application', cls_url, view_cls: Type['BaseView']):
         route = beacon_info['route']
         for method in route['method']:
             async def beacon(request): pass
+            beacon_info['beacon_func'] = beacon
             app._raw_app.router.add_route(method, route['fullpath'], beacon)
             app.route._beacons[beacon] = beacon_info
+            app.route._handler_to_beacon[beacon_info['handler']] = beacon
 
     # noinspection PyProtectedMember
     for name, route_info_lst in view_cls._interface.items():
@@ -143,9 +149,20 @@ class Route:
         self.before_bind = []
         self.after_bind = []  # on_bind(app)
         self._beacons = {}
+        self._handler_to_beacon = {}  # used for test tool
 
     @staticmethod
     def interface(method, url=None, *, summary=None, va_query=None, va_post=None, deprecated=False):  # va_header, etc.
+        """
+        Register interface
+        :param method:
+        :param url:
+        :param summary:
+        :param va_query:
+        :param va_post:
+        :param deprecated:
+        :return:
+        """
         def wrapper(func):
             meta = {
                 'summary': summary,
@@ -157,6 +174,17 @@ class Route:
             return func
         return wrapper
 
+    def view(self, url):
+        """
+        Register View Class
+        :param url:
+        :return:
+        """
+        def wrapper(cls):
+            if issubclass(cls, BaseView):
+                self.views.append((url, cls))
+        return wrapper
+
     def _is_beacon(self, func):
         return func in self._beacons
 
@@ -164,6 +192,7 @@ class Route:
         def _(obj):
             from .view import BaseView
             if iscoroutinefunction(obj):
+                # 这里可以判断是否为 method，但没有必要
                 assert method, "Must give at least one method to http handler `%s`" % obj.__name__
                 if type(method) == str: methods = (method,)
                 else: methods = list(method)

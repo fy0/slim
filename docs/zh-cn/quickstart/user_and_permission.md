@@ -7,7 +7,7 @@
 从 `XXXUserViewMixin` 派生继承就可以实现用户机制，一段例子(slim cli创建的项目，api/view.py)：
 
 ```python
-@app.route('user')
+@app.route.view('user')
 class UserView(PeeweeView, UserMixin):
     model = User
 

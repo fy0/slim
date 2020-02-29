@@ -4,6 +4,7 @@ from typing import Type, TYPE_CHECKING
 
 from slim.base.types import InnerInterfaceName as IIN
 from slim.base.types.beacon import BeaconInfo
+from slim.base.types.func_meta import FuncMeta
 from slim.retcode import RETCODE
 from slim.utils.schematics_ext import schematics_field_to_schema, schematics_model_to_json_schema, field_metadata_assign
 
@@ -202,6 +203,12 @@ class OpenAPIGenerator:
                 response_schema = deepcopy(std_resp_schema)
 
                 summary = raw.get('summary') or i['name']
+
+                # check role require
+                meta: FuncMeta = getattr(i.handler, '__meta__', None)
+                if meta and meta.interface_roles is not None:
+                    if self.role not in meta.interface_roles:
+                        continue
 
                 if is_sql_view:
                     is_inner_interface = raw.get('_sql')

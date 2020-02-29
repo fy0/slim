@@ -4,7 +4,8 @@ from typing import TYPE_CHECKING
 from schematics import Model
 
 from slim.base._view.validate import view_validate_check
-from slim.utils import async_call
+from slim.base.types.func_meta import FuncMeta
+from slim.utils import async_call, get_ioloop, asyncio
 from ..retcode import RETCODE
 
 if TYPE_CHECKING:
@@ -12,6 +13,27 @@ if TYPE_CHECKING:
 
 
 logger = logging.getLogger(__name__)
+
+
+def _decorator_fix(old_func, new_func):
+    """
+    使装饰器包裹函数不丢失文档信息和辅助信息
+    :param old_func:
+    :param new_func:
+    :return:
+    """
+    meta = getattr(old_func, '__meta__', None)
+    if isinstance(meta, FuncMeta):
+        setattr(new_func, '__meta__', meta.deepcopy())
+    new_func.__doc__ = old_func.__doc__
+
+
+def _create_func_meta(func):
+    meta = getattr(func, '__meta__', None)
+    if not meta:
+        meta = FuncMeta()
+        setattr(func, '__meta__', meta)
+    return meta
 
 
 def append_validate(va_query: Model = None, va_post: Model = None):
@@ -25,8 +47,16 @@ def append_validate(va_query: Model = None, va_post: Model = None):
             await view_validate_check(view, va_query, va_post)
             if view.is_finished: return
             return await func(view, *args, **kwargs)
-        # __.__meta__ = func.__meta__
-        __.__doc__ = func.__doc__
+
+        _decorator_fix(__, func)
+        meta = _create_func_meta(__)
+
+        if va_query:
+            meta.va_query_lst.append(va_query)
+
+        if va_post:
+            meta.va_query_lst.append(va_post)
+
         return __
     return _
 
@@ -38,32 +68,89 @@ def deprecated(warn_text='The interface is deprecated. We plan to remove it from
     def _(func):
         logger.warning(warn_text)
 
-        async def __(*args, **kwargs):
-            return await func(*args, **kwargs)
+        if asyncio.iscoroutinefunction(func):
+            async def __(*args, **kwargs):
+                return await func(*args, **kwargs)
+        else:
+            def __(*args, **kwargs):
+                return func(*args, **kwargs)
+
+        _decorator_fix(__, func)
+        return __
+    return _
+
+
+def _role_decorator(role, view_check_func):
+    def _(func):
+        async def __(view: 'AbstractSQLView', *args, **kwargs):
+            if await view_check_func(view):
+                return
+            return await func(view, *args, **kwargs)
+
+        _decorator_fix(__, func)
+        meta = _create_func_meta(__)
+        if meta.interface_roles is None:
+            meta.interface_roles = {role}
+        else:
+            meta.interface_roles.add(role)
         return __
     return _
 
 
 def require_role(role=None):
-    def _(func):
-        async def __(view: 'AbstractSQLView', *args, **kwargs):
-            if role not in view.roles:
-                return view.finish(RETCODE.INVALID_ROLE)
-            return await func(view, *args, **kwargs)
-        __.__doc__ = func.__doc__
-        return __
-    return _
+    """
+    Current user should have specified role
+    :param role:
+    :return:
+    """
+    async def role_check_func(view):
+        if role not in view.roles:
+            view.finish(RETCODE.INVALID_ROLE)
+            return True
+
+    return _role_decorator(role, role_check_func)
 
 
 def must_be_role(role=None):
-    def _(func):
-        async def __(view: 'AbstractSQLView', *args, **kwargs):
-            if role != view.current_request_role:
-                return view.finish(RETCODE.INVALID_ROLE)
-            return await func(view, *args, **kwargs)
-        __.__doc__ = func.__doc__
-        return __
-    return _
+    """
+    Current user must request specified role and authorized
+    :param role:
+    :return:
+    """
+    async def role_check_func(view):
+        if role != view.current_request_role:
+            view.finish(RETCODE.INVALID_ROLE)
+            return True
+
+    return _role_decorator(role, role_check_func)
+
+
+def timer(interval_seconds, *, exit_when):
+    """
+    Set up a timer
+    :param interval_seconds:
+    :param exit_when:
+    :return:
+    """
+    loop = get_ioloop()
+
+    def wrapper(func):
+        def runner():
+            if exit_when and exit_when():
+                return
+
+            loop.call_later(interval_seconds, runner)
+
+            if asyncio.iscoroutinefunction(func):
+                asyncio.ensure_future(func())
+            else:
+                func()
+
+        loop.call_later(interval_seconds, runner)
+        _decorator_fix(runner, func)
+        return func
+
+    return wrapper
 
 
 async def get_ip(view: 'BaseView') -> bytes:
@@ -112,7 +199,8 @@ def get_cooldown_decorator(aioredis_instance: object, default_unique_id_func=get
                     # 所有跳过条件都不存在，设置正常的expire并退出
                     await redis.set(key, '1', expire=interval)
                     return ret
-            myfunc.__doc__ = func.__doc__
+
+            _decorator_fix(func, myfunc)
             return myfunc
         return wrapper
     return cooldown
@@ -124,3 +212,4 @@ class D:
     must_be_role = must_be_role
     require_role = require_role
     # deprecated = deprecated
+    timer = timer

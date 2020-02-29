@@ -1,10 +1,13 @@
 import logging
 import asyncio
-from typing import Union, List, Optional, TYPE_CHECKING, Iterable
+from typing import Union, List, Optional, TYPE_CHECKING, Iterable, Callable, Awaitable
 from aiohttp import web
+from aiohttp.web_request import Request
+from aiohttp.web_response import Response
 from aiohttp.web_urldispatcher import StaticResource
 
 from slim.base.types.doc import ApplicationDocInfo
+from slim.ext.decorator import deprecated
 from slim.ext.openapi.serve import doc_serve
 from .session import CookieSession
 from ..utils import get_ioloop
@@ -43,6 +46,8 @@ class CORSOptions:
 
 
 class Application:
+    _request_solver: Callable[[Request, Callable, Optional[Callable]], Awaitable[Response]]
+
     def __init__(self, *, cookies_secret: bytes, log_level=logging.INFO, session_cls=CookieSession,
                  mountpoint: str = '/api', doc_enable=True, doc_info=ApplicationDocInfo(),
                  permission: Optional['Permissions'] = None, client_max_size=2 * 1024 * 1024,
@@ -57,7 +62,7 @@ class Application:
         :param doc_info:
         :param client_max_size: 2MB is default client_max_body_size of nginx
         """
-        from .route import get_route_middleware, Route
+        from .route import get_request_solver, Route
         from .permission import Permissions, Ability, ALL_PERMISSION, EMPTY_PERMISSION
 
         self.on_startup = []
@@ -96,7 +101,8 @@ class Application:
         self.options = ApplicationOptions()
         self.options.cookies_secret = cookies_secret
         self.options.session_cls = session_cls
-        self._raw_app = web.Application(middlewares=[get_route_middleware(self)], client_max_size=client_max_size)
+        self._request_solver = get_request_solver(self)
+        self._raw_app = web.Application(middlewares=[self._request_solver], client_max_size=client_max_size)
 
     def _prepare(self):
         from .view import AbstractSQLView
@@ -164,6 +170,7 @@ class Application:
         web.run_app(host=host, port=port, app=self._raw_app)
 
     @staticmethod
+    @deprecated('app.timer is deprecated, use `slim.ext.decorator.timer` to instead.')
     def timer(interval_seconds, *, exit_when):
         """
         Set up a timer
@@ -171,21 +178,5 @@ class Application:
         :param exit_when:
         :return:
         """
-        loop = get_ioloop()
-
-        def wrapper(func):
-            def runner():
-                if exit_when and exit_when():
-                    return
-
-                loop.call_later(interval_seconds, runner)
-
-                if asyncio.iscoroutinefunction(func):
-                    asyncio.ensure_future(func())
-                else:
-                    func()
-
-            loop.call_later(interval_seconds, runner)
-            return func
-
-        return wrapper
+        from slim.ext.decorator import timer
+        return timer(interval_seconds, exit_when=exit_when)

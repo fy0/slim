@@ -55,6 +55,7 @@ class User(BaseModel, BaseUser):
             'id': CustomID().to_bin(),
             'email': email,
             'username': username,
+            'nickname': nickname,
             'time': int(time.time())
         }
 

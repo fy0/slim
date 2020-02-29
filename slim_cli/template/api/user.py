@@ -19,11 +19,6 @@ from permissions.role_define import ACCESS_ROLE
 
 class UserMixin(BaseAccessTokenUserViewMixin):
     """ 用户Mixin，用于View继承 """
-
-    @property
-    def user_cls(self):
-        return User
-
     def get_user_by_token(self: Union['BaseUserViewMixin', 'BaseView'], token) -> Type[BaseUser]:
         t = UserToken.get_by_token(token)
         if t: return User.get_by_pk(t.user_id)
@@ -44,6 +39,7 @@ class UserMixin(BaseAccessTokenUserViewMixin):
                 return
 
             if token is sentinel:
+                # clear current token
                 try:
                     token = to_bin(self.get_user_token())
                 except binascii.Error:
@@ -51,7 +47,7 @@ class UserMixin(BaseAccessTokenUserViewMixin):
             UserToken.delete().where(UserToken.user_id == u.id, UserToken.id == token).execute()
 
 
-@app.route('user')
+@app.route.view('user')
 class UserView(PeeweeView, UserMixin):
     model = User
 

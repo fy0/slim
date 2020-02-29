@@ -128,6 +128,7 @@ class BaseView(metaclass=MetaClassForInit):
         self.ret_headers = None
         self.response = None
         self.session = None
+        self._ip_cache = None
         self._cookie_set = None
         self._params_cache = None
         self._post_data_cache = None
@@ -184,10 +185,12 @@ class BaseView(metaclass=MetaClassForInit):
         get ip address of client
         :return:
         """
-        xff = await self.get_x_forwarded_for()
-        if xff: return xff[0]
-        ip_addr = self._request.transport.get_extra_info('peername')[0]
-        return ip_address(ip_addr)
+        if not self._ip_cache:
+            xff = await self.get_x_forwarded_for()
+            if xff: return xff[0]
+            ip_addr = self._request.transport.get_extra_info('peername')[0]
+            self._ip_cache = ip_address(ip_addr)
+        return self._ip_cache
 
     @property
     def can_get_user(self):

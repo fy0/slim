@@ -4,6 +4,6 @@ from app import app
 from model.example import Example
 
 
-@app.route('example')
+@app.route.view('example')
 class ExampleView(PeeweeView):
     model = Example
