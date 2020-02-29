@@ -66,13 +66,13 @@ def deprecated(warn_text='The interface is deprecated. We plan to remove it from
     :return:
     """
     def _(func):
-        logger.warning(warn_text)
-
         if asyncio.iscoroutinefunction(func):
             async def __(*args, **kwargs):
+                logger.warning(warn_text)
                 return await func(*args, **kwargs)
         else:
             def __(*args, **kwargs):
+                logger.warning(warn_text)
                 return func(*args, **kwargs)
 
         _decorator_fix(__, func)

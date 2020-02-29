@@ -170,7 +170,7 @@ class Application:
         web.run_app(host=host, port=port, app=self._raw_app)
 
     @staticmethod
-    @deprecated('app.timer is deprecated, use `slim.ext.decorator.timer` to instead.')
+    @deprecated('@app.timer is deprecated, use @slim.ext.decorator.timer to instead.')
     def timer(interval_seconds, *, exit_when):
         """
         Set up a timer

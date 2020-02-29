@@ -29,6 +29,7 @@ class ReplaceManager:
 
 def gen(project_dir, project_name):
     shutil.copytree(join(src_dir, 'template'), project_dir)
+    shutil.move(join(project_dir, 'tests/_conftest.py'), join(project_dir, 'tests/conftest.py'))
     port = '9%03d' % random.randint(0, 999)
 
     with ReplaceManager(join(project_dir, 'config.py')) as r:

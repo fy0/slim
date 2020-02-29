@@ -180,6 +180,8 @@ class Route:
         :param url:
         :return:
         """
+        from .view import BaseView
+
         def wrapper(cls):
             if issubclass(cls, BaseView):
                 self.views.append((url, cls))
