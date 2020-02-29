@@ -300,9 +300,12 @@ class Ability:
 class Permissions:
     def __init__(self, app):
         self.app = app
-        self.roles: Dict[Any: Ability] = {}
+        self.roles: Dict[Optional[str]: Ability] = {}
 
     def add(self, role: Optional[str], ability: Ability):
+        if role is not None:
+            assert isinstance(role, str), 'role name must be Optional[str]'
+            assert not ("'" in role and '"' in role), 'invalid role name: %r' % role
         assert isinstance(ability, Ability), 'ability is ' + str(type(ability))
         ability.role = role
         self.roles[role] = ability

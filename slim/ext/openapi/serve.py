@@ -20,11 +20,36 @@ def doc_serve(app: 'Application'):
 
     @app.route('/redoc', 'GET')
     async def openapi(request: Request):
-        my_spec_url = spec_url
-        role = request.query.get('role')
+        role = request.query.get('role', None)
 
-        if role and role in app.permission.roles:
-            my_spec_url += '?role=%s' % role
+        def get_role_spec_url(role):
+            if role is None:
+                return spec_url
+            if role in app.permission.roles:
+                my_spec_url_tmpl = f'{spec_url}?role=%s'
+                return my_spec_url_tmpl % role
+            return spec_url
+
+        def get_query_by_role(role):
+            if role is None:
+                return ''
+            if role in app.permission.roles:
+                return '?role=' + role
+            return ''
+
+        my_spec_url = get_role_spec_url(role)
+
+        options = ''
+        for i in app.permission.roles:
+            options += '<option value=%r>%s</option>' % (get_query_by_role(i), i or 'visitor')
+
+        change_role_html = '''
+<div id="change-role" style="position: fixed; top: 10px; right: 10px; z-index: 100; display: flex; align-items: center;">
+    <span style="font-size: 14px; margin-right: 5px">切换角色:</span>
+    <select onchange="window.location.search=this.value">
+        %s
+    </select>
+</div>''' % options
 
         return web.Response(content_type='text/html',body='''
 <!DOCTYPE html>
@@ -49,6 +74,7 @@ def doc_serve(app: 'Application'):
   <body>
     <redoc spec-url='%s'></redoc>
     <script src="https://cdn.jsdelivr.net/npm/redoc@next/bundles/redoc.standalone.js"> </script>
+    %s
   </body>
 </html>
-    ''' % my_spec_url)
+    ''' % (my_spec_url, change_role_html))

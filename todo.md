@@ -17,6 +17,12 @@
 
 * returning 移向 headers
 
-* test tools
+* ~~test tools~~
 
-* redoc 界面上提供角色切换
+* ~~redoc 界面上提供角色切换~~
+
+* 自定义接口支持编写response
+
+* ApplicationDocInfo 支持添加自定义页面
+
+* ApplicationDocInfo 支持添加 View 注释
