@@ -185,6 +185,8 @@ class Route:
         def wrapper(cls):
             if issubclass(cls, BaseView):
                 self.views.append((url, cls))
+            return cls
+
         return wrapper
 
     def _is_beacon(self, func):
