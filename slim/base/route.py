@@ -1,6 +1,6 @@
 import logging
 from asyncio import iscoroutinefunction, Future
-from typing import Iterable, Type, TYPE_CHECKING, Dict, Callable, Awaitable, Any
+from typing import Iterable, Type, TYPE_CHECKING, Dict, Callable, Awaitable, Any, List
 from aiohttp import web, web_response
 from posixpath import join as urljoin
 
@@ -10,6 +10,7 @@ from schematics.exceptions import DataError
 
 from slim.base._view.validate import view_validate_check
 from slim.base.types.beacon import BeaconInfo, BeaconRouteInfo
+from slim.base.types.route_view_info import RouteViewInfo
 from slim.base.ws import WSRouter
 from slim.exception import InvalidPostData, InvalidParams
 from slim.utils import get_class_full_name
@@ -138,6 +139,7 @@ def view_bind(app: 'Application', cls_url, view_cls: Type['BaseView']):
 
 class Route:
     _beacons: Dict[Future, BeaconInfo]
+    views: List[RouteViewInfo]
 
     def __init__(self, app):
         self.funcs = []
@@ -174,17 +176,18 @@ class Route:
             return func
         return wrapper
 
-    def view(self, url):
+    def view(self, url, tag_name=None):
         """
         Register View Class
         :param url:
+        :param tag_name:
         :return:
         """
         from .view import BaseView
 
         def wrapper(cls):
             if issubclass(cls, BaseView):
-                self.views.append((url, cls))
+                self.views.append(RouteViewInfo(url, cls, tag_name))
             return cls
 
         return wrapper
@@ -208,7 +211,7 @@ class Route:
                     if method is None:
                         # internal view, can't request over http
                         obj._no_route = True
-                    self.views.append((url, obj))
+                    self.views.append(RouteViewInfo(url, obj))
                 else:
                     raise BaseException('Invalid type for router: %r' % type(obj).__name__)
             else:
@@ -232,8 +235,8 @@ class Route:
         for func in self.before_bind:
             sync_call(func, app)
 
-        for url, cls in self.views:
-            view_bind(app, url, cls)
+        for vi in self.views:
+            view_bind(app, vi.url, vi.view_cls)
 
         for url, wsh in self.websockets:
             raw_router.add_get(url, wsh._handle)

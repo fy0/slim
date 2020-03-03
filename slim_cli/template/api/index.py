@@ -4,7 +4,7 @@ from slim.retcode import RETCODE
 from app import app
 
 
-@app.route.view('misc')
+@app.route.view('misc', 'Misc API')
 class MiscView(BaseView):
     @app.route.interface('GET')
     async def info(self):

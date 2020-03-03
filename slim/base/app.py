@@ -108,7 +108,8 @@ class Application:
         from .view import AbstractSQLView
         self.route.bind()
 
-        for _, cls in self.route.views:
+        for vi in self.route.views:
+            cls = vi.view_cls
             if issubclass(cls, AbstractSQLView):
                 def get_exists_view_full_name():
                     view_cls = self.tables[cls.table_name]
@@ -148,8 +149,8 @@ class Application:
                 if type(r.resource) != StaticResource and r.handler not in ws_set:
                     cors.add(r)
 
-        for _, cls in self.route.views:
-            cls._ready()
+        for vi in self.route.views:
+            vi.view_cls._ready()
 
     def run(self, host, port):
         def reg(mine, target):

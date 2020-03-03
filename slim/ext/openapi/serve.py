@@ -44,7 +44,7 @@ def doc_serve(app: 'Application'):
             options += '<option value=%r>%s</option>' % (get_query_by_role(i), i or 'visitor')
 
         change_role_html = '''
-<div id="change-role" style="position: fixed; top: 10px; right: 10px; z-index: 100; display: flex; align-items: center;">
+<div id="change-role" style="position: fixed; top: 10px; right: 10px; z-index: 100; display: flex; align-items: center;background: white;padding: 4px;border-radius: 1px;">
     <span style="font-size: 14px; margin-right: 5px">切换角色:</span>
     <select onchange="window.location.search=this.value">
         %s

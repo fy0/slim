@@ -312,7 +312,7 @@ class Permissions:
 
     def request_role(self, user: Optional[BaseUser], role) -> Optional[Ability]:
         # '' 视为 None 的等价角色
-        if role is '':
+        if role == '':
             role = None
 
         if user is None:

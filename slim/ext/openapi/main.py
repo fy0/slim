@@ -103,6 +103,7 @@ class OpenAPIGenerator:
         self.paths = {}
         self.openapi_file = ''
 
+        self._view_to_path = {}
         self._field_schema_cache = {}
 
         self._sql_views_check()
@@ -132,7 +133,8 @@ class OpenAPIGenerator:
         from slim.base.view import BaseView, AbstractSQLView
         app = self.app
 
-        for url, view_cls in app.route.views:
+        for vi in app.route.views:
+            view_cls = vi.view_cls
             is_sql_view = issubclass(view_cls, AbstractSQLView)
 
             if is_sql_view:
@@ -192,6 +194,7 @@ class OpenAPIGenerator:
 
             view_cls = i.view_cls
             is_sql_view = issubclass(view_cls, AbstractSQLView)
+            self._view_to_path.setdefault(view_cls, [])
 
             for method in i['route']['method']:
                 raw = i['route']['raw']
@@ -334,7 +337,8 @@ class OpenAPIGenerator:
 
                 path_item_object[method.lower()] = path
 
-            paths[i['route']['fullpath']] = path_item_object
+                self._view_to_path[view_cls].append(path_item_object)
+                paths[i['route']['fullpath']] = path_item_object
 
         self.paths = paths
 
@@ -366,6 +370,32 @@ class OpenAPIGenerator:
 
         if doc_info.contact:
             self.openapi_file['info']['contact'] = doc_info.contact
+
+        if doc_info.tags:
+            tags = []
+
+            for vi in self.app.route.views:
+                tag = {
+                    'name': vi.view_cls.__name__,
+                    'description': vi.view_cls.__doc__
+                }
+
+                if vi.tag_display_name is not None:
+                    tag['x-displayName'] = vi.tag_display_name
+
+                if self._view_to_path[vi.view_cls]:
+                    tags.append(tag)
+
+            for _, v in doc_info.tags.items():
+                tags.append(v)
+
+            self.openapi_file['tags'] = tags
+
+        if doc_info.x_tag_groups:
+            tag_groups = []
+            for _, v in doc_info.x_tag_groups.items():
+                tag_groups.append(v)
+            self.openapi_file['x-tagGroups'] = tag_groups
 
     def get_result(self):
         return self.openapi_file

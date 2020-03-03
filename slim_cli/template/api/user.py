@@ -47,7 +47,7 @@ class UserMixin(BaseAccessTokenUserViewMixin):
             UserToken.delete().where(UserToken.user_id == u.id, UserToken.id == token).execute()
 
 
-@app.route.view('user')
+@app.route.view('user', 'User API')
 class UserView(PeeweeView, UserMixin):
     model = User
 
@@ -110,6 +110,3 @@ class UserView(PeeweeView, UserMixin):
             self.finish(RETCODE.SUCCESS)
         else:
             self.finish(RETCODE.FAILED)
-
-    async def before_update(self, raw_post: Dict, values: SQLValuesToWrite, records: List[DataRecord]):
-        pass
