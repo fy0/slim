@@ -11,7 +11,7 @@ from slim.utils import StateObject, CustomID, get_bytes_from_blob
 from permissions.role_define import ACCESS_ROLE
 
 import config
-from model import BaseModel, db, CITextField
+from model import db, StdBaseModel, CITextField, get_time
 
 
 class POST_STATE(StateObject):
@@ -23,7 +23,7 @@ class POST_STATE(StateObject):
     txt = {DEL: "删除", APPLY: '待审核', CLOSE: "锁定", NORMAL: "正常"}
 
 
-class User(BaseModel, BaseUser):
+class User(StdBaseModel, BaseUser):
     email = TextField(index=True, unique=True, null=True, default=None)
     username = CITextField(index=True, unique=True, null=True)
 
@@ -31,7 +31,6 @@ class User(BaseModel, BaseUser):
     password = BlobField()
     salt = BlobField()
 
-    time = BigIntegerField()  # 创建时间
     state = IntegerField(default=POST_STATE.NORMAL, index=True)  # 当前状态
 
     class Meta:
@@ -46,17 +45,20 @@ class User(BaseModel, BaseUser):
         ret = {None}
         if self.state == POST_STATE.DEL:
             return ret
-        ret.add(ACCESS_ROLE.NORMAL_USER)
+        ret.add(ACCESS_ROLE.USER)
         return ret
 
     @classmethod
-    def new(cls, username, password, *, email=None, nickname=None) -> Optional['User']:
+    def new(cls, username, password, *, email=None, nickname=None, is_for_tests=False) -> Optional['User']:
         values = {
-            'id': CustomID().to_bin(),
             'email': email,
             'username': username,
             'nickname': nickname,
-            'time': int(time.time())
+            'is_for_tests': is_for_tests,
+
+            # 被default自动生成
+            # 'id': CustomID().to_bin(),
+            # 'time': int(time.time()),
         }
 
         info = cls.gen_password_and_salt(password)

@@ -1,4 +1,6 @@
-from slim.utils import async_run
+import time
+
+from slim.utils import async_run, CustomID
 import config
 
 # peewee 配置
@@ -7,6 +9,14 @@ from playhouse.db_url import connect
 from playhouse.shortcuts import model_to_dict
 
 db = connect(config.DATABASE_URI)
+
+
+def get_std_model_id():
+    return CustomID().to_bin()
+
+
+def get_time():
+    return int(time.time())
 
 
 class BaseModel(peewee.Model):
@@ -33,6 +43,12 @@ class BaseModel(peewee.Model):
     @classmethod
     def exists_by_pk(cls, value):
         return cls.select().where(cls._meta.primary_key == value).exists()
+
+
+class StdBaseModel(BaseModel):
+    id = peewee.BlobField(primary_key=True, default=get_std_model_id)
+    time = peewee.BigIntegerField(default=get_time)  # 创建时间
+    is_for_tests = peewee.BooleanField(default=False, help_text='测试标记')
 
 
 class INETField(peewee.TextField):

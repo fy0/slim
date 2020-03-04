@@ -5,15 +5,13 @@ from typing import Optional
 
 from peewee import TextField, BigIntegerField, BlobField
 from slim.base.view import AbstractSQLView
-from model import BaseModel, INETField
 from slim.utils import to_bin, get_bytes_from_blob
 
+from model import StdBaseModel, INETField
 
-class UserToken(BaseModel):
-    id = BlobField(primary_key=True)
+
+class UserToken(StdBaseModel):
     user_id = BlobField(index=True)
-
-    time = BigIntegerField(index=True)
     expire = BigIntegerField(null=True)
 
     first_meet_time = BigIntegerField(null=True)

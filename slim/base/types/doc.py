@@ -45,11 +45,16 @@ class ApplicationDocInfo:
 
         self.tags[name] = tag_data
 
-    def add_x_tag_group(self, name: str, tags: List[str], index=-1):
+    def add_x_tag_group(self, name: str, tags: List[str], display_name=None, index=-1):
         """
         :param name:
         :param tags:
         :param index:
         :return:
         """
-        self.x_tag_groups[name] = {'name': name, 'tags': tags, 'x-slim-index': index}
+        data = {'name': name, 'tags': tags, 'x-slim-index': index}
+
+        if display_name is not None:
+            data['x-displayName'] = display_name
+
+        self.x_tag_groups[name] = data

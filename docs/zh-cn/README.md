@@ -10,13 +10,9 @@
 
 * 映射数据表的增删改查为 web 接口
 
-* 支持 url 路由装饰器 @route
+* 基于角色的权限管理，可控制数据表每一列的查询、读取、写入、新建和删除权限
 
-* 简单的 session 支持
-
-* 基于数据表的权限管理
-
-* 简单命令行工具slim init，可用于初始化项目目录
+* 命令行工具slim cli，可用于快速创建项目
 
 
 ### 限制
@@ -28,6 +24,4 @@
 
 ### 其他
 
-* [基础设计](quickstart/_design.md)
-
-* [简单例子](quickstart/helloworld.md)
+* [快速开始](quickstart/intro.md)

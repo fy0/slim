@@ -4,7 +4,7 @@ from typing import Iterable, Type, TYPE_CHECKING, Dict, Callable, Awaitable, Any
 from aiohttp import web, web_response
 from posixpath import join as urljoin
 
-from aiohttp.abc import Request
+from aiohttp.web_request import Request
 from aiohttp.web_response import Response
 from schematics.exceptions import DataError
 
