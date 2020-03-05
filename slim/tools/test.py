@@ -39,7 +39,7 @@ async def make_mocked_view_instance(app, view_cls, method, url, params=None, pos
     return view
 
 
-async def invoke_interface(app: Application, func, params=None, post=None, *, headers=None, method=None) -> BaseView:
+async def invoke_interface(app: Application, func, params=None, post=None, *, headers=None, method=None, user=None) -> BaseView:
     """
     :param app:
     :param func:
@@ -47,6 +47,7 @@ async def invoke_interface(app: Application, func, params=None, post=None, *, he
     :param post:
     :param headers:
     :param method: auto detect
+    :param user:
     :return:
     """
     url = 'mock_url'
@@ -69,6 +70,7 @@ async def invoke_interface(app: Application, func, params=None, post=None, *, he
             view_ref = view
             view._params_cache = params
             view._ip_cache = ip_address('127.0.0.1')
+            view._current_user = user
 
         await app._request_solver(request, beacon_func, hack_view)
         return view_ref
