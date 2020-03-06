@@ -2,6 +2,8 @@
 from copy import deepcopy
 from typing import Type, TYPE_CHECKING
 
+from aiohttp.web_request import Request
+
 from slim.base.types import InnerInterfaceName as IIN
 from slim.base.types.beacon import BeaconInfo
 from slim.base.types.func_meta import FuncMeta
@@ -199,7 +201,7 @@ class OpenAPIGenerator:
             for method in i['route']['method']:
                 raw = i['route']['raw']
                 relpath = i['route']['relpath']
-                need_response = method == 'POST'
+                need_post_body = method in Request.POST_METHODS
 
                 parameters = []
                 request_body_schema = {}
@@ -332,7 +334,7 @@ class OpenAPIGenerator:
                 if i.deprecated:
                     path['deprecated'] = True
 
-                if need_response and request_body_schema:
+                if need_post_body and request_body_schema:
                     path["requestBody"] = request_body
 
                 path_item_object[method.lower()] = path

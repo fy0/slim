@@ -1,5 +1,6 @@
 from typing import Optional, Type
 
+from aiohttp.web_request import BaseRequest
 from schematics import Model
 from schematics.exceptions import DataError
 
@@ -17,7 +18,7 @@ async def view_validate_check(view_instance, va_query: Optional[Type[Model]], va
             except DataError as e:
                 raise InvalidParams(e.to_primitive())
 
-        if va_post and view_instance.method == 'POST':
+        if va_post and view_instance.method in BaseRequest.POST_METHODS:
             try:
                 val = va_post(strict=False, validate=True, partial=False, raw_data=(await view_instance.post_data()))
                 view_instance._.validated_post = val

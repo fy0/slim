@@ -4,7 +4,7 @@ from typing import Iterable, Type, TYPE_CHECKING, Dict, Callable, Awaitable, Any
 from aiohttp import web, web_response
 from posixpath import join as urljoin
 
-from aiohttp.web_request import Request
+from aiohttp.web_request import Request, BaseRequest
 from aiohttp.web_response import Response
 from schematics.exceptions import DataError
 
@@ -71,7 +71,8 @@ def get_request_solver(app: 'Application'):
 
             if logger.isEnabledFor(logging.DEBUG):
                 logger.debug('query parameters: %s', view_instance.params)
-                logger.debug('post data: %s', await view_instance.post_data())
+                if method in BaseRequest.POST_METHODS:
+                    logger.debug('post data: %s', await view_instance.post_data())
 
             if status_code == 500:
                 resp.set_status(status_code, "The handler {!r} did not called `view.finish()`.".format(handler_name))

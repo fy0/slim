@@ -1,6 +1,6 @@
 import time
 import binascii
-from slim.utils import ObjectID
+from slim.utils.myobjectid import ObjectID
 
 
 def test_my_object_id():

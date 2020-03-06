@@ -11,6 +11,8 @@
 
 * Added: More tests
 
+* Added: Schematics extensions `slim.utils.schematics`
+
 * Changed: Prettier access log
 
 * Changed: Won't allowed bind aiohttp handler to router

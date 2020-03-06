@@ -6,9 +6,9 @@ from typing import Set, List, Union, Optional, Dict
 from unittest import mock
 
 from aiohttp import hdrs, web
-from aiohttp.abc import BaseRequest
 from ipaddress import IPv4Address, IPv6Address, ip_address
 
+from aiohttp.web_request import BaseRequest
 from multidict import MultiDict, CIMultiDictProxy
 
 from slim import Application, json_ex_dumps
@@ -284,6 +284,9 @@ class BaseView(metaclass=MetaClassForInit):
         return self._post_json_cache
 
     async def post_data(self) -> "MultiDict[Union[str, bytes, FileField]]":
+        if self.method not in BaseRequest.POST_METHODS:
+            return MultiDict()
+
         if self._post_data_cache is not None:
             return self._post_data_cache
         if self._request.content_type == 'application/json':
