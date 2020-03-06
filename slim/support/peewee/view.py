@@ -14,11 +14,9 @@ logger = logging.getLogger(__name__)
 
 
 class PeeweeSQLViewOptions(SQLViewOptions):
-    def __init__(self, *, list_page_size=20, list_accept_size_from_client=False, permission: Permissions = None,
-                 model: peewee.Model = None):
+    def __init__(self, *, list_page_size=20, list_accept_size_from_client=False, model: peewee.Model = None):
         self.model = model
-        super().__init__(list_page_size=list_page_size, list_accept_size_from_client=list_accept_size_from_client,
-                         permission=permission)
+        super().__init__(list_page_size=list_page_size, list_accept_size_from_client=list_accept_size_from_client)
 
     def assign(self, obj: Type['PeeweeView']):
         if self.model:

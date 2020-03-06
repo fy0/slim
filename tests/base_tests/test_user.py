@@ -5,7 +5,7 @@ from slim.retcode import RETCODE
 from slim.support.peewee import PeeweeView
 from peewee import *
 from slim import Application, ALL_PERMISSION
-from tests.tools import make_mocked_view_instance
+from slim.tools.test import make_mocked_view_instance
 
 pytestmark = [pytest.mark.asyncio]
 app = Application(cookies_secret=b'123456', permission=ALL_PERMISSION)

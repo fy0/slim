@@ -6,7 +6,7 @@ from slim.support.peewee import PeeweeView
 
 from slim.base.sqlquery import SQLQueryInfo, SQLQueryOrder, ALL_COLUMNS, SQL_OP
 from slim.exception import SyntaxException, InvalidParams, ColumnNotFound
-from tests.tools import make_mocked_view_instance
+from slim.tools.test import make_mocked_view_instance
 
 pytestmark = [pytest.mark.asyncio]
 app = Application(cookies_secret=b'123456', permission=ALL_PERMISSION)
@@ -160,10 +160,3 @@ async def test_condition_bind_error_in_or_not_in_value():
 
     assert 'name' in e.value.args[0]
     '''
-
-
-if __name__ == '__main__':
-    # test_new()
-    # test_order()
-    # test_select()
-    test_very_simple_condition()

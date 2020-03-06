@@ -441,6 +441,7 @@ class SQLQueryInfo:
             if column is PRIMARY_KEY:
                 return
             if column not in view.fields:
+                print('????', column, view.fields.keys())
                 raise ColumnNotFound({column: [ERR_TEXT_ROGUE_FIELD]})
 
         # select check

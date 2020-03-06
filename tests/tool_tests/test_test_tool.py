@@ -29,10 +29,10 @@ app._prepare()
 
 
 async def test_invoke_interface():
-    resp = await invoke_interface(app, ATestView.get)
+    resp = await invoke_interface(app, ATestView().get)
     assert resp.ret_val['code'] == RETCODE.NOT_FOUND
 
     ATestModel.create(name='Alice')
 
-    resp = await invoke_interface(app, ATestView.get)
+    resp = await invoke_interface(app, ATestView().get)
     assert resp.ret_val['code'] == RETCODE.SUCCESS

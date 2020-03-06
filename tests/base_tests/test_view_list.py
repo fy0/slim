@@ -5,7 +5,7 @@ from slim.support.peewee import PeeweeView
 from peewee import *
 from slim import Application, ALL_PERMISSION
 from slim.utils import get_ioloop
-from tests.tools import make_mocked_view_instance
+from slim.tools.test import make_mocked_view_instance
 
 
 pytestmark = [pytest.mark.asyncio]
@@ -57,7 +57,7 @@ Topic.create(time=time.time(), title='Hello3', content='World')
 Topic.create(time=time.time(), title='Hello4', content='World')
 
 
-@app.route('/topic')
+@app.route('topic')
 class TopicView(PeeweeView):
     model = Topic
 

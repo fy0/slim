@@ -101,7 +101,18 @@ def view_bind(app: 'Application', cls_url, view_cls: Type['BaseView']):
             beacon_info['beacon_func'] = beacon
             app._raw_app.router.add_route(method, route['fullpath'], beacon)
             app.route._beacons[beacon] = beacon_info
-            app.route._handler_to_beacon[beacon_info['handler']] = beacon
+
+            handler = beacon_info['handler']
+            handler_to_beacon_info = app.route._handler_to_beacon_info
+
+            # handler_to_beacon_info 结构：
+            # { handler: { cls1: beacon_info, cls2: beacon_info } }
+            if handler in handler_to_beacon_info:
+                handler_to_beacon_info[handler][beacon_info.view_cls] = beacon_info
+            else:
+                handler_to_beacon_info[handler] = {
+                    beacon_info.view_cls: beacon_info
+                }
 
     # noinspection PyProtectedMember
     for name, route_info_lst in view_cls._interface.items():
@@ -151,7 +162,7 @@ class Route:
         self.before_bind = []
         self.after_bind = []  # on_bind(app)
         self._beacons = {}
-        self._handler_to_beacon = {}  # used for test tool
+        self._handler_to_beacon_info = {}  # used for test tool
 
     @staticmethod
     def interface(method, url=None, *, summary=None, va_query=None, va_post=None, deprecated=False):  # va_header, etc.

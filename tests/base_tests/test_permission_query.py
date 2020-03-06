@@ -37,8 +37,3 @@ def test_query_ex_filter():
     sqi.parse_then_add_condition('nickname', 'like', 'b')
     sqi.check_query_permission_full(None, 'user', ab, None)
     assert sqi.conditions == [['nickname', SQL_OP.LIKE, 'b']]
-
-
-if __name__ == '__main__':
-    test_query_filter()
-    test_query_ex_filter()

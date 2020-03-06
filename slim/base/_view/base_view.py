@@ -117,7 +117,7 @@ class BaseView(metaclass=MetaClassForInit):
     def permission(self) -> Permissions:
         return self.app.permission
 
-    def __init__(self, app: Application, aiohttp_request: BaseRequest = None):
+    def __init__(self, app: Application = None, aiohttp_request: BaseRequest = None):
         self.app = app
         if aiohttp_request is None:
             self._request = mock.Mock()

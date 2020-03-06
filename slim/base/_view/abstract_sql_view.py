@@ -145,7 +145,7 @@ class AbstractSQLView(BaseView):
         if role_val is not None:
             return int(role_val) if role_val.isdigit() else role_val
 
-    def __init__(self, app: Application, aiohttp_request: BaseRequest = None):
+    def __init__(self, app: Application = None, aiohttp_request: BaseRequest = None):
         super().__init__(app, aiohttp_request)
         self._sql = None
         self.current_interface = None

@@ -1,11 +1,13 @@
+import inspect
 import logging
 from ipaddress import ip_address
-from typing import Optional
+from typing import Optional, Callable
 from unittest import mock
 from aiohttp.test_utils import make_mocked_request as _make_mocked_request
 from peewee import SqliteDatabase
 
 from slim import Application, ALL_PERMISSION
+from slim.base.types.beacon import BeaconInfo
 from slim.base.view import BaseView
 
 
@@ -39,7 +41,7 @@ async def make_mocked_view_instance(app, view_cls, method, url, params=None, pos
     return view
 
 
-async def invoke_interface(app: Application, func, params=None, post=None, *, headers=None, method=None, user=None) -> BaseView:
+async def invoke_interface(app: Application, func: [Callable], params=None, post=None, *, headers=None, method=None, user=None) -> Optional[BaseView]:
     """
     :param app:
     :param func:
@@ -51,8 +53,16 @@ async def invoke_interface(app: Application, func, params=None, post=None, *, he
     :return:
     """
     url = 'mock_url'
-    beacon_func = app.route._handler_to_beacon.get(func)
-    if beacon_func:
+
+    assert inspect.ismethod(func), 'func must be method. e.g. UserView().get'
+    view_cls = func.__self__.__class__
+    func = func.__func__
+
+    beacon_info_dict = app.route._handler_to_beacon_info.get(func)
+    beacon_info: BeaconInfo = beacon_info_dict.get(view_cls) if beacon_info_dict else None
+
+    if beacon_info:
+        beacon_func = beacon_info.beacon_func
         info = app.route._beacons[beacon_func]
         url = info.route.fullpath
         _method = next(iter(info.route.method))
@@ -73,4 +83,5 @@ async def invoke_interface(app: Application, func, params=None, post=None, *, he
             view._current_user = user
 
         await app._request_solver(request, beacon_func, hack_view)
+        assert view_ref, 'Invoke interface failed. Did you call `app._prepare()`?'
         return view_ref

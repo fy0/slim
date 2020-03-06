@@ -142,7 +142,3 @@ def test_permission_role_bug():
 
 def test_global():
     pass
-
-
-if __name__ == '__main__':
-    test_filter()
