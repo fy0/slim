@@ -26,12 +26,13 @@ class BlobType(HashType):
             return to_bin(value)
 
 
-def _json_try_convert(value, err):
+def _json_try_convert(value, err, no_throw=False):
     if isinstance(value, (bytes, str)):
         try:
             return json.loads(value)
         except json.JSONDecodeError:
-            raise ConversionError(err)
+            if not no_throw:
+                raise ConversionError(err)
     return value
 
 
@@ -48,9 +49,9 @@ class JSONDictType(DictType):
 
 
 class JSONType(BaseType):
-    def _convert(self, value, context, safe=False):
-        value = _json_try_convert(value, 'Could not interpret the value as a json')
-        return super()._convert(value, context, safe)
+    def to_native(self, value, context=None):
+        value = _json_try_convert(value, 'Could not interpret the value as a json', True)
+        return super().to_native(value, context)
 
 
 JSON_SCHEMA_TO_TYPES = {
