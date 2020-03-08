@@ -5,7 +5,7 @@ from schematics.models import Model, ValidationError, ConversionError
 from schematics.types import StringType, NumberType, DateTimeType, ModelType, BaseType, DictType, BooleanType, \
     ListType, IntType, FloatType
 from slim.base.sqlquery import SQLForeignKey
-from slim.utils.schematics_ext import BlobType
+from slim.utils.schematics_ext import BlobType, JSONListType, JSONDictType
 
 try:
     from playhouse.postgres_ext import JSONField as PG_JSONField, BinaryJSONField as PG_BinaryJSONField, ArrayField as PG_ArrayField
@@ -57,7 +57,7 @@ def field_class_to_schematics_field(field: peewee.Field) -> BaseType:
         return FloatType(**kwargs)
     elif isinstance(field, (PG_JSONField, PG_BinaryJSONField, SQLITE_JSONField)):
         # 注意 SQLITE_JSONField 是一个 _StringField 所以要提前
-        return DictType(StringType, **kwargs)
+        return JSONDictType(StringType, **kwargs)
     elif isinstance(field, peewee._StringField):
         return StringType(**kwargs)
     elif isinstance(field, peewee.BooleanField):
@@ -66,7 +66,7 @@ def field_class_to_schematics_field(field: peewee.Field) -> BaseType:
         return BlobType(**kwargs)
     elif isinstance(field, PG_ArrayField):
         field: PG_ArrayField
-        return ListType(field_class_to_schematics_field(field._ArrayField__field), **kwargs)
+        return JSONListType(field_class_to_schematics_field(field._ArrayField__field), **kwargs)
 
 
 # noinspection PyProtectedMember

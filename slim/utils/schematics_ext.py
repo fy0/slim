@@ -26,23 +26,24 @@ class BlobType(HashType):
             return to_bin(value)
 
 
-def _json_convert(value):
+def _json_try_convert(value, err):
     if isinstance(value, (bytes, str)):
         try:
             return json.loads(value)
         except json.JSONDecodeError:
-            raise ConversionError('Could not interpret the value as a list')
+            raise ConversionError(err)
+    return value
 
 
 class JSONListType(ListType):
-    def _coerce(self, value):
-        value = _json_convert(value)
-        return super()._coerce(value)
+    def _convert(self, value, context):
+        value = _json_try_convert(value, 'Could not interpret the value as a list')
+        return super()._convert(value, context)
 
 
 class JSONDictType(DictType):
     def _convert(self, value, context, safe=False):
-        value = _json_convert(value)
+        value = _json_try_convert(value, 'Could not interpret the value as a dict')
         return super()._convert(value, context, safe)
 
 
