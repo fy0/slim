@@ -524,13 +524,13 @@ async def test_value_type():
                                            post={'name': 'Name2BB', 'binary': b'test2bb',
                                                  'json': '{', 'count': 5})
     await view.new()
-    assert view.ret_val['code'] == RETCODE.INVALID_POSTDATA
+    assert view.ret_val['code'] == RETCODE.SUCCESS
 
     # 2. failed: params, bad json
     view = await make_mocked_view_instance(app, ATestView, 'GET', '/api/test1',
                                            params={'json': '{', 'count': 5})
     await view.get()
-    assert view.ret_val['code'] == RETCODE.INVALID_PARAMS
+    assert view.ret_val['code'] == RETCODE.SUCCESS
 
 
 async def test_in():

@@ -23,6 +23,10 @@
 
 * 自定义接口支持编写response
 
-* ApplicationDocInfo 支持添加自定义页面
+* ~~ApplicationDocInfo 支持添加自定义页面~~
 
-* ApplicationDocInfo 支持添加 View 注释
+* ~~ApplicationDocInfo 支持添加 View 注释~~
+
+* 表单验证 choices 文档转换
+
+* 表单验证文档转换 - 不能识别的列

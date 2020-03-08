@@ -47,6 +47,12 @@ class JSONDictType(DictType):
         return super()._convert(value, context, safe)
 
 
+class JSONType(BaseType):
+    def _convert(self, value, context, safe=False):
+        value = _json_try_convert(value, 'Could not interpret the value as a json')
+        return super()._convert(value, context, safe)
+
+
 JSON_SCHEMA_TO_TYPES = {
     # https://json-schema.org/understanding-json-schema/reference/string.html#built-in-formats
     'string': {
