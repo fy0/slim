@@ -11,11 +11,11 @@
     + 跨域设置
     + access_token
 
-* 加入 va_headers
+* ~~加入 va_headers~~
 
 * 验证器合并功能
 
-* returning 移向 headers
+* ~~returning 移向 headers~~
 
 * ~~test tools~~
 
@@ -27,6 +27,20 @@
 
 * ~~ApplicationDocInfo 支持添加 View 注释~~
 
-* 表单验证 choices 文档转换
+* ~~表单验证 choices 文档转换~~
 
-* 表单验证文档转换 - 不能识别的列
+* ~~表单验证文档转换 - 不能识别的列~~
+
+* va_resp
+
+* 文档支持 va_headers
+
+* 文档支持 va_resp
+
+* 文档的同名View会折叠到同一个tag
+
+* Websocket 优化
+
+* 支持普通函数
+
+* 移除 `route.__call__`

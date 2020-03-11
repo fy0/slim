@@ -1,5 +1,6 @@
 import json
 import string
+from copy import deepcopy
 from typing import Dict, Type
 
 from schematics import Model
@@ -7,7 +8,7 @@ from schematics.exceptions import ConversionError
 from schematics.types import HashType, BaseType, NumberType, UUIDType, StringType, IntType, LongType, FloatType, \
     DecimalType, MD5Type, SHA1Type, BooleanType, DateType, DateTimeType, UTCDateTimeType, TimestampType, TimedeltaType, \
     GeoPointType, MultilingualStringType, EmailType, IPv4Type, IPv6Type, URLType, IPAddressType, MACAddressType, \
-    ListType, DictType
+    ListType, DictType, ModelType, PolyModelType
 
 from slim.utils import to_bin
 
@@ -181,22 +182,34 @@ def field_metadata_assign(field, base):
     return base
 
 
-def schematics_field_to_schema(field: BaseType):
+def schematics_field_to_schema(field: BaseType, generate_required=True):
     base = TYPES_TO_JSON_SCHEMA.get(type(field))
 
     if base:
-        base = base.copy()
+        base = deepcopy(base)
     else:
         base = {}
 
-    if isinstance(field, StringType):
+    if field.choices:
+        base['enum'] = list(field.choices)
+
+    if isinstance(field, ModelType):
+        return schematics_model_to_json_schema(field.model_class, generate_required)
+    elif isinstance(field, StringType):
         _convert_attr(base, field, string_type_mapping)
     elif isinstance(field, NumberType):
         _convert_attr(base, field, number_type_mapping)
     elif isinstance(field, ListType):
         _convert_attr(base, field, list_type_mapping)
+        base["items"] = schematics_field_to_schema(field.field, generate_required)
+    elif isinstance(field, PolyModelType):
+        one_of_types = []
+        for f in field.model_classes:
+            assert isinstance(f, BaseType), 'model class of PolyModelType must be **instance** of BaseType'
+            one_of_types.append(schematics_field_to_schema(f, generate_required))
+        base['oneOf'] = one_of_types
     elif isinstance(field, DictType):
-        pass
+        base["additionalProperties"] = schematics_field_to_schema(field.field, generate_required)
 
     field_metadata_assign(field, base)
     return base

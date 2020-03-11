@@ -1,6 +1,9 @@
 from collections import OrderedDict
 from typing import List
 
+from schematics import Model
+from schematics.types import IntType, StringType, BaseType
+
 from slim.utils.jsdict import JsDict
 
 
@@ -58,3 +61,9 @@ class ApplicationDocInfo:
             data['x-displayName'] = display_name
 
         self.x_tag_groups[name] = data
+
+
+class ResponseDataModel(Model):
+    code = IntType(required=True, metadata=ValidatorDoc('系统返回值代码，成功为0，失败为非零。  \n参见 https://fy0.github.io/slim/#/quickstart/query_and_modify?id=返回值 '))
+    data = BaseType(required=True, metadata=ValidatorDoc('数据项'))
+    msg = StringType(metadata=ValidatorDoc('文本提示信息'))

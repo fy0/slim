@@ -4,11 +4,12 @@ from aiohttp.web_request import BaseRequest
 from schematics import Model
 from schematics.exceptions import DataError
 
-from slim.exception import InvalidParams, InvalidPostData
+from slim.exception import InvalidParams, InvalidPostData, InvalidHeaders
 from .err_catch_context import ErrorCatchContext
 
 
-async def view_validate_check(view_instance, va_query: Optional[Type[Model]], va_post: Optional[Type[Model]]):
+async def view_validate_check(view_instance, va_query: Optional[Type[Model]], va_post: Optional[Type[Model]],
+                              va_headers: Optional[Type[Model]] = None):
     with ErrorCatchContext(view_instance):
         if va_query:
             try:
@@ -24,3 +25,10 @@ async def view_validate_check(view_instance, va_query: Optional[Type[Model]], va
                 view_instance._.validated_post = val
             except DataError as e:
                 raise InvalidPostData(e.to_primitive())
+
+        if va_headers:
+            try:
+                val = va_headers(strict=False, validate=True, partial=False, raw_data=view_instance.headers)
+                view_instance._.validated_headers = val
+            except DataError as e:
+                raise InvalidHeaders(e.to_primitive())

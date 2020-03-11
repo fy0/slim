@@ -39,7 +39,7 @@ class BaseView(metaclass=MetaClassForInit):
     @classmethod
     def _use(cls, name, method: [str, Set, List], url=None, summary=None, *,
              _sql_query=False, _sql_post=False, _inner_name=None,
-             va_query=None, va_post=None, deprecated=False):
+             va_query=None, va_post=None, va_headers=None, va_resp=None, deprecated=False):
         if not isinstance(method, (str, list, set, tuple)):
             raise BaseException('Invalid type of method: %s' % type(method).__name__)
 
@@ -56,17 +56,20 @@ class BaseView(metaclass=MetaClassForInit):
 
         # TODO: check methods available
         cls._interface[name] = [solve({'method': method, 'url': url, 'summary': summary, 'inner_name': _inner_name,
-                                       'va_query': va_query, 'va_post': va_post, 'deprecated': deprecated})]
+                                       'va_query': va_query, 'va_post': va_post, 'va_headers': va_headers,
+                                       'va_resp': va_resp, 'deprecated': deprecated})]
 
     @classmethod
-    def use(cls, name, method: [str, Set, List], url=None, summary=None, va_query=None, va_post=None, deprecated=False):
+    def use(cls, name, method: [str, Set, List], url=None, summary=None, va_query=None, va_post=None,
+            va_headers=None, va_resp=None, deprecated=False):
         """ interface register function"""
-        return cls._use(name, method, url=url, summary=summary, va_query=va_query, va_post=va_post, deprecated=deprecated)
+        return cls._use(name, method, url=url, summary=summary, va_query=va_query, va_post=va_post,
+                        va_headers=va_headers, va_resp=va_resp, deprecated=deprecated)
 
     @classmethod
     def _use_lst(cls, name, *, _sql_query=False, _sql_post=False, _inner_name=None, _inner_name_with_size=None,
                  summary=None, summary_with_size=None,
-                 va_query=None, va_post=None, deprecated=False):
+                 va_query=None, va_post=None, va_headers=None, va_resp=None, deprecated=False):
         def solve(value):
             if _sql_query or _sql_post:
                 value['_sql'] = {
@@ -77,14 +80,17 @@ class BaseView(metaclass=MetaClassForInit):
 
         cls._interface[name] = [
             solve({'method': {'GET'}, 'url': '%s/{page}' % name, 'summary': summary, 'inner_name': _inner_name,
-                   'va_query': va_query, 'va_post': va_post, 'deprecated': deprecated}),
+                   'va_query': va_query, 'va_post': va_post, 'va_headers': va_headers,
+                   'va_resp': va_resp, 'deprecated': deprecated}),
             solve({'method': {'GET'}, 'url': '%s/{page}/{size}' % name, 'summary': summary_with_size, 'inner_name': _inner_name_with_size,
-                   'va_query': va_query, 'va_post': va_post, 'deprecated': deprecated}),
+                   'va_query': va_query, 'va_post': va_post, 'va_headers': va_headers,
+                   'va_resp': va_resp, 'deprecated': deprecated}),
         ]
 
     @classmethod
-    def use_lst(cls, name, summary=None, va_query=None, va_post=None, deprecated=False):
-        return cls.use_lst(name, summary=summary, va_query=va_query, va_post=va_post, deprecated=deprecated)
+    def use_lst(cls, name, summary=None, va_query=None, va_post=None, va_headers=None, va_resp=None, deprecated=False):
+        return cls.use_lst(name, summary=summary, va_query=va_query, va_post=va_post,
+                           va_headers=va_headers, va_resp=va_resp, deprecated=deprecated)
 
     @classmethod
     def unregister(cls, name):

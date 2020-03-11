@@ -10,6 +10,7 @@ from schematics.exceptions import DataError
 
 from slim.base._view.validate import view_validate_check
 from slim.base.types.beacon import BeaconInfo, BeaconRouteInfo
+from slim.base.types.doc import ResponseDataModel
 from slim.base.types.route_view_info import RouteViewInfo
 from slim.base.ws import WSRouter
 from slim.exception import InvalidPostData, InvalidParams
@@ -52,7 +53,7 @@ def get_request_solver(app: 'Application'):
                 resp = view_instance.response
             else:
                 # user's validator check
-                await view_validate_check(view_instance, beacon.va_query, beacon.va_post)
+                await view_validate_check(view_instance, beacon.va_query, beacon.va_post, beacon.va_headers)
 
                 if view_instance.is_finished:
                     resp = view_instance.response
@@ -143,6 +144,8 @@ def view_bind(app: 'Application', cls_url, view_cls: Type['BaseView']):
                 }),
                 'va_query': route_info.get('va_query'),
                 'va_post': route_info.get('va_post'),
+                'va_resp': route_info.get('va_resp'),
+                'va_headers': route_info.get('va_headers'),
                 'deprecated': route_info.get('deprecated')
             })
 
@@ -166,7 +169,8 @@ class Route:
         self._handler_to_beacon_info = {}  # used for test tool
 
     @staticmethod
-    def interface(method, url=None, *, summary=None, va_query=None, va_post=None, deprecated=False):  # va_header, etc.
+    def interface(method, url=None, *, summary=None, va_query=None, va_post=None, va_headers=None,
+                  va_resp=ResponseDataModel, deprecated=False):
         """
         Register interface
         :param method:
@@ -174,6 +178,8 @@ class Route:
         :param summary:
         :param va_query:
         :param va_post:
+        :param va_headers:
+        :param va_resp:
         :param deprecated:
         :return:
         """
@@ -182,6 +188,8 @@ class Route:
                 'summary': summary,
                 'va_query': va_query,
                 'va_post': va_post,
+                'va_headers': va_headers,
+                'va_resp': va_resp,
                 'deprecated': deprecated
             }
             func._interface = (method, url, meta)

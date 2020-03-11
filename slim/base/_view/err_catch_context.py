@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING
 
 from slim.exception import RecordNotFound, SyntaxException, InvalidParams, SQLOperatorInvalid, ColumnIsNotForeignKey, \
     ColumnNotFound, InvalidRole, PermissionDenied, FinishQuitException, SlimException, TableNotFound, \
-    ResourceException, NotNullConstraintFailed, AlreadyExists, InvalidPostData, NoUserViewMixinException
+    ResourceException, NotNullConstraintFailed, AlreadyExists, InvalidPostData, NoUserViewMixinException, InvalidHeaders
 from slim.retcode import RETCODE
 
 if TYPE_CHECKING:
@@ -43,6 +43,12 @@ class ErrorCatchContext:
                 self.view.finish(RETCODE.INVALID_POSTDATA, exc_val.args[0])
             else:
                 self.view.finish(RETCODE.INVALID_POSTDATA)
+
+        elif isinstance(exc_val, InvalidHeaders):
+            if len(exc_val.args):
+                self.view.finish(RETCODE.INVALID_HEADERS, exc_val.args[0])
+            else:
+                self.view.finish(RETCODE.INVALID_HEADERS)
 
         # ResourceException
         elif isinstance(exc_val, TableNotFound):

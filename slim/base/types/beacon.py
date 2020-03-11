@@ -26,4 +26,6 @@ class BeaconInfo(JsDict):
 
     va_query: Type[Model]
     va_post: Type[Model]
+    va_resp: Type[Model]
+    va_headers: Type[Model]
     deprecated: bool

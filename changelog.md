@@ -1,4 +1,9 @@
 
+#### 0.5.1 update 2020.03.11
+
+* Changed: Schematics field convert to schema support choices option and more types (ModelType, ListType, DictType, PolyModelType)
+
+
 #### 0.5.0 update 2020.03.11
 
 * Added: OpenAPI 3 supported

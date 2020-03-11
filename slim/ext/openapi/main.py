@@ -191,6 +191,17 @@ class OpenAPIGenerator:
         from slim.base.view import BaseView, AbstractSQLView
         paths = {}
 
+        def returning_wrap(items_schema):
+            return {
+                'oneOf': [
+                    {
+                        "type": "integer",
+                        "description": "影响数据个数",
+                    },
+                    items_schema
+                ]
+            }
+
         for i in self.app.route._beacons.values():
             i: BeaconInfo
             path_item_object = {}
@@ -227,13 +238,20 @@ class OpenAPIGenerator:
                         }
                     })
 
+                def add_returning_header():
+                    parameters.append({
+                        "name": 'returning',
+                        "in": "header",
+                        "description": "当存在 returning 时，返回值的data中将是数据对象，否则为影响的记录条数。对`set` `new` `bulk_new`接口有效。",
+                    })
+
                 def add_bulk_header():
                     parameters.append({
                         "name": 'bulk',
                         "in": "header",
                         "description": "对`set`和`delete`接口有效，用于批量插入和删除。当`bulk`存在，例如为'true'的时候，接口会对可查询到的全部项起效。 `bulk`还可以是大于零的整数，代表影响的数据项个数。",
                         "schema": {
-                            "type": "int",
+                            "type": "integer",
                         }
                     })
 
@@ -256,35 +274,42 @@ class OpenAPIGenerator:
                             if view_info['sql_cant_write']:
                                 continue
                             add_bulk_header()
-                            request_body_schema = {
+                            add_returning_header()
+                            request_body_schema = returning_wrap({
                                 "type": "object",
                                 "properties": view_info['sql_write_schema']
-                            }
+                            })
 
                         if inner_name == IIN.NEW:
                             if view_info['sql_cant_create']:
                                 continue
-                            request_body_schema = {
+                            add_returning_header()
+                            request_body_schema = returning_wrap({
                                 "type": "object",
                                 "properties": view_info['sql_create_schema']
-                            }
+                            })
 
                         if inner_name == IIN.BULK_INSERT:
                             if view_info['sql_cant_create']:
                                 continue
-                            request_body_schema = {
+                            add_returning_header()
+                            request_body_schema = returning_wrap({
                                 "type": "array",
                                 "description": "数据项",
                                 "items": {
                                     "type": "object",
                                     "properties": view_info['sql_create_schema']
                                 }
-                            }
+                            })
 
                         if inner_name == IIN.DELETE:
-                            if view_info['sql_cant_create']:
+                            if view_info['sql_cant_delete']:
                                 continue
                             add_bulk_header()
+                            request_body_schema = {
+                                "type": "integer",
+                                "description": "影响数据个数",
+                            }
 
                         is_list = raw['inner_name'] in {IIN.LIST, IIN.LIST_WITH_SIZE}
 
@@ -434,7 +459,7 @@ class OpenAPIGenerator:
             for vi in self.app.route.views:
                 tag = {
                     'name': vi.view_cls.__name__,
-                    'description': vi.view_cls.__doc__
+                    'description': (vi.view_cls.__doc__ or '').strip()
                 }
 
                 if vi.tag_display_name is not None:

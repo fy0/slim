@@ -15,6 +15,10 @@ class InvalidParams(SlimException):
     pass
 
 
+class InvalidHeaders(SlimException):
+    pass
+
+
 class SQLOperatorInvalid(InvalidParams):
     pass
 

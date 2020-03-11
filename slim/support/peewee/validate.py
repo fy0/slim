@@ -3,7 +3,7 @@ from typing import Type, Union
 import peewee
 from schematics.models import Model, ValidationError, ConversionError
 from schematics.types import StringType, NumberType, DateTimeType, ModelType, BaseType, DictType, BooleanType, \
-    ListType, IntType, FloatType
+    ListType, IntType, FloatType, DateType
 from slim.base.sqlquery import SQLForeignKey
 from slim.utils.schematics_ext import BlobType, JSONListType, JSONDictType, JSONType
 
@@ -60,6 +60,10 @@ def field_class_to_schematics_field(field: peewee.Field) -> BaseType:
         return JSONType(**kwargs)
         # HStore 貌似才应该对应 dict，json可以对应任意类型
         # return JSONDictType(StringType, **kwargs)
+    elif isinstance(field, peewee.DateTimeField):
+        return DateTimeType(**kwargs)
+    elif isinstance(field, peewee.DateField):
+        return DateType(**kwargs)
     elif isinstance(field, peewee._StringField):
         return StringType(**kwargs)
     elif isinstance(field, peewee.BooleanField):
