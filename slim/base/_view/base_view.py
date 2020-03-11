@@ -291,10 +291,15 @@ class BaseView(metaclass=MetaClassForInit):
             return self._post_data_cache
         if self._request.content_type == 'application/json':
             # post body: raw(text) json
-            self._post_data_cache = dict(await self._request.json())
+            test_post = getattr(self._request, '_post', sentinel)
+            if test_post is not sentinel:
+                self._post_data_cache = test_post
+            else:
+                # aiohttp 的 Mock 函数无法维持json()运作
+                self._post_data_cache = await self._request.json()
         else:
             # post body: form data
-            self._post_data_cache = MultiDict(await self._request.post())
+            self._post_data_cache = await self._request.post()
         return self._post_data_cache
 
     def set_cookie(self, key, value, *, path='/', expires=None, domain=None, max_age=None, secure=None,

@@ -1,5 +1,5 @@
 
-#### 0.5.0 update 2020.02.28
+#### 0.5.0 update 2020.03.11
 
 * Added: OpenAPI 3 supported
 
@@ -8,6 +8,10 @@
 * Added: More readable error texts for query condition parse.
 
 * Added: Test tool function `slim.tools.test_tool.invoke_interface`
+
+* Added: `bulk_insert` interface
+
+* Added: `bulk` option in headers for `set` and `delete`
 
 * Added: More tests
 
@@ -24,6 +28,8 @@
 * Changed(break): Remake `Application` event
 
 * Changed(break): Interceptors definition of `AbstractSQLView` changed includes `before_insert`, `after_insert`, `before_update`, `after_update`
+
+* Changed(break): `update`'s returning option now return array
 
 * Removed: `slim.base.sqlquery.UpdateInfo`
 

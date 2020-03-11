@@ -7,6 +7,7 @@ from aiohttp.web_request import Request
 from slim.base.types import InnerInterfaceName as IIN
 from slim.base.types.beacon import BeaconInfo
 from slim.base.types.func_meta import FuncMeta
+from slim.base.user import BaseUserViewMixin
 from slim.retcode import RETCODE
 from slim.utils.schematics_ext import schematics_field_to_schema, schematics_model_to_json_schema, field_metadata_assign
 
@@ -209,6 +210,33 @@ class OpenAPIGenerator:
 
                 summary = raw.get('summary') or i['name']
 
+                if issubclass(view_cls, BaseUserViewMixin):
+                    parameters.append({
+                        "name": 'AccessToken',
+                        "in": "header",
+                        "schema": {
+                            "type": "string",
+                        }
+                    })
+                    parameters.append({
+                        "name": 'Role',
+                        "in": "header",
+                        "description": "用于指定当前的用户角色。以不同的角色访问同一个API可能会得到不同的结果。\n举例来说，`admin`权限的用户，可能具有`admin` `user` `visitor`三个角色，在用get接口查看用户数据时，`admin`可能相比`user`多获取了用户最后登录的时间。但`admin`用户可以控制自己在某些情况下只以`user`的身份去取得数据。",
+                        "schema": {
+                            "type": "string",
+                        }
+                    })
+
+                def add_bulk_header():
+                    parameters.append({
+                        "name": 'bulk',
+                        "in": "header",
+                        "description": "对`set`和`delete`接口有效，用于批量插入。当`bulk`存在，例如为'true'的时候，接口会对可查询到的全部项起效。 `bulk`还可以是大于零的整数，代表影响的数据项个数。",
+                        "schema": {
+                            "type": "int",
+                        }
+                    })
+
                 # check role require
                 meta: FuncMeta = getattr(i.handler, '__meta__', None)
                 if meta and meta.interface_roles is not None:
@@ -227,6 +255,7 @@ class OpenAPIGenerator:
                         if inner_name == IIN.SET:
                             if view_info['sql_cant_write']:
                                 continue
+                            add_bulk_header()
                             request_body_schema = {
                                 "type": "object",
                                 "properties": view_info['sql_write_schema']
@@ -240,9 +269,22 @@ class OpenAPIGenerator:
                                 "properties": view_info['sql_create_schema']
                             }
 
+                        if inner_name == IIN.BULK_INSERT:
+                            if view_info['sql_cant_create']:
+                                continue
+                            request_body_schema = {
+                                "type": "array",
+                                "description": "数据项",
+                                "items": {
+                                    "type": "object",
+                                    "properties": view_info['sql_create_schema']
+                                }
+                            }
+
                         if inner_name == IIN.DELETE:
                             if view_info['sql_cant_create']:
                                 continue
+                            add_bulk_header()
 
                         is_list = raw['inner_name'] in {IIN.LIST, IIN.LIST_WITH_SIZE}
 
@@ -323,10 +365,23 @@ class OpenAPIGenerator:
                     }
                 }
 
+                def get_func_doc(view_cls, interface_name, handler):
+                    doc = handler.__doc__
+                    if doc: doc = doc.strip()
+                    if not doc:
+                        for cls in view_cls.mro()[1:]:
+                            f = getattr(cls, interface_name, None)
+                            if f:
+                                doc = f.__doc__
+                                if doc: doc = doc.strip()
+                                if doc: break
+
+                    return doc or ''
+
                 path = {
                     "tags": [i.view_cls.__name__],
                     "summary": summary,
-                    "description": (i['handler'].__doc__ or '').strip(),
+                    "description": get_func_doc(view_cls, i.name, i.handler),
                     "parameters": parameters,
                     "responses": responses
                 }

@@ -8,7 +8,7 @@ from slim.support.peewee import PeeweeView
 from peewee import *
 from slim import Application, ALL_PERMISSION
 from playhouse.sqlite_ext import JSONField as SQLITE_JSONField
-from slim.tools.test import make_mocked_view_instance
+from slim.tools.test import make_mocked_view_instance, invoke_interface
 
 pytestmark = [pytest.mark.asyncio]
 app = Application(cookies_secret=b'123456', permission=ALL_PERMISSION)
@@ -387,10 +387,7 @@ async def test_set():
     # 1. simple update
     params = {'name': 'Name1A'}
     post = dict(name='Name1AA', count='4')
-    view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'POST', '/api/test_new',
-                                                       params=params, post=post)
-
-    await view.set()
+    view = await invoke_interface(app, ATestView().set, params=params, post=post)
     assert view.ret_val['code'] == RETCODE.SUCCESS
     assert view.ret_val['data'] == 1
 
@@ -400,32 +397,25 @@ async def test_set():
     # 2. simple update with returning
     params = {'name': 'Name2A'}
     post = dict(name='Name2AA', count='5', returning=True)
-    view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'POST', '/api/test_new',
-                                                       params=params, post=post)
-
-    await view.set()
+    view = await invoke_interface(app, ATestView().set, params=params, post=post)
     assert view.ret_val['code'] == RETCODE.SUCCESS
-    assert view.ret_val['data']['name'] == 'Name2AA'
+    assert view.ret_val['data'][0]['name'] == 'Name2AA'
 
     # 3. incr
     params = {'name': 'Name3A'}
     post = {'count.incr': 1, 'returning': True}
-    view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'POST', '/api/test_new',
-                                                       params=params, post=post)
-    await view.set()
+    view = await invoke_interface(app, ATestView().set, params=params, post=post)
     assert view.ret_val['code'] == RETCODE.SUCCESS
-    assert view.ret_val['data']['name'] == 'Name3A'
-    assert view.ret_val['data']['count'] == 4
+    assert view.ret_val['data'][0]['name'] == 'Name3A'
+    assert view.ret_val['data'][0]['count'] == 4
 
     # 3. incr -1
     params = {'name': 'Name3A'}
     post = {'count.incr': -2, 'returning': True}
-    view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'POST', '/api/test_new',
-                                                       params=params, post=post)
-    await view.set()
+    view = await invoke_interface(app, ATestView().set, params=params, post=post)
     assert view.ret_val['code'] == RETCODE.SUCCESS
-    assert view.ret_val['data']['name'] == 'Name3A'
-    assert view.ret_val['data']['count'] == 2
+    assert view.ret_val['data'][0]['name'] == 'Name3A'
+    assert view.ret_val['data'][0]['count'] == 2
 
 
 async def test_is():

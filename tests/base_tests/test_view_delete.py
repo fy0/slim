@@ -15,7 +15,7 @@ db = SqliteDatabase(":memory:")
 
 class Topic(Model):
     title = CharField(index=True, max_length=255)
-    time = BigIntegerField(index=True)
+    time = BigIntegerField(index=True, default=time.time)
     content = TextField()
 
     class Meta:
@@ -39,18 +39,6 @@ class TopicView(PeeweeView):
 app._prepare()
 
 
-async def test_set_simple():
-    view = await invoke_interface(app, TopicView().set, params={'id': 1}, post={"content": "Content changed 3"})
-    assert view.ret_val['code'] == RETCODE.SUCCESS
-
-
-async def test_set_bad_values():
-    view = await invoke_interface(app, TopicView().set, params={'id': 1}, post={"asd": "1"})
-    assert view.ret_val['code'] == RETCODE.INVALID_POSTDATA
-    assert 'Invalid post values' in view.ret_val['data']
-
-
-async def test_set_bulk():
-    view = await invoke_interface(app, TopicView().set, post={"content": "Content changed 3"}, headers={'bulk': 'true'})
-    assert view.ret_val['code'] == RETCODE.SUCCESS
-    assert view.ret_val['data'] == 4
+async def test_delete_simple():
+    resp = await invoke_interface(app, TopicView().delete, params={'id': 1})
+    assert resp.ret_val['code'] == RETCODE.SUCCESS

@@ -1,4 +1,5 @@
 import inspect
+import json
 import logging
 from ipaddress import ip_address
 from typing import Optional, Callable
@@ -33,15 +34,21 @@ def get_peewee_db():
 
 
 async def make_mocked_view_instance(app, view_cls, method, url, params=None, post=None, *, headers=None) -> BaseView:
-    request = _make_mocked_request(method, url, headers=headers or {}, protocol=mock.Mock(), app=app)
-    request._post = post
+    if not headers:
+        headers = {}
+    headers['Content-Type'] = 'application/json'
+    request = _make_mocked_request(method, url, headers=headers, protocol=mock.Mock(), app=app)
+    setattr(request, '_post', post)
     view = view_cls(app, request)
     view._params_cache = params
+    view._post_data_cache = post
+
     await view._prepare()
     return view
 
 
-async def invoke_interface(app: Application, func: [Callable], params=None, post=None, *, headers=None, method=None, user=None) -> Optional[BaseView]:
+async def invoke_interface(app: Application, func: [Callable], params=None, post=None, *, headers=None, method=None,
+                           user=None, bulk=False, role=None, json_request=True) -> Optional[BaseView]:
     """
     :param app:
     :param func:
@@ -50,6 +57,9 @@ async def invoke_interface(app: Application, func: [Callable], params=None, post
     :param headers:
     :param method: auto detect
     :param user:
+    :param bulk:
+    :param role:
+    :param json_request:
     :return:
     """
     url = 'mock_url'
@@ -70,8 +80,22 @@ async def invoke_interface(app: Application, func: [Callable], params=None, post
         if method:
             _method = method
 
-        request = _make_mocked_request(_method, url, headers=headers or {}, protocol=mock.Mock(), app=app)
-        request._post = post
+        headers = headers or {}
+        if bulk:
+            headers['bulk'] = bulk
+        if role:
+            headers['role'] = role
+
+        if json_request:
+            headers['Content-Type'] = 'application/json'
+
+        request = _make_mocked_request(_method, url, headers=headers, protocol=mock.Mock(), app=app)
+        setattr(request, '_post', post)
+
+        # 另一版本：
+        # raw_json = json.dumps({'info': 'aabbcc'})
+        # request._post = raw_json
+        # request._read_bytes = bytes(raw_json, encoding='utf-8')
 
         view_ref: Optional[BaseView] = None
 

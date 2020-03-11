@@ -1,3 +1,4 @@
+import json
 import logging
 from abc import abstractmethod
 from enum import Enum
@@ -61,6 +62,7 @@ class AbstractSQLView(BaseView):
                      summary_with_size='获取列表(自定义分页大小)', _inner_name_with_size=InnerInterfaceName.LIST_WITH_SIZE)
         cls._use('set', 'POST', _sql_query=True, _sql_post=True, summary='更新', _inner_name=InnerInterfaceName.SET)
         cls._use('new', 'POST', _sql_post=True, summary='新建', _inner_name=InnerInterfaceName.NEW)
+        cls._use('bulk_insert', 'POST', _sql_post=True, summary='新建(批量)', _inner_name=InnerInterfaceName.BULK_INSERT)
         cls._use('delete', 'POST', _sql_query=True, summary='删除', _inner_name=InnerInterfaceName.DELETE)
 
     @classmethod
@@ -134,6 +136,29 @@ class AbstractSQLView(BaseView):
         user = self.current_user if self.can_get_user else None
         self.ability = self.permission.request_role(user, role)
         return self.ability
+
+    def bulk_num(self):
+        bulk_key = 'Bulk'
+        if bulk_key in self.headers:
+            try:
+                num = int(self.headers.get(bulk_key))
+                if num <= 0:
+                    # num invalid
+                    return 1
+                return num
+            except ValueError:
+                pass
+            return -1
+        return 1
+
+    async def is_returning(self) -> bool:
+        key = 'returning'
+        if key in self.headers:
+            return True
+        if self.method in BaseRequest.POST_METHODS:
+            if key in (await self.post_data()):
+                return True
+        return key in self.params
 
     @property
     def current_request_role(self) -> Optional[Union[int, str]]:
@@ -278,6 +303,9 @@ class AbstractSQLView(BaseView):
         await self._call_handle(self.after_read, records)
 
     async def get(self):
+        """
+        获取单项记录接口，查询规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify
+        """
         self.current_interface = InnerInterfaceName.GET
         with ErrorCatchContext(self):
             info = SQLQueryInfo(self.params, view=self)
@@ -294,6 +322,9 @@ class AbstractSQLView(BaseView):
                 self.finish(RETCODE.NOT_FOUND)
 
     async def list(self):
+        """
+        获取分页记录接口，查询规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify
+        """
         self.current_interface = InnerInterfaceName.LIST
         with ErrorCatchContext(self):
             page, size = self._get_list_page_and_size()
@@ -312,15 +343,19 @@ class AbstractSQLView(BaseView):
             self.finish(RETCODE.SUCCESS, pg)
 
     async def set(self):
+        """
+        更新数据接口
+        查询规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify
+        赋值规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify?id=修改新建
+        """
         self.current_interface = InnerInterfaceName.SET
         with ErrorCatchContext(self):
             info = SQLQueryInfo(self.params, self)
 
             await self._call_handle(self.before_query, info)
-            record = await self._sql.select_one(info)
+            records, count = await self._sql.select_page(info, size=self.bulk_num())
 
-            if record:
-                records = [record]
+            if records:
                 values = SQLValuesToWrite(await self.post_data())
                 values.bind(self, A.WRITE, records)
                 await self._call_handle(self.before_update, values, records)
@@ -332,43 +367,80 @@ class AbstractSQLView(BaseView):
                 new_records = await self._sql.update(records, values, returning=True)
                 await self.check_records_permission(None, new_records)
                 await self._call_handle(self.after_update, values, records, new_records)
-                if values.returning:
-                    self.finish(RETCODE.SUCCESS, new_records[0])
+                if await self.is_returning():
+                    self.finish(RETCODE.SUCCESS, new_records)
                 else:
                     self.finish(RETCODE.SUCCESS, len(new_records))
             else:
                 self.finish(RETCODE.NOT_FOUND)
 
-    async def new(self):
-        self.current_interface = InnerInterfaceName.NEW
+    async def _base_insert(self, raw_values_lst):
         with ErrorCatchContext(self):
-            raw_post = await self.post_data()
-            values = SQLValuesToWrite(raw_post, self, A.CREATE)
-            values_lst = [values]
+            if isinstance(raw_values_lst, str):
+                try:
+                    values_lst = json.loads(raw_values_lst)
+                    assert isinstance(values_lst, list)
+                except (json.JSONDecodeError, AssertionError):
+                    return self.finish(RETCODE.INVALID_POSTDATA, "`value_lst` is not validated")
+
+            values_lst = [SQLValuesToWrite(x, self, A.CREATE) for x in raw_values_lst]
 
             if logger.isEnabledFor(logging.DEBUG):
                 logger.debug('insert record(s): %s' % values_lst)
 
             await self._call_handle(self.before_insert, values_lst)
-            values.validate_before_execute_insert(self)
+            for values in values_lst:
+                values.validate_before_execute_insert(self)
+
             records = await self._sql.insert(values_lst, returning=True)
             await self.check_records_permission(None, records)
             await self._call_handle(self.after_insert, values_lst, records)
+            return records
 
-            if values.returning:
-                self.finish(RETCODE.SUCCESS, records[0])
-            else:
-                self.finish(RETCODE.SUCCESS, len(records))
+    async def bulk_insert(self):
+        """
+        批量新建接口
+        赋值规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify?id=修改新建
+        """
+        self.current_interface = InnerInterfaceName.BULK_INSERT
+        records = await self._base_insert(await self.post_data())
+        if self.is_finished:
+            return
+
+        if await self.is_returning():
+            self.finish(RETCODE.SUCCESS, records)
+        else:
+            self.finish(RETCODE.SUCCESS, len(records))
+
+    async def new(self):
+        """
+        新建接口
+        赋值规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify?id=修改新建
+        """
+        self.current_interface = InnerInterfaceName.NEW
+        raw_post = await self.post_data()
+        records = await self._base_insert([raw_post])
+        if self.is_finished:
+            return
+
+        if await self.is_returning():
+            self.finish(RETCODE.SUCCESS, records[0])
+        else:
+            self.finish(RETCODE.SUCCESS, len(records))
 
     async def delete(self):
+        """
+        删除记录接口
+        查询规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify
+        赋值规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify?id=修改新建
+        """
         self.current_interface = InnerInterfaceName.DELETE
         with ErrorCatchContext(self):
             info = SQLQueryInfo(self.params, self)
             await self._call_handle(self.before_query, info)
-            record = await self._sql.select_one(info)
+            records, count = await self._sql.select_page(info, size=self.bulk_num())
 
-            if record:
-                records = [record]
+            if records:
                 user = self.current_user if self.can_get_user else None
                 logger.debug('request permission as %r: [%s] of table %r' % (self.ability.role, A.DELETE, self.table_name))
                 for record in records:

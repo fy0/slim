@@ -1,4 +1,6 @@
+import functools
 import logging
+from asyncio import Future
 from typing import TYPE_CHECKING
 
 from schematics import Model
@@ -25,7 +27,6 @@ def _decorator_fix(old_func, new_func):
     meta = getattr(old_func, '__meta__', None)
     if isinstance(meta, FuncMeta):
         setattr(new_func, '__meta__', meta.deepcopy())
-    new_func.__doc__ = old_func.__doc__
 
 
 def _create_func_meta(func):
@@ -43,13 +44,16 @@ def append_validate(va_query: Model = None, va_post: Model = None):
     :return:
     """
     def _(func):
-        async def __(view: 'AbstractSQLView', *args, **kwargs):
+        assert asyncio.iscoroutinefunction(func), 'Must be async function.'
+
+        @functools.wraps(func)
+        async def inner(view: 'AbstractSQLView', *args, **kwargs):
             await view_validate_check(view, va_query, va_post)
             if view.is_finished: return
             return await func(view, *args, **kwargs)
 
-        _decorator_fix(__, func)
-        meta = _create_func_meta(__)
+        _decorator_fix(func, inner)
+        meta = _create_func_meta(inner)
 
         if va_query:
             meta.va_query_lst.append(va_query)
@@ -57,7 +61,7 @@ def append_validate(va_query: Model = None, va_post: Model = None):
         if va_post:
             meta.va_query_lst.append(va_post)
 
-        return __
+        return inner
     return _
 
 
@@ -67,33 +71,38 @@ def deprecated(warn_text='The interface is deprecated. We plan to remove it from
     """
     def _(func):
         if asyncio.iscoroutinefunction(func):
-            async def __(*args, **kwargs):
+            @functools.wraps(func)
+            async def inner(*args, **kwargs):
                 logger.warning(warn_text)
                 return await func(*args, **kwargs)
         else:
-            def __(*args, **kwargs):
+            @functools.wraps(func)
+            def inner(*args, **kwargs):
                 logger.warning(warn_text)
                 return func(*args, **kwargs)
 
-        _decorator_fix(__, func)
-        return __
+        _decorator_fix(func, inner)
+        return inner
     return _
 
 
 def _role_decorator(role, view_check_func):
     def _(func):
-        async def __(view: 'AbstractSQLView', *args, **kwargs):
+        assert asyncio.iscoroutinefunction(func), 'Must be async function.'
+
+        @functools.wraps(func)
+        async def inner(view: 'AbstractSQLView', *args, **kwargs):
             if await view_check_func(view):
                 return
             return await func(view, *args, **kwargs)
 
-        _decorator_fix(__, func)
-        meta = _create_func_meta(__)
+        _decorator_fix(inner, func)
+        meta = _create_func_meta(inner)
         if meta.interface_roles is None:
             meta.interface_roles = {role}
         else:
             meta.interface_roles.add(role)
-        return __
+        return inner
     return _
 
 
@@ -135,6 +144,7 @@ def timer(interval_seconds, *, exit_when):
     loop = get_ioloop()
 
     def wrapper(func):
+        @functools.wraps(func)
         def runner():
             if exit_when and exit_when():
                 return
@@ -162,6 +172,7 @@ def get_cooldown_decorator(aioredis_instance: object, default_unique_id_func=get
 
     def cooldown(interval_value_or_func, redis_key_template, *, unique_id_func=default_unique_id_func, cd_if_unsuccessed=None):
         def wrapper(func):
+            @functools.wraps(func)
             async def myfunc(self: 'BaseView', *args, **kwargs):
                 # 有可能在刚进入的时候，上一轮已经finish了，那么直接退出
                 if self.is_finished: return
