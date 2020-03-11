@@ -4,7 +4,7 @@
 
 这份文档会展示 slim 在开发中用到的大多数功能。
 
-我本来写了一些东西来阐述 slim 的设计思路，不过还是觉得没有必要特意去讲，因为实际的代码会更加直观。这也是所谓一图胜千言吧。
+我本来写了一些东西来阐述 slim 的设计思路，不过还是觉得没有必要特意去讲，因为实际的代码会更加直观。
 
 我们将会创建一个简单的 Web 后端程序，包含若干个API，用于对一个数据表进行增删改查操作。
 
@@ -78,6 +78,7 @@ python app.py
 [GET]/api/topic/list/{page}/{size}
 [POST]/api/topic/set
 [POST]/api/topic/new
+[POST]/api/topic/bulk_insert
 [POST]/api/topic/delete
 ```
 

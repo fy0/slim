@@ -231,7 +231,7 @@ class OpenAPIGenerator:
                     parameters.append({
                         "name": 'bulk',
                         "in": "header",
-                        "description": "对`set`和`delete`接口有效，用于批量插入。当`bulk`存在，例如为'true'的时候，接口会对可查询到的全部项起效。 `bulk`还可以是大于零的整数，代表影响的数据项个数。",
+                        "description": "对`set`和`delete`接口有效，用于批量插入和删除。当`bulk`存在，例如为'true'的时候，接口会对可查询到的全部项起效。 `bulk`还可以是大于零的整数，代表影响的数据项个数。",
                         "schema": {
                             "type": "int",
                         }

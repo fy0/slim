@@ -31,6 +31,7 @@ class TopicView(PeeweeView):
 [GET]/api/topic/list/{page}/{size}
 [POST]/api/topic/set
 [POST]/api/topic/new
+[POST]/api/topic/bulk_insert
 [POST]/api/topic/delete
 ```
 
@@ -383,3 +384,15 @@ class TopicView(PeeweeView):
         for values in values_lst:
             values['time'] = int(time.time())
 ```
+
+## 特殊参数
+
+在headers中有两个特殊参数。
+
+1. returning
+
+    存在此项时，各默认api会尽量返回内容替代影响数字。
+
+2. bulk
+
+    当 bulk 存在，例如为'true'的时候，接口会对可查询到的全部项起效。bulk还可以是大于零的整数，代表影响的数据项个数。

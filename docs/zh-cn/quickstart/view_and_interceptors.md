@@ -267,16 +267,20 @@ class AbstractSQLView(BaseView):
 
 用法示例：
 
-````python
+```python
 @app.route('/topic')
 class TopicView(PeeweeView):
     model = Topic
     LIST_PAGE_SIZE = 50
-````
+```
 
-自动生成的几个接口除了list之外，都只作用于单条数据。这是出于安全性的考虑，因为批量进行增删改的场景较少，但如果出现漏洞，批量接口却能在极短时间内造成很大的破坏。
+自动生成的几个接口除了`list`和`bulk_insert`之外，默认情况下都只作用于单条数据。
 
-但也不排除以后会存在增加接口的可能，因此针对行为，而不是接口设定了以下拦截器：
+`set` 和 `delete` 接口在 headers 中增加 bulk 参数，可以影响多条数据。
+
+当 bulk 存在，例如为'true'的时候，接口会对可查询到的全部项起效。bulk还可以是大于零的整数，代表影响的数据项个数。
+
+因为同一类行为的操作既有单条也有多条，因此针对行为，而不是接口设定了以下拦截器：
 
 ```python
 async def before_query(self, info: SQLQueryInfo):
