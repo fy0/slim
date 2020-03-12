@@ -1,7 +1,11 @@
 
-#### 0.5.1 update 2020.03.11
+#### 0.5.1 update 2020.03.12
 
 * Changed: Schematics field convert to schema support choices option and more types (ModelType, ListType, DictType, PolyModelType)
+
+* Changed: Allow post empty values until `before_update` and `before_insert`
+
+* Fixed: OpenAPI syntax error
 
 
 #### 0.5.0 update 2020.03.11
@@ -10,7 +14,7 @@
 
 * Added: builtin support for data validate (schematics)
 
-* Added: More readable error texts for query condition parse.
+* Added: More readable error texts for query condition parse
 
 * Added: Test tool function `slim.tools.test_tool.invoke_interface`
 

@@ -1,7 +1,7 @@
 import json
 import string
 from copy import deepcopy
-from typing import Dict, Type
+from typing import Dict, Type, List, Tuple
 
 from schematics import Model
 from schematics.exceptions import ConversionError
@@ -180,6 +180,26 @@ def field_metadata_assign(field, base):
         assign('example')
 
     return base
+
+
+def schematics_model_merge(a: Type[Model], *others: Tuple[Type[Model]]):
+    """
+    Merge multi schematics model
+    :param a:
+    :param others:
+    :return:
+    """
+    class MergedModel(Model):
+        pass
+
+    for name, field in a._fields.items():
+        MergedModel._append_field(name, field)
+
+    for i in others:
+        for name, field in i._fields.items():
+            MergedModel._append_field(name, field)
+
+    return MergedModel
 
 
 def schematics_field_to_schema(field: BaseType, generate_required=True):

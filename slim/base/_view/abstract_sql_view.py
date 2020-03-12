@@ -13,7 +13,7 @@ from .base_view import BaseView
 from .err_catch_context import ErrorCatchContext
 from .view_options import SQLViewOptions
 from slim.exception import SlimException, PermissionDenied, FinishQuitException, InvalidParams, RecordNotFound, \
-    InvalidRole
+    InvalidRole, InvalidPostData
 
 from slim.base.sqlquery import SQLQueryInfo, SQLForeignKey, SQLValuesToWrite, ALL_COLUMNS, PRIMARY_KEY, SQL_OP
 from slim.base.app import Application
@@ -359,6 +359,10 @@ class AbstractSQLView(BaseView):
                 values = SQLValuesToWrite(await self.post_data())
                 values.bind(self, A.WRITE, records)
                 await self._call_handle(self.before_update, values, records)
+
+                # 如果 before_update 之后，不再有values，那么抛出invalid_postdata
+                if len(values) == 0:
+                    raise InvalidPostData("No value to set for table: %s" % self.table_name)
 
                 if logger.isEnabledFor(logging.DEBUG):
                     logger.debug('update record(s): %s' % values)

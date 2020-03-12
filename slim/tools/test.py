@@ -2,14 +2,16 @@ import inspect
 import json
 import logging
 from ipaddress import ip_address
-from typing import Optional, Callable
+from typing import Optional, Callable, Union
 from unittest import mock
 from aiohttp.test_utils import make_mocked_request as _make_mocked_request
 from peewee import SqliteDatabase
 
 from slim import Application, ALL_PERMISSION
+from slim.base._view.abstract_sql_view import AbstractSQLView
 from slim.base.types.beacon import BeaconInfo
 from slim.base.view import BaseView
+from slim.support.peewee import PeeweeView
 
 
 def get_app(permission=ALL_PERMISSION, log_level=logging.WARN, **kwargs) -> Application:
@@ -33,7 +35,7 @@ def get_peewee_db():
     return db
 
 
-async def make_mocked_view_instance(app, view_cls, method, url, params=None, post=None, *, headers=None) -> BaseView:
+async def make_mocked_view_instance(app, view_cls, method, url, params=None, post=None, *, headers=None) -> Union[BaseView, AbstractSQLView, PeeweeView]:
     if not headers:
         headers = {}
     headers['Content-Type'] = 'application/json'

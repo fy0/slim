@@ -15,3 +15,10 @@ class FuncMeta(JsDict):
         self.va_post_lst = []
         self.va_query_lst = []
         self.interface_roles = None
+
+
+def get_meta(func):
+    meta = getattr(func, '__meta__', None)
+    if meta is None:
+        return FuncMeta()
+    return meta

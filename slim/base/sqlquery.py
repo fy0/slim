@@ -8,6 +8,8 @@ from schematics.exceptions import DataError, ConversionError
 from schematics.types import BaseType
 
 from slim.base.const import ERR_TEXT_ROGUE_FIELD, ERR_TEXT_COLUMN_IS_NOT_FOREIGN_KEY
+from slim.base.types.func_meta import get_meta
+from slim.utils.schematics_ext import schematics_model_merge
 from ..utils import BlobParser, JSONParser, is_py36, dict_filter, dict_filter_inplace, BoolParser
 from ..exception import SyntaxException, ResourceException, InvalidParams, \
     PermissionDenied, ColumnNotFound, ColumnIsNotForeignKey, SQLOperatorInvalid, InvalidRole, SlimException, \
@@ -555,6 +557,7 @@ class SQLValuesToWrite(dict):
         self.view = view
 
         if post_data:
+            assert isinstance(post_data, dict)
             self.parse(post_data)
             if view: self.bind(view, action, records)
 
@@ -642,19 +645,30 @@ class SQLValuesToWrite(dict):
             raise SlimException("Invalid action to write: %r" % action)
 
     def bind(self, view: "AbstractSQLView", action=None, records=None):
-        dict_filter_inplace(self, view.fields.keys())
+        """
+        建立写入值与 view 的联系。
+        由于这之后还有一个 before_insert / before_update 的过程，所以这里不尽量抛出异常，只是在装入 values 前把不合规的过滤
+        :param view:
+        :param action:
+        :param records:
+        :return:
+        """
+        from .permission import Ability, A
 
-        if len(self) == 0:
-            raise InvalidPostData('Invalid post values for table: %s' % view.table_name)
+        # 1. 融合before_update / before_insert 的校验器，走一次过滤
+        if action == A.WRITE:
+            func = view.before_update
+        else:
+            func = view.before_insert
 
-        if action:
-            self.check_write_permission(view, action, records)
+        meta = get_meta(func)
+        model_cls = schematics_model_merge(view.data_model, *meta.va_post_lst)
 
-        # validate and format
         try:
             # 初次bind应该总在before_update / before_insert之前
             # 因此进行带partial的校验（即忽略required=True项，因为接下来还会有补全的可能）
-            m = view.data_model(self, strict=False, validate=True, partial=True)
+            # TODO: 这里未来需要做一件事情，忽略
+            m = model_cls(self, strict=False, validate=True, partial=True)
             data = m.to_native()
 
             for k in self:
@@ -663,6 +677,16 @@ class SQLValuesToWrite(dict):
             self.incr_fields.intersection_update(self.keys())
         except DataError as e:
             raise InvalidPostData(e.to_primitive())
+
+        dict_filter_inplace(self, view.fields.keys())
+
+        # 过滤后空 post 不代表无意义，因为插入值可能在 before_insert 中修改
+        # if len(self) == 0:
+        #     raise InvalidPostData('Invalid post values for table: %s' % view.table_name)
+
+        # 同样，空值不做检查，因为会抛出无权访问
+        if action and len(self):
+            self.check_write_permission(view, action, records)
 
     def validate_before_execute_insert(self, view: "AbstractSQLView"):
         # 在执行insert之前，需要校验插入项是否完整（所有require项存在）

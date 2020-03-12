@@ -1,11 +1,15 @@
 import time
+from typing import List
 
 import pytest
+import schematics
+from schematics.types import StringType
 
+from slim.base.sqlquery import SQLValuesToWrite, DataRecord
 from slim.retcode import RETCODE
 from slim.support.peewee import PeeweeView
 from peewee import *
-from slim import Application, ALL_PERMISSION
+from slim import Application, ALL_PERMISSION, D
 from slim.tools.test import make_mocked_view_instance, invoke_interface
 
 pytestmark = [pytest.mark.asyncio]
@@ -36,7 +40,19 @@ class TopicView(PeeweeView):
     model = Topic
 
 
-app._prepare()
+class ChangeDataModel(schematics.Model):
+    new_content = StringType()
+
+
+@app.route('/topic2')
+class TopicView2(PeeweeView):
+    model = Topic
+
+    @D.append_validate(va_post=ChangeDataModel)
+    async def before_update(self, values: SQLValuesToWrite, records: List[DataRecord]):
+        vpost: ChangeDataModel = self._.validated_post
+        if vpost.new_content:
+            values['content'] = vpost.new_content
 
 
 async def test_set_simple():
@@ -47,10 +63,24 @@ async def test_set_simple():
 async def test_set_bad_values():
     view = await invoke_interface(app, TopicView().set, params={'id': 1}, post={"asd": "1"})
     assert view.ret_val['code'] == RETCODE.INVALID_POSTDATA
-    assert 'Invalid post values' in view.ret_val['data']
+    assert 'No value to set for table' in view.ret_val['data']
 
 
 async def test_set_bulk():
     view = await invoke_interface(app, TopicView().set, post={"content": "Content changed 3"}, headers={'bulk': 'true'})
     assert view.ret_val['code'] == RETCODE.SUCCESS
     assert view.ret_val['data'] == 4
+
+
+async def test_set_with_empty_values():
+    view = await invoke_interface(app, TopicView2().set, params={'id': 1}, post={"asd": "1"})
+    assert view.ret_val['code'] == RETCODE.INVALID_POSTDATA
+    assert 'No value to set for table' in view.ret_val['data']
+
+    view = await invoke_interface(app, TopicView2().set, params={'id': 1}, post={"new_content": "1"})
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+    t = Topic.get(Topic.id == 1)
+    assert t.content == '1'
+
+
+app._prepare()

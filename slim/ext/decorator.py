@@ -1,7 +1,7 @@
 import functools
 import logging
 from asyncio import Future
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Type
 
 from schematics import Model
 
@@ -17,6 +17,14 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _try_create_func_meta(func):
+    meta = getattr(func, '__meta__', None)
+    if not meta:
+        meta = FuncMeta()
+        setattr(func, '__meta__', meta)
+    return meta
+
+
 def _decorator_fix(old_func, new_func):
     """
     使装饰器包裹函数不丢失文档信息和辅助信息
@@ -27,20 +35,17 @@ def _decorator_fix(old_func, new_func):
     meta = getattr(old_func, '__meta__', None)
     if isinstance(meta, FuncMeta):
         setattr(new_func, '__meta__', meta.deepcopy())
-
-
-def _create_func_meta(func):
-    meta = getattr(func, '__meta__', None)
-    if not meta:
+    else:
         meta = FuncMeta()
-        setattr(func, '__meta__', meta)
+        setattr(new_func, '__meta__', meta)
     return meta
 
 
-def append_validate(va_query: Model = None, va_post: Model = None):
+def append_validate(va_query: Type[Model] = None, va_post: Type[Model] = None, va_headers: Type[Model] = None):
     """
     :param va_query:
     :param va_post:
+    :param va_headers
     :return:
     """
     def _(func):
@@ -52,14 +57,13 @@ def append_validate(va_query: Model = None, va_post: Model = None):
             if view.is_finished: return
             return await func(view, *args, **kwargs)
 
-        _decorator_fix(func, inner)
-        meta = _create_func_meta(inner)
+        meta = _decorator_fix(func, inner)
 
         if va_query:
             meta.va_query_lst.append(va_query)
 
         if va_post:
-            meta.va_query_lst.append(va_post)
+            meta.va_post_lst.append(va_post)
 
         return inner
     return _
@@ -96,8 +100,7 @@ def _role_decorator(role, view_check_func):
                 return
             return await func(view, *args, **kwargs)
 
-        _decorator_fix(inner, func)
-        meta = _create_func_meta(inner)
+        meta = _decorator_fix(inner, func)
         if meta.interface_roles is None:
             meta.interface_roles = {role}
         else:

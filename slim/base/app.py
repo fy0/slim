@@ -118,9 +118,11 @@ class Application:
                 def get_view_full_name():
                     return '%s.%s' % (cls.__module__, cls.__name__)
 
+                '''
                 if cls.table_name in self.tables:
                     logger.error("Binding %r failed, the table %r is already binded to %r." % (get_view_full_name(), cls.table_name, get_exists_view_full_name()))
                     exit(-1)
+                '''
 
                 self.tables[cls.table_name] = cls
 

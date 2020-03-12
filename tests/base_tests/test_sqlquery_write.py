@@ -22,8 +22,12 @@ class ATestModel(Model):
         database = db
 
 
+@app.route.view('test')
 class ATestView(PeeweeView):
     model = ATestModel
+
+
+app._prepare()
 
 
 async def test_value_write_normal():
@@ -53,3 +57,13 @@ async def test_value_write_invalid():
     view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'POST', '/api/list/1')
     with pytest.raises(InvalidPostData) as e:
         write.bind(view, None, None)
+
+
+async def test_value_write_bind_with_empty():
+    write = SQLValuesToWrite({
+        '$num': 123
+    })
+
+    view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'POST', '/api/list/1')
+    write.bind(view, None, None)
+    assert len(write) == 0
