@@ -14,7 +14,7 @@ from slim.base.view import BaseView
 from slim.support.peewee import PeeweeView
 
 
-def get_app(permission=ALL_PERMISSION, log_level=logging.WARN, **kwargs) -> Application:
+def new_app(permission=ALL_PERMISSION, log_level=logging.WARN, **kwargs) -> Application:
     """
     Get application instance
     :param permission:
@@ -24,6 +24,17 @@ def get_app(permission=ALL_PERMISSION, log_level=logging.WARN, **kwargs) -> Appl
     """
     app = Application(cookies_secret=b'123456', permission=permission, log_level=log_level, **kwargs)
     return app
+
+
+def _polyfill_post(request, post):
+    if post:
+        try:
+            request._read_bytes = bytes(json.dumps(post), 'utf-8')
+        except TypeError:
+            # logger.warning(...)
+            pass
+    else:
+        request._read_bytes = b''
 
 
 def get_peewee_db():
@@ -40,7 +51,8 @@ async def make_mocked_view_instance(app, view_cls, method, url, params=None, pos
         headers = {}
     headers['Content-Type'] = 'application/json'
     request = _make_mocked_request(method, url, headers=headers, protocol=mock.Mock(), app=app)
-    setattr(request, '_post', post)
+    _polyfill_post(request, post)
+
     view = view_cls(app, request)
     view._params_cache = params
     view._post_data_cache = post
@@ -92,12 +104,7 @@ async def invoke_interface(app: Application, func: [Callable], params=None, post
             headers['Content-Type'] = 'application/json'
 
         request = _make_mocked_request(_method, url, headers=headers, protocol=mock.Mock(), app=app)
-        setattr(request, '_post', post)
-
-        # 另一版本：
-        # raw_json = json.dumps({'info': 'aabbcc'})
-        # request._post = raw_json
-        # request._read_bytes = bytes(raw_json, encoding='utf-8')
+        _polyfill_post(request, post)
 
         view_ref: Optional[BaseView] = None
 
@@ -105,6 +112,7 @@ async def invoke_interface(app: Application, func: [Callable], params=None, post
             nonlocal view_ref
             view_ref = view
             view._params_cache = params
+            view._post_data_cache = post
             view._ip_cache = ip_address('127.0.0.1')
             view._current_user = user
 

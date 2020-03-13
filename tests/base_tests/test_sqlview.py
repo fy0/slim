@@ -349,7 +349,6 @@ async def test_new_simple():
     view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'POST', '/api/test1', post=post)
 
     await view.new()
-    print(view.ret_val)
     assert view.ret_val['code'] == RETCODE.SUCCESS
     assert view.ret_val['data'] == 1
 

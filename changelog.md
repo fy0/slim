@@ -1,4 +1,13 @@
 
+#### 0.5.2 update 2020.03.13
+
+* Added: Tests for `view.postdata()`
+
+* Fixed: `view.postdata()` application/json bug
+
+* Fixed: OpenAPI syntax error
+
+
 #### 0.5.1 update 2020.03.12
 
 * Changed: Schematics field convert to schema support choices option and more types (ModelType, ListType, DictType, PolyModelType)

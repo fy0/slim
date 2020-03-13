@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import time
 from types import FunctionType
@@ -137,8 +138,7 @@ class BaseView(metaclass=MetaClassForInit):
         self._ip_cache = None
         self._cookie_set = None
         self._params_cache = None
-        self._post_data_cache = None
-        self._post_json_cache = None
+        self._post_data_cache = sentinel
         self._current_user = None
         self._current_user_roles = None
         self._ = self.temp_storage = TempStorage()
@@ -283,26 +283,17 @@ class BaseView(metaclass=MetaClassForInit):
             self._params_cache = MultiDict(self._request.query)
         return self._params_cache
 
-    async def _post_json(self) -> dict:
-        # post body: raw(text) json
-        if self._post_json_cache is None:
-            self._post_json_cache = dict(await self._request.json())
-        return self._post_json_cache
-
-    async def post_data(self) -> "MultiDict[Union[str, bytes, FileField]]":
+    async def post_data(self) -> "Optional[MultiDict[Union[str, bytes, FileField]]]":
         if self.method not in BaseRequest.POST_METHODS:
-            return MultiDict()
+            return
 
-        if self._post_data_cache is not None:
+        if self._post_data_cache is not sentinel:
             return self._post_data_cache
         if self._request.content_type == 'application/json':
-            # post body: raw(text) json
-            test_post = getattr(self._request, '_post', sentinel)
-            if test_post is not sentinel:
-                self._post_data_cache = test_post
-            else:
-                # aiohttp 的 Mock 函数无法维持json()运作
+            try:
                 self._post_data_cache = await self._request.json()
+            except json.JSONDecodeError:
+                self._post_data_cache = None
         else:
             # post body: form data
             self._post_data_cache = await self._request.post()

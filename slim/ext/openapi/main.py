@@ -242,6 +242,7 @@ class OpenAPIGenerator:
                     parameters.append({
                         "name": 'returning',
                         "in": "header",
+                        "schema": {},
                         "description": "当存在 returning 时，返回值的data中将是数据对象，否则为影响的记录条数。对`set` `new` `bulk_new`接口有效。",
                     })
 

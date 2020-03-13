@@ -356,6 +356,8 @@ class AbstractSQLView(BaseView):
             records, count = await self._sql.select_page(info, size=self.bulk_num())
 
             if records:
+                # 确保 before_update 时得到list
+                records = list(records)
                 values = SQLValuesToWrite(await self.post_data())
                 values.bind(self, A.WRITE, records)
                 await self._call_handle(self.before_update, values, records)
@@ -445,6 +447,7 @@ class AbstractSQLView(BaseView):
             records, count = await self._sql.select_page(info, size=self.bulk_num())
 
             if records:
+                records = list(records)
                 user = self.current_user if self.can_get_user else None
                 logger.debug('request permission as %r: [%s] of table %r' % (self.ability.role, A.DELETE, self.table_name))
                 for record in records:

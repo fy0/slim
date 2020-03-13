@@ -3,10 +3,10 @@ from peewee import Model, BlobField, TextField
 
 from slim.retcode import RETCODE
 from slim.support.peewee import PeeweeView
-from slim.tools.test import invoke_interface, get_app, get_peewee_db
+from slim.tools.test import invoke_interface, new_app, get_peewee_db
 
 pytestmark = [pytest.mark.asyncio]
-app = get_app()
+app = new_app()
 db = get_peewee_db()
 
 
