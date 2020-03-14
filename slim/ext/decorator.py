@@ -41,10 +41,12 @@ def _decorator_fix(old_func, new_func):
     return meta
 
 
-def append_validate(va_query: Type[Model] = None, va_post: Type[Model] = None, va_headers: Type[Model] = None):
+def append_validate(va_query: Type[Model] = None, va_post: Type[Model] = None, va_write_value: Type[Model] = None,
+                    va_headers: Type[Model] = None):
     """
     :param va_query:
     :param va_post:
+    :param va_write_value:
     :param va_headers
     :return:
     """
@@ -53,7 +55,7 @@ def append_validate(va_query: Type[Model] = None, va_post: Type[Model] = None, v
 
         @functools.wraps(func)
         async def inner(view: 'AbstractSQLView', *args, **kwargs):
-            await view_validate_check(view, va_query, va_post)
+            await view_validate_check(view, va_query, va_post, va_headers, va_write_value)
             if view.is_finished: return
             return await func(view, *args, **kwargs)
 
@@ -64,6 +66,9 @@ def append_validate(va_query: Type[Model] = None, va_post: Type[Model] = None, v
 
         if va_post:
             meta.va_post_lst.append(va_post)
+
+        if va_write_value:
+            meta.va_write_value_lst.append(va_write_value)
 
         return inner
     return _

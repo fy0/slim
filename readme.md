@@ -7,6 +7,9 @@
 
 Web framework based on aiohttp and peewee/asyncpg. Mapping sql table to json api easily.
 
+## SDK
+
+[JavaScript/TypeScript](https://github.com/fy0/slim-tools)
 
 ## Contributors
 - [fy](https://github.com/fy0)

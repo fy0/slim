@@ -1,3 +1,13 @@
+#### 0.5.3 update 2020.03.15
+
+* Added: New validator `va_write_value` for `before_update` and `before_insert`
+
+* Changed(break): `bulk_insert` accepts data like `{"items": []}` instead of `[]`
+
+* Changed(break): `view.postdata()` certainly returns `Mapping` when post is allowed, otherwise returns `None`
+
+* Fixed: OpenAPI document of some interfaces' request body were incorrect
+
 
 #### 0.5.2 update 2020.03.13
 
@@ -8,7 +18,7 @@
 * Fixed: OpenAPI syntax error
 
 
-#### 0.5.1 update 2020.03.12
+#### 0.5.1 update 2020.03.12 (unpublished)
 
 * Changed: Schematics field convert to schema support choices option and more types (ModelType, ListType, DictType, PolyModelType)
 

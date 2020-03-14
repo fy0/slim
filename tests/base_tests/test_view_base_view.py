@@ -47,4 +47,4 @@ async def test_view_postdata_invalid_method():
 
 async def test_view_postdata_invalid_json():
     view = TopicView(app, make_req('POST', raw_data=b'{'))
-    assert (await view.post_data()) is None
+    assert (await view.post_data()) == {}

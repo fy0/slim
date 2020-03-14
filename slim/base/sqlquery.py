@@ -662,7 +662,7 @@ class SQLValuesToWrite(dict):
             func = view.before_insert
 
         meta = get_meta(func)
-        model_cls = schematics_model_merge(view.data_model, *meta.va_post_lst)
+        model_cls = schematics_model_merge(view.data_model, *meta.va_write_value_lst)
 
         try:
             # 初次bind应该总在before_update / before_insert之前

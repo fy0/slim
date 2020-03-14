@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import time
+from collections import Mapping
 from types import FunctionType
 from typing import Set, List, Union, Optional, Dict
 from unittest import mock
@@ -17,7 +18,7 @@ from slim.base.helper import create_signed_value, decode_signed_value
 from slim.base.permission import Permissions
 from slim.base.types.temp_storage import TempStorage
 from slim.base.user import BaseUser, BaseUserViewMixin
-from slim.exception import NoUserViewMixinException
+from slim.exception import NoUserViewMixinException, InvalidPostData
 from slim.retcode import RETCODE
 
 from slim.utils import MetaClassForInit, async_call, sentinel, sync_call
@@ -283,7 +284,10 @@ class BaseView(metaclass=MetaClassForInit):
             self._params_cache = MultiDict(self._request.query)
         return self._params_cache
 
-    async def post_data(self) -> "Optional[MultiDict[Union[str, bytes, FileField]]]":
+    async def post_data(self) -> "Optional[Mapping[str, Union[str, bytes, FileField]]]":
+        """
+        :return: 在有post的情况下必返回Mapping，否则返回None
+        """
         if self.method not in BaseRequest.POST_METHODS:
             return
 
@@ -292,8 +296,10 @@ class BaseView(metaclass=MetaClassForInit):
         if self._request.content_type == 'application/json':
             try:
                 self._post_data_cache = await self._request.json()
+                if not isinstance(self._post_data_cache, Mapping):
+                    raise InvalidPostData('post data should be a mapping.')
             except json.JSONDecodeError:
-                self._post_data_cache = None
+                self._post_data_cache = {}
         else:
             # post body: form data
             self._post_data_cache = await self._request.post()

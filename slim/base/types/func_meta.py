@@ -14,6 +14,7 @@ class FuncMeta(JsDict):
         super().__init__(*args, **kwargs)
         self.va_post_lst = []
         self.va_query_lst = []
+        self.va_write_value_lst = []
         self.interface_roles = None
 
 

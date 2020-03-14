@@ -196,7 +196,7 @@ class OpenAPIGenerator:
                 'oneOf': [
                     {
                         "type": "integer",
-                        "description": "影响数据个数",
+                        "description": "影响数据个数(不带returning情况下)",
                     },
                     items_schema
                 ]
@@ -276,32 +276,37 @@ class OpenAPIGenerator:
                                 continue
                             add_bulk_header()
                             add_returning_header()
-                            request_body_schema = returning_wrap({
+                            request_body_schema = {
                                 "type": "object",
                                 "properties": view_info['sql_write_schema']
-                            })
+                            }
 
                         if inner_name == IIN.NEW:
                             if view_info['sql_cant_create']:
                                 continue
                             add_returning_header()
-                            request_body_schema = returning_wrap({
+                            request_body_schema = {
                                 "type": "object",
                                 "properties": view_info['sql_create_schema']
-                            })
+                            }
 
                         if inner_name == IIN.BULK_INSERT:
                             if view_info['sql_cant_create']:
                                 continue
                             add_returning_header()
-                            request_body_schema = returning_wrap({
-                                "type": "array",
-                                "description": "数据项",
-                                "items": {
-                                    "type": "object",
-                                    "properties": view_info['sql_create_schema']
+                            request_body_schema = {
+                                "type": "object",
+                                "properties": {
+                                    "items": {
+                                        "type": "array",
+                                        "description": "数据项",
+                                        "items": {
+                                            "type": "object",
+                                            "properties": view_info['sql_create_schema']
+                                        }
+                                    }
                                 }
-                            })
+                            }
 
                         if inner_name == IIN.DELETE:
                             if view_info['sql_cant_delete']:
@@ -364,11 +369,11 @@ class OpenAPIGenerator:
                             }
                             response_schema["properties"]["data"] = page_info
                         else:
-                            response_schema["properties"]["data"] = {
+                            response_schema["properties"]["data"] = returning_wrap({
                                 "type": "object",
                                 "description": "数据项",
                                 "properties": view_info['sql_read_record_schema']
-                            }
+                            })
 
                 request_body_schema = self._interface_solve(i, method, parameters, request_body_schema)
 

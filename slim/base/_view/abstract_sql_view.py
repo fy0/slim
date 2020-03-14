@@ -156,7 +156,8 @@ class AbstractSQLView(BaseView):
         if key in self.headers:
             return True
         if self.method in BaseRequest.POST_METHODS:
-            if key in (await self.post_data()):
+            post = await self.post_data()
+            if isinstance(post, dict) and key in post:
                 return True
         return key in self.params
 
