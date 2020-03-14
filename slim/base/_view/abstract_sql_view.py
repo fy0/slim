@@ -410,7 +410,10 @@ class AbstractSQLView(BaseView):
         赋值规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify?id=修改新建
         """
         self.current_interface = InnerInterfaceName.BULK_INSERT
-        records = await self._base_insert(await self.post_data())
+        post = await self.post_data()
+        if not 'items' in post:
+            raise InvalidPostData("`items` is required")
+        records = await self._base_insert(post['items'])
         if self.is_finished:
             return
 

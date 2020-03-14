@@ -551,14 +551,14 @@ class SQLQueryInfo:
 
 
 class SQLValuesToWrite(dict):
-    def __init__(self, post_data=None, view: 'AbstractSQLView'=None, action=None, records=None):
+    def __init__(self, raw_data=None, view: 'AbstractSQLView'=None, action=None, records=None):
         super().__init__()
         self.returning = False
         self.view = view
 
-        if post_data:
-            assert isinstance(post_data, dict)
-            self.parse(post_data)
+        if raw_data:
+            assert isinstance(raw_data, dict)
+            self.parse(raw_data)
             if view: self.bind(view, action, records)
 
     def parse(self, post_data: MultiDict):
