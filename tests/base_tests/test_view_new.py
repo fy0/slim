@@ -46,6 +46,6 @@ async def test_new_simple():
 
 
 async def test_new_bulk():
-    post = [{"title": '111', "content": "test"}, {"title": '222', "content": "test"}]
-    resp = await invoke_interface(app, TopicView().bulk_insert, post=post)
+    items = [{"title": '111', "content": "test"}, {"title": '222', "content": "test"}]
+    resp = await invoke_interface(app, TopicView().bulk_insert, post={'items': items})
     assert resp.ret_val['code'] == RETCODE.SUCCESS
