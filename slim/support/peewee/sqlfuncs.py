@@ -70,6 +70,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
     def _build_condition(self, args):
         pw_args = []
         for field_name, op, value in args:
+            assert self._fields.get(field_name), 'Column name in condition not found: %r' % field_name
             cond = getattr(self._fields[field_name], _peewee_method_map[op])(value)
             if op == SQL_OP.IS_NOT:
                 cond = ~cond

@@ -2,10 +2,10 @@ import json
 import logging
 import traceback
 from enum import Enum
-from typing import Union, Iterable, List, TYPE_CHECKING, Dict, Set
+from typing import Union, Iterable, List, TYPE_CHECKING, Dict, Set, Mapping
 from multidict import MultiDict
 from schematics.exceptions import DataError, ConversionError
-from schematics.types import BaseType
+from schematics.types import BaseType, ListType
 
 from slim.base.const import ERR_TEXT_ROGUE_FIELD, ERR_TEXT_COLUMN_IS_NOT_FOREIGN_KEY
 from slim.base.types.func_meta import get_meta
@@ -288,7 +288,7 @@ class SQLQueryInfo:
                 val = default_value_dict.copy()
                 val['role'] = value
                 return val
-            elif isinstance(value, Dict):
+            elif isinstance(value, Mapping):
                 # {'role': <str>, 'as': <str>, ...}
                 return value_normalize_dict(value)
             else:
@@ -337,8 +337,9 @@ class SQLQueryInfo:
         op = SQL_OP.txt2op.get(op_name)
         if op in (SQL_OP.IN, SQL_OP.NOT_IN):
             try:
+                # 强制 json.loads() 右值，符合 parameters 的一般情况
                 value = json.loads(value)
-            except (json.JSONDecodeError, TypeError):
+            except (TypeError, json.JSONDecodeError):
                 raise InvalidParams('The right value of "in" condition must be serialized json string: %s' % value)
         self.add_condition(field_name, op, value)
 
@@ -477,13 +478,25 @@ class SQLQueryInfo:
                 i[0] = field_name = view.primary_key
 
             field_type: BaseType = view.fields[field_name]
+
             # 此处会进行类型转换和校验
-            # TODO: 这里的 null 感觉有很大问题，或许应该明确一下字符串"null"和null？
-            conv = lambda x: None if x in ('null', None) else field_type.validate(x)
+            # 一个重点是，因为之前的 check_query_permission 会调用很多回调，他们输入的值一般认为是符合类型的最终值，
+            # 而又有可能原始的值来自于 parameters，他们是文本！这引发了下面TODO的两个连带问题
+            def conv(x):
+                nonlocal field_type
+                if op == SQL_OP.CONTAINS:
+                    assert isinstance(field_type, ListType)
+                    field_type = field_type.field
+
+                # TODO: 这里的 null 感觉有很大问题，或许应该明确一下字符串"null"和null？
+                if x in ('null', None):
+                    return None
+                else:
+                    return field_type.validate(x)
 
             try:
-                # 注：外键的类型会是其指向的类型，这里不用担心
-                # TODO: value 为啥直接是 Iterable 了？这里需要复查
+                # 注：外键的类型会是其指向的类型，这里不用额外处理
+                # TODO: Iterable 似乎不是一个靠谱的类型？这样想对吗？
                 if op in (SQL_OP.IN, SQL_OP.NOT_IN):
                     assert isinstance(value, Iterable)
                     i[2] = list(map(conv, value))
@@ -495,7 +508,7 @@ class SQLQueryInfo:
             except Exception as e:
                 # 这里本来设计了一个 condition name，但是觉得会对整体性造成破坏，就不用了
                 # cond_name = '%s.%s' % (field_name, op.value[0])
-                raise InvalidParams({field_name: ['Invalid value']})
+                raise InvalidParams({field_name: ["Can not convert to data type of the field"]})
 
         # order check
         for i, od in enumerate(self.orders):
@@ -557,7 +570,7 @@ class SQLValuesToWrite(dict):
         self.view = view
 
         if raw_data:
-            assert isinstance(raw_data, dict)
+            assert isinstance(raw_data, Mapping)
             self.parse(raw_data)
             if view: self.bind(view, action, records)
 

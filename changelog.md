@@ -1,3 +1,10 @@
+#### 0.5.4 update 2020.03.16
+
+* Fixed: `SQL_OP.CONTAINS` not works
+
+* Fixed: Post with form data raise AssertionError when `new` or `set`
+
+
 #### 0.5.3 update 2020.03.15
 
 * Added: New validator `va_write_value` for `before_update` and `before_insert`

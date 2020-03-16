@@ -2,7 +2,7 @@ import json
 import logging
 from abc import abstractmethod
 from enum import Enum
-from typing import Tuple, Union, Dict, Iterable, Type, List, Set, Any, Optional
+from typing import Tuple, Union, Dict, Iterable, Type, List, Set, Any, Optional, Mapping
 
 import schematics
 from aiohttp.web_request import BaseRequest, FileField
@@ -157,7 +157,7 @@ class AbstractSQLView(BaseView):
             return True
         if self.method in BaseRequest.POST_METHODS:
             post = await self.post_data()
-            if isinstance(post, dict) and key in post:
+            if isinstance(post, Mapping) and key in post:
                 return True
         return key in self.params
 
