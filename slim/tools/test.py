@@ -109,7 +109,7 @@ async def make_mocked_view_instance(app, view_cls, method, url, params=None, pos
 
 
 async def invoke_interface(app: Application, func: [Callable], params=None, post=None, *, headers=None, method=None,
-                           user=None, bulk=False, role=None, content_type='application/json',
+                           user=None, bulk=False, returning=None, role=None, content_type='application/json',
                            fill_post_cache=True) -> Optional[BaseView]:
     """
     :param app:
@@ -120,6 +120,7 @@ async def invoke_interface(app: Application, func: [Callable], params=None, post
     :param method: auto detect
     :param user:
     :param bulk:
+    :param returning:
     :param role:
     :param content_type:
     :param fill_post_cache:
@@ -148,6 +149,8 @@ async def invoke_interface(app: Application, func: [Callable], params=None, post
             headers['bulk'] = bulk
         if role:
             headers['role'] = role
+        if returning:
+            headers['returning'] = 'true'
 
         if content_type:
             headers['Content-Type'] = content_type

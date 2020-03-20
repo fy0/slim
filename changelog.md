@@ -2,6 +2,8 @@
 
 * Added: file upload document and test case
 
+* Added: `returning` parameter for `slim.tools.test_tool.invoke_interface`
+
 
 #### 0.5.4 update 2020.03.16
 

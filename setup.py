@@ -7,16 +7,12 @@ from setuptools import setup, find_packages
 
 
 def description():
-    return """
-Web framework based on aiohttp and peewee. Easy to use.
-
-homepage: https://github.com/fy0/slim
-"""
+    return """A Web framework provides instant restful api for your database."""
 
 
 def long_desc():
     try:
-        return open("desc", 'r', encoding='utf-8').read()
+        return open("readme.md", 'r', encoding='utf-8').read()
     except:
         return description()
 
@@ -27,6 +23,7 @@ setup(
 
     description=description(),
     long_description=long_desc(),
+    long_description_content_type='text/markdown',
     url="https://github.com/fy0/slim",
 
     author='fy',

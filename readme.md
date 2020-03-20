@@ -5,13 +5,26 @@
 [![codecov](https://codecov.io/gh/fy0/slim/branch/master/graph/badge.svg)](https://codecov.io/gh/fy0/slim)
 [![Maintainability](https://api.codeclimate.com/v1/badges/308e653d0aa234a83c25/maintainability)](https://codeclimate.com/github/fy0/slim/maintainability)
 
-Web framework based on aiohttp and peewee/~~asyncpg~~.
+A Web framework provides instant restful api for your database.
 
-* Mapping sql table to restful api.
+* Based on aiohttp and peewee.
+
+* Instant restful api for your database model.
+
+* Automatic api document (rendered by [redoc](https://github.com/Redocly/redoc)).
+
+* Form validate by [schematics](https://github.com/schematics/schematics)
+
+* Access control supported
+
+* CLI to create project
+
+* Test friendly
+
 
 ## SDK
 
-[JavaScript/TypeScript](https://github.com/fy0/slim-tools)
+- [JavaScript/TypeScript](https://github.com/fy0/slim-tools)
 
 ## Contributors
 - [fy](https://github.com/fy0)
