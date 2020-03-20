@@ -76,7 +76,9 @@ def get_request_solver(app: 'Application'):
                     logger.debug('post data: %s', await view_instance.post_data())
 
             if status_code == 500:
-                resp.set_status(status_code, "The handler {!r} did not called `view.finish()`.".format(handler_name))
+                warn_text = "The handler {!r} did not called `view.finish()`.".format(handler_name)
+                logger.warning(warn_text)
+                view_instance.finish_raw(warn_text.encode('utf-8'), status=500)
                 return resp
 
             await view_instance._on_finish()

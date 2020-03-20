@@ -31,7 +31,7 @@ class RETCODE(StateObject):
         TIMEOUT: '超时',
         UNKNOWN: '未知错误',
         TOO_FREQUENT: '请求过于频繁',
-        DEPRECATED: '此接口已不推荐使用',
+        DEPRECATED: '此接口已被弃用',
 
         NOT_FOUND: '未找到',
         ALREADY_EXISTS: '已存在',

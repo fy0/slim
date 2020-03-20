@@ -1,3 +1,8 @@
+#### 0.5.5 update 2020.03.20
+
+* Added: file upload document and test case
+
+
 #### 0.5.4 update 2020.03.16
 
 * Fixed: `SQL_OP.CONTAINS` not works

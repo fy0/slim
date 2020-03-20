@@ -7,7 +7,11 @@ from setuptools import setup, find_packages
 
 
 def description():
-    return """github: https://github.com/fy0/slim"""
+    return """
+Web framework based on aiohttp and peewee. Easy to use.
+
+homepage: https://github.com/fy0/slim
+"""
 
 
 def long_desc():
@@ -19,7 +23,7 @@ def long_desc():
 
 setup(
     name='slim',
-    version='0.5.4',
+    version='0.5.5',
 
     description=description(),
     long_description=long_desc(),

@@ -58,8 +58,8 @@ def pagination_calc(items_count, page_size, cur_page=1, nearby=2):
         'page_numbers': list(items),
 
         'info': {
-            'page_size': page_size,
-            'page_count': page_count,
-            'items_count': items_count,
+            'page_size': page_size,  # 分页大小
+            'page_count': page_count,  # 页数
+            'items_count': items_count,  # 总项个数
         }
     }

@@ -10,7 +10,7 @@ from unittest import mock
 from aiohttp import hdrs, web
 from ipaddress import IPv4Address, IPv6Address, ip_address
 
-from aiohttp.web_request import BaseRequest
+from aiohttp.web_request import BaseRequest, FileField
 from multidict import MultiDict, CIMultiDictProxy
 
 from slim import Application, json_ex_dumps
