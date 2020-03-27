@@ -34,7 +34,7 @@ Topic.create(time=time.time(), title='Hello2', content='World', user_id=b'22')
 Topic.create(time=time.time(), title='Hello3', content='World', user_id=b'33')
 
 
-@app.route('/topic')
+@app.route.view('/topic')
 class TopicView(PeeweeView):
     model = Topic
 
@@ -44,7 +44,7 @@ class TopicView(PeeweeView):
         await super().after_read(records)
 
 
-@app.route('/topic2')
+@app.route.view('/topic2')
 class TopicView2(PeeweeView):
     model = Topic
 
@@ -52,7 +52,7 @@ class TopicView2(PeeweeView):
         info.add_condition('user_id', SQL_OP.IN, [b'11'])
 
 
-@app.route('/topic3')
+@app.route.view('/topic3')
 class TopicView3(PeeweeView):
     model = Topic
 

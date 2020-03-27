@@ -30,6 +30,8 @@ _peewee_method_map = {
     SQL_OP.IS: '__rshift__',  # __rshift__ = _e(OP.IS)
     SQL_OP.IS_NOT: '__rshift__',
     SQL_OP.CONTAINS: 'contains',
+    SQL_OP.CONTAINS_ANY: 'contains_any',
+    SQL_OP.PREFIX: 'startswith',
 
     SQL_OP.LIKE: '__mod__',
     SQL_OP.ILIKE: '__pow__'

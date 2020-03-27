@@ -129,11 +129,13 @@ class SQL_OP(Enum):
     IS_NOT = ('isnot', 'is not')
     AND = ('and',)
     OR = ('or',)
-    CONTAINS = ('contains',)
+    PREFIX = ('prefix',)  # string like only
+    CONTAINS = ('contains',)  # ArrayField only
+    CONTAINS_ANY = ('contains_any',)  # ArrayField only
     LIKE = ('like',)
     ILIKE = ('ilike',)
 
-    _COMMON = EQ + NE + LT + LE + GE + GT + IN + IS + IS_NOT + CONTAINS
+    _COMMON = EQ + NE + LT + LE + GE + GT + IN + IS + IS_NOT + PREFIX + CONTAINS + CONTAINS_ANY
     _ALL = _COMMON + LIKE + ILIKE
 
 
@@ -335,7 +337,7 @@ class SQLQueryInfo:
         if op_name not in SQL_OP.txt2op:
             raise SQLOperatorInvalid(op_name)
         op = SQL_OP.txt2op.get(op_name)
-        if op in (SQL_OP.IN, SQL_OP.NOT_IN):
+        if op in (SQL_OP.IN, SQL_OP.NOT_IN, SQL_OP.CONTAINS, SQL_OP.CONTAINS_ANY):
             try:
                 # 强制 json.loads() 右值，符合 parameters 的一般情况
                 value = json.loads(value)
@@ -484,20 +486,25 @@ class SQLQueryInfo:
             # 而又有可能原始的值来自于 parameters，他们是文本！这引发了下面TODO的两个连带问题
             def conv(x):
                 nonlocal field_type
-                if op == SQL_OP.CONTAINS:
-                    assert isinstance(field_type, ListType)
-                    field_type = field_type.field
+                if op in (SQL_OP.CONTAINS, SQL_OP.CONTAINS_ANY):
+                    assert isinstance(field_type, ListType), 'contains only works with ArrayField'
+                    field_type2 = field_type.field
+                else:
+                    field_type2 = field_type
 
                 # TODO: 这里的 null 感觉有很大问题，或许应该明确一下字符串"null"和null？
                 if x in ('null', None):
                     return None
                 else:
-                    return field_type.validate(x)
+                    return field_type2.validate(x)
 
             try:
                 # 注：外键的类型会是其指向的类型，这里不用额外处理
                 # TODO: Iterable 似乎不是一个靠谱的类型？这样想对吗？
-                if op in (SQL_OP.IN, SQL_OP.NOT_IN):
+                if op in (SQL_OP.CONTAINS, SQL_OP.CONTAINS_ANY):
+                    assert isinstance(field_type, ListType), 'contains only works with ArrayField'
+
+                if op in (SQL_OP.IN, SQL_OP.NOT_IN, SQL_OP.CONTAINS, SQL_OP.CONTAINS_ANY):
                     assert isinstance(value, Iterable)
                     i[2] = list(map(conv, value))
                 else:
@@ -680,7 +687,6 @@ class SQLValuesToWrite(dict):
         try:
             # 初次bind应该总在before_update / before_insert之前
             # 因此进行带partial的校验（即忽略required=True项，因为接下来还会有补全的可能）
-            # TODO: 这里未来需要做一件事情，忽略
             m = model_cls(self, strict=False, validate=True, partial=True)
             data = m.to_native()
 
@@ -690,6 +696,7 @@ class SQLValuesToWrite(dict):
             self.incr_fields.intersection_update(self.keys())
         except DataError as e:
             raise InvalidPostData(e.to_primitive())
+        # 没捕获 TypeError
 
         dict_filter_inplace(self, view.fields.keys())
 

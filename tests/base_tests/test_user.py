@@ -20,12 +20,12 @@ class ATestModel(Model):
         database = db
 
 
-@app.route('test')
+@app.route.view('test')
 class ATestView(PeeweeView):
     model = ATestModel
 
 
-@app.route('test')
+@app.route.view('test')
 class ATestView2(PeeweeView, BaseUserViewMixin):
     model = ATestModel
 
@@ -82,12 +82,12 @@ class AsyncUserViewMixin(BaseUserViewMixin):
         return SimpleUser({'name': 'icarus'})
 
 
-@app.route('test')
+@app.route.view('test')
 class BTestView(PeeweeView, SyncUserViewMixin):
     model = ATestModel
 
 
-@app.route('test')
+@app.route.view('test')
 class BTestView2(PeeweeView, AsyncUserViewMixin):
     model = ATestModel
 

@@ -1,3 +1,12 @@
+#### 0.5.6 update 2020.03.27
+
+* Added: SQL operator `contains_any` and `prefix`
+
+* Changed: `contains` only works on `ArrayField`
+
+* Removed: `route.__call__`
+
+
 #### 0.5.5 update 2020.03.20
 
 * Added: file upload document and test case

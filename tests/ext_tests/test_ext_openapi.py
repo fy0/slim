@@ -19,7 +19,7 @@ class ATestModel(peewee.Model):
         database = db
 
 
-@app.route('test')
+@app.route.view('test')
 class ATestView(PeeweeView):
     model = ATestModel
 

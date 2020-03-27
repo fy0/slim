@@ -38,7 +38,7 @@ class FakeRequest:
     cookies = {}
 
 
-@app.route('/')
+@app.route.view('/')
 class CookiesView(BaseView):
     pass
 

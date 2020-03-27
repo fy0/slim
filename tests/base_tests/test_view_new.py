@@ -31,7 +31,7 @@ Topic.create(time=time.time(), title='Hello3', content='World')
 Topic.create(time=time.time(), title='Hello4', content='World')
 
 
-@app.route('/topic')
+@app.route.view('/topic')
 class TopicView(PeeweeView):
     model = Topic
 

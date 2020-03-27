@@ -90,17 +90,17 @@ ATestDModel.insert_many([
 ])
 
 
-@app.route('test1')
+@app.route.view('test1')
 class ATestView(PeeweeView):
     model = ATestModel
 
 
-@app.route('test2')
+@app.route.view('test2')
 class ATestView2(PeeweeView):
     model = ATestBModel
 
 
-@app.route('test3')
+@app.route.view('test3')
 class ATestView3(PeeweeView):
     model = ATestCModel
 
@@ -111,7 +111,7 @@ class ATestView3(PeeweeView):
         cls.add_soft_foreign_key('id', 'test', 't1')
 
 
-@app.route('test4')
+@app.route.view('test4')
 class ATestView4(PeeweeView):
     model = ATestDModel
 
@@ -120,7 +120,7 @@ class ATestView4(PeeweeView):
         cls.add_soft_foreign_key('id', 'test')
 
 
-@app.route('test_new')
+@app.route.view('test_new')
 class ATestNewView(PeeweeView):
     model = ATestNewModel
 
@@ -547,7 +547,7 @@ class ATestReadyModel2(ATestModel):
         table_name = 'ready_test2'
 
 
-@app.route('test1')
+@app.route.view('test1')
 class ATestReadyView(PeeweeView):
     model = ATestReadyModel
     a = 1
@@ -557,7 +557,7 @@ class ATestReadyView(PeeweeView):
         cls.a = 2
 
 
-@app.route('test1')
+@app.route.view('test1')
 class ATestReadyView2(PeeweeView):
     model = ATestReadyModel2
     a = 1

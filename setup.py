@@ -12,14 +12,15 @@ def description():
 
 def long_desc():
     try:
-        return open("readme.md", 'r', encoding='utf-8').read()
+        txt = open("readme.md", 'r', encoding='utf-8').read()
+        return txt.replace('artworks/logo-full.png', 'https://raw.githubusercontent.com/fy0/slim/master/artworks/logo-full.png')
     except:
         return description()
 
 
 setup(
     name='slim',
-    version='0.5.5',
+    version='0.5.6',
 
     description=description(),
     long_description=long_desc(),

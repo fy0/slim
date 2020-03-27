@@ -30,7 +30,7 @@ class Topic(peewee.Model):
 db.create_tables([Topic], safe=True)
 
 
-@app.route('test1')
+@app.route.view('test1')
 class ATestView(PeeweeView):
     model = Topic
 

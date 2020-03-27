@@ -23,7 +23,7 @@ class ATestModel(Model):
         table_name = 'topic'
 
 
-@app.route('test1')
+@app.route.view('test1')
 class ATestView(PeeweeView):
     model = ATestModel
 
@@ -38,7 +38,7 @@ async def test_pg_array_contains_bad_type():
     view = ATestView(app)
     sqi = SQLQueryInfo()
     with pytest.raises(InvalidParams):
-        sqi.add_condition('name', SQL_OP.CONTAINS, 1)
+        sqi.add_condition('name', SQL_OP.CONTAINS, b'aa')
         sqi.bind(view)
 
 
@@ -46,12 +46,27 @@ async def test_pg_array_contains_bad_type2():
     view = ATestView(app)
     sqi = SQLQueryInfo()
     with pytest.raises(InvalidParams):
-        sqi.add_condition('name', SQL_OP.CONTAINS, [b'aa'])
+        sqi.add_condition('name', SQL_OP.CONTAINS, 11)
+        sqi.bind(view)
+
+
+async def test_pg_array_contains_bad_type3():
+    view = ATestView(app)
+    sqi = SQLQueryInfo()
+    with pytest.raises(InvalidParams):
+        sqi.add_condition('name', SQL_OP.CONTAINS, [b'aa', 11])
         sqi.bind(view)
 
 
 async def test_pg_array_contains_ok():
     view = ATestView(app)
     sqi = SQLQueryInfo()
-    sqi.add_condition('name', SQL_OP.CONTAINS, b'aa')
+    sqi.add_condition('name', SQL_OP.CONTAINS, [b'aa'])
+    sqi.bind(view)
+
+
+async def test_pg_array_contains_ok2():
+    view = ATestView(app)
+    sqi = SQLQueryInfo()
+    sqi.add_condition('name', SQL_OP.CONTAINS, [b'aa', b'bb'])
     sqi.bind(view)

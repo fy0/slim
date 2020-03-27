@@ -13,7 +13,7 @@ pytestmark = [pytest.mark.asyncio]
 app = Application(cookies_secret=b'123456', permission=ALL_PERMISSION)
 
 
-@app.route('topic')
+@app.route.view('topic')
 class TopicView(BaseView):
     @app.route.interface('POST')
     async def upload(self):

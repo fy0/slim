@@ -45,7 +45,7 @@
 
 * 支持普通函数的web路由
 
-* 移除 `route.__call__`
+* ~~移除 `route.__call__`~~
 
 * cli 支持自动添加一套 model api permission 和 tests
 

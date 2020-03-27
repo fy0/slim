@@ -14,6 +14,7 @@ from peewee import SqliteDatabase
 from slim import Application, ALL_PERMISSION
 from slim.base._view.abstract_sql_view import AbstractSQLView
 from slim.base.types.beacon import BeaconInfo
+from slim.base.user import BaseUser
 from slim.base.view import BaseView
 from slim.support.peewee import PeeweeView
 
@@ -128,6 +129,8 @@ async def invoke_interface(app: Application, func: [Callable], params=None, post
     """
     url = 'mock_url'
 
+    if user:
+        assert isinstance(user, BaseUser), 'user must be a instance of `BaseUser`'
     assert inspect.ismethod(func), 'func must be method. e.g. UserView().get'
     view_cls = func.__self__.__class__
     func = func.__func__

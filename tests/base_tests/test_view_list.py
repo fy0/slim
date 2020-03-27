@@ -24,7 +24,7 @@ class ATestModel(Model):
 db.create_tables([ATestModel])
 
 
-@app.route('test')
+@app.route.view('test')
 class ATestView(PeeweeView):
     LIST_PAGE_SIZE = -1
 
@@ -57,7 +57,7 @@ Topic.create(time=time.time(), title='Hello3', content='World')
 Topic.create(time=time.time(), title='Hello4', content='World')
 
 
-@app.route('topic')
+@app.route.view('topic')
 class TopicView(PeeweeView):
     model = Topic
 

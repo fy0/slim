@@ -214,30 +214,31 @@ class Route:
 
         return wrapper
 
+    def websocket(self, url, obj):
+        """
+        Register Websocket
+        :param url:
+        :param obj:
+        :return:
+        """
+        def wrapper(cls):
+            if issubclass(cls, WSRouter):
+                self.websockets.append((url, obj()))
+            return cls
+
+        return wrapper
+
     def _is_beacon(self, func):
         return func in self._beacons
 
-    def __call__(self, url, method: [Iterable, str, None] = 'GET'):
+    def _aiohttp_func(self, url, method: [Iterable, str, None] = 'GET'):
         def _(obj):
-            from .view import BaseView
             if iscoroutinefunction(obj):
                 # 这里可以判断是否为 method，但没有必要
                 assert method, "Must give at least one method to http handler `%s`" % obj.__name__
                 if type(method) == str: methods = (method,)
                 else: methods = list(method)
                 self.funcs.append((url, methods, obj))
-            elif isinstance(obj, type):
-                if issubclass(obj, WSRouter):
-                    self.websockets.append((url, obj()))
-                elif issubclass(obj, BaseView):
-                    if method is None:
-                        # internal view, can't request over http
-                        obj._no_route = True
-                    self.views.append(RouteViewInfo(url, obj))
-                else:
-                    raise BaseException('Invalid type for router: %r' % type(obj).__name__)
-            else:
-                raise BaseException('Invalid type for router: %r' % type(obj).__name__)
             return obj
         return _
 
@@ -250,7 +251,7 @@ class Route:
         """
         self.statics.append((prefix, path, kwargs),)
 
-    def bind(self):
+    def _bind(self):
         app = self.app
         raw_router = app._raw_app.router
 

@@ -24,10 +24,22 @@ A Web framework provides instant restful api for your database.
 
 ## SDK
 
-- [JavaScript/TypeScript](https://github.com/fy0/slim-tools)
+- [TypeScript/JavaScript](https://github.com/fy0/slim-tools)
+
+
+## Links
+
+- [Homepage](https://github.com/fy0/slim)
+- [Document](https://fy0.github.io/slim/)
+
 
 ## Contributors
 - [fy](https://github.com/fy0)
 - [leexuanhe](https://github.com/leexuanhe)
 - [0xn0ne](https://github.com/0xn0ne)
 - [hlx70375](https://github.com/hlx70375)
+
+
+## Projects
+
+- [Icarus](https://github.com/fy0/Icarus) A opensource forum project write with python3 and vue.js

@@ -106,7 +106,7 @@ class Application:
 
     def _prepare(self):
         from .view import AbstractSQLView
-        self.route.bind()
+        self.route._bind()
 
         for vi in self.route.views:
             cls = vi.view_cls
