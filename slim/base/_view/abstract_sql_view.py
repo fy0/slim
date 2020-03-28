@@ -381,7 +381,7 @@ class AbstractSQLView(BaseView):
             else:
                 self.finish(RETCODE.NOT_FOUND)
 
-    async def _base_insert(self, raw_values_lst):
+    async def _base_insert(self, raw_values_lst, ignore_exists):
         with ErrorCatchContext(self):
             if isinstance(raw_values_lst, str):
                 try:
@@ -399,7 +399,7 @@ class AbstractSQLView(BaseView):
             for values in values_lst:
                 values.validate_before_execute_insert(self)
 
-            records = await self._sql.insert(values_lst, returning=True)
+            records = await self._sql.insert(values_lst, returning=True, ignore_exists=ignore_exists)
             await self.check_records_permission(None, records)
             await self._call_handle(self.after_insert, values_lst, records)
             return records
@@ -413,7 +413,7 @@ class AbstractSQLView(BaseView):
         post = await self.post_data()
         if not 'items' in post:
             raise InvalidPostData("`items` is required")
-        records = await self._base_insert(post['items'])
+        records = await self._base_insert(post['items'], True)
         if self.is_finished:
             return
 
@@ -429,7 +429,7 @@ class AbstractSQLView(BaseView):
         """
         self.current_interface = InnerInterfaceName.NEW
         raw_post = await self.post_data()
-        records = await self._base_insert([raw_post])
+        records = await self._base_insert([raw_post], False)
         if self.is_finished:
             return
 

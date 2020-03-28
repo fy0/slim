@@ -1,3 +1,8 @@
+#### 0.5.7 update 2020.03.28
+
+* Changed: `bulk_insert` will skip exists items
+
+
 #### 0.5.6 update 2020.03.27
 
 * Added: SQL operator `contains_any` and `prefix`

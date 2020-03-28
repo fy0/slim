@@ -4,6 +4,7 @@ import peewee
 from typing import List, Tuple, Iterable, Union
 
 from slim.support.peewee.data_record import PeeweeDataRecord
+from slim.utils import sentinel
 from ...base.sqlquery import SQL_OP, SQLQueryOrder, SQLQueryInfo, DataRecord, SQLValuesToWrite
 from ...base.sqlfuncs import AbstractSQLFunctions
 
@@ -167,7 +168,8 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
                 to_record = lambda x: PeeweeDataRecord(None, x, view=self.vcls)
                 return list(map(to_record, model.select().where(cond).execute()))
 
-    async def insert(self, values_lst: Iterable[SQLValuesToWrite], returning=False) -> Union[int, List[DataRecord]]:
+    async def insert(self, values_lst: Iterable[SQLValuesToWrite], returning=False, ignore_exists=False) -> Union[int, List[DataRecord]]:
+        # 基本上，单条插入时，不忽略重复，多条时忽略
         model = self.vcls.model
         db = model._meta.database
 
@@ -176,6 +178,8 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
                 # 对 postgres 可以直接使用 returning，另外防止一种default的bug
                 # https://github.com/coleifer/peewee/issues/1555
                 q = model.insert_many(values_lst)
+                if ignore_exists:
+                    q = q.on_conflict_ignore()
                 if returning:
                     ret = q.returning(*model._meta.fields.values()).execute()
                     if get_peewee_ver() >= (3, 8, 2):
@@ -192,11 +196,19 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
                 if returning:
                     items = []
                     for values in values_lst:
-                        item = model.create(**values)
-                        items.append(PeeweeDataRecord(None, item, view=self.vcls))
+                        try:
+                            item = model.create(**values)
+                            items.append(PeeweeDataRecord(None, item, view=self.vcls))
+                        except peewee.IntegrityError as e:
+                            db.rollback()
+                            if not ignore_exists:
+                                raise e
                     return items
                 else:
-                    count = model.insert_many(values_lst).execute()
+                    q = model.insert_many(values_lst)
+                    if ignore_exists:
+                        q = q.on_conflict_ignore()
+                    count = q.execute()
                     return count
 
     async def delete(self, records: Iterable[DataRecord]):
