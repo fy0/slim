@@ -576,6 +576,16 @@ class SQLValuesToWrite(dict):
         self.returning = False
         self.view = view
 
+        # design of incr/desc:
+        # 1. incr/desc/normal_set can't be appear in the same time
+        # 2. incr/desc use self to store data
+        self.incr_fields = set()
+        self.decr_fields = set()
+        self.set_add_fields = set()
+        self.set_remove_fields = set()
+        self.array_append = set()
+        self.array_remove = set()
+
         if raw_data:
             assert isinstance(raw_data, Mapping)
             self.parse(raw_data)
@@ -585,8 +595,6 @@ class SQLValuesToWrite(dict):
         self.clear()
         if isinstance(post_data, dict):
             post_data = MultiDict(post_data)
-
-        self.incr_fields = set()
 
         for k, v in post_data.items():
             # 提交多个相同值，等价于提交一个数组（用于formdata和urlencode形式）
@@ -604,6 +612,16 @@ class SQLValuesToWrite(dict):
                 k, op = k.rsplit('.', 1)
                 if op == 'incr':
                     self.incr_fields.add(k)
+                elif op == 'decr':
+                    self.decr_fields.add(k)
+                elif op == 'set_add':
+                    self.set_add_fields.add(k)
+                elif op == 'set_remove':
+                    self.set_remove_fields.add(k)
+                # elif op == 'array_append':
+                #     self.array_append.add(k)
+                # elif op == 'array_remove':
+                #    self.array_remove.add(k)
 
             self[k] = v
 
@@ -694,6 +712,11 @@ class SQLValuesToWrite(dict):
                 self[k] = data.get(k)
 
             self.incr_fields.intersection_update(self.keys())
+            self.decr_fields.intersection_update(self.keys())
+            self.set_add_fields.intersection_update(self.keys())
+            self.set_remove_fields.intersection_update(self.keys())
+            self.array_append.intersection_update(self.keys())
+            self.array_remove.intersection_update(self.keys())
         except DataError as e:
             raise InvalidPostData(e.to_primitive())
         # 没捕获 TypeError

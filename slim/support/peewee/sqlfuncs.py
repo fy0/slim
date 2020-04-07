@@ -2,6 +2,7 @@ import logging
 import peewee
 
 from typing import List, Tuple, Iterable, Union
+from playhouse.postgres_ext import ArrayField, SQL
 
 from slim.support.peewee.data_record import PeeweeDataRecord
 from slim.utils import sentinel
@@ -143,9 +144,29 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
         for k, v in values.items():
             if k in fields:
                 field = fields[k]
+                is_array_field = isinstance(field, ArrayField)
 
-                if k in values.incr_fields:
-                    v = field + v
+                if is_array_field:
+                    if k in values.set_add_fields:
+                        # 这里需要加 [v] 的原因是，params需要数组，举例来说为，[v1,v2,v3]
+                        # v = SQL('%s || %%s' % field.column_name, [v])
+                        v = SQL('(select ARRAY((select unnest(%s)) union (select unnest(%%s))))' % field.column_name, [v])
+
+                    if k in values.set_remove_fields:
+                        v = SQL('(select ARRAY((select unnest(%s)) except (select unnest(%%s))))' % field.column_name, [v])
+
+                    # 尚未启用
+                    # if k in values.array_append:
+                    #     v = SQL('array_append(%s, %%s)' % field.column_name, [v])
+
+                    # if k in values.array_remove:
+                    #     v = SQL('array_remove(%s, %%s)' % field.column_name, [v])
+
+                else:
+                    if k in values.incr_fields:
+                        v = field + v
+                    if k in values.decr_fields:
+                        v = field - v
 
                 new_vals[k] = v
 

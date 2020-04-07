@@ -1,3 +1,5 @@
+from typing import Union, Type
+
 import pytest
 from slim.base.user import BaseUserViewMixin, BaseUser
 from slim.exception import NoUserViewMixinException
@@ -82,6 +84,12 @@ class AsyncUserViewMixin(BaseUserViewMixin):
         return SimpleUser({'name': 'icarus'})
 
 
+class InvalidTokenUserViewMixin(BaseUserViewMixin):
+    def get_user_by_token(self: Union['BaseUserViewMixin', 'BaseView'], token) -> Type[BaseUser]:
+        if token == '123':
+            return SimpleUser({'name': 'icarus'})
+
+
 @app.route.view('test')
 class BTestView(PeeweeView, SyncUserViewMixin):
     model = ATestModel
@@ -90,6 +98,18 @@ class BTestView(PeeweeView, SyncUserViewMixin):
 @app.route.view('test')
 class BTestView2(PeeweeView, AsyncUserViewMixin):
     model = ATestModel
+
+
+@app.route.view('test')
+class InvalidTokenUserViewMixin(PeeweeView, InvalidTokenUserViewMixin):
+    model = ATestModel
+
+
+async def test_invalid_token():
+    # TODO: still not work
+    # view = await make_mocked_view_instance(app, InvalidTokenUserViewMixin, 'POST', '/api/test')
+    # assert view.current_user == {'name': 'icarus'}
+    pass
 
 
 async def test_get_current_user():

@@ -31,21 +31,21 @@
 
 * ~~表单验证文档转换 - 不能识别的列~~
 
+* ~~移除 route.\__call__~~
+
+* ~~delete fix~~
+
 * va_resp
 
 * 文档支持 va_headers
 
 * 文档支持 va_resp
 
-* ~~文档的同名View会折叠到同一个tag~~
-
 * 将同类名不同文件的View在文档中分开
 
 * Websocket 优化
 
 * 支持普通函数的web路由
-
-* ~~移除 `route.__call__`~~
 
 * cli 支持自动添加一套 model api permission 和 tests
 

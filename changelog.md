@@ -1,3 +1,10 @@
+#### 0.5.8 update 2020.04.01
+
+* Added: Write operator `set_add` and `set_remove` for `ArrayField`
+
+* Fixed: Delete permission bug fix
+
+
 #### 0.5.7 update 2020.03.28
 
 * Changed: `bulk_insert` will skip exists items
@@ -14,7 +21,7 @@
 
 #### 0.5.5 update 2020.03.20
 
-* Added: file upload document and test case
+* Added: File upload document and test case
 
 * Added: `returning` parameter for `slim.tools.test_tool.invoke_interface`
 

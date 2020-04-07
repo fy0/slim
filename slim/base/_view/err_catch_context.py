@@ -2,7 +2,8 @@ from typing import TYPE_CHECKING
 
 from slim.exception import RecordNotFound, SyntaxException, InvalidParams, SQLOperatorInvalid, ColumnIsNotForeignKey, \
     ColumnNotFound, InvalidRole, PermissionDenied, FinishQuitException, SlimException, TableNotFound, \
-    ResourceException, NotNullConstraintFailed, AlreadyExists, InvalidPostData, NoUserViewMixinException, InvalidHeaders
+    ResourceException, NotNullConstraintFailed, AlreadyExists, InvalidPostData, NoUserViewMixinException, \
+    InvalidHeaders, InvalidToken
 from slim.retcode import RETCODE
 
 if TYPE_CHECKING:
@@ -73,6 +74,9 @@ class ErrorCatchContext:
             self.view.finish(RETCODE.FAILED, exc_val.args[0])
 
         # PermissionException
+        elif isinstance(exc_val, InvalidToken):
+            self.view.finish(RETCODE.INVALID_TOKEN, "Invalid user token")
+
         elif isinstance(exc_val, InvalidRole):
             self.view.finish(RETCODE.INVALID_ROLE, "Invalid role: %r" % exc_val.args[0])
 

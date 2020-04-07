@@ -259,7 +259,7 @@ class Ability:
 
         return available
 
-    def can_with_record(self, user, action, record: DataRecord, *, available=None):
+    def can_with_record(self, user, action, record: DataRecord, *, available=None) -> set:
         """
         进行基于 Record 的权限判定，返回可用列。
         :param user:
@@ -268,7 +268,8 @@ class Ability:
         :param available: 限定过权限检查的列，为None时，代表全部列（自动填充）
         :return: 可用列
         """
-        assert action not in (A.QUERY, A.QUERY_EX, A.CREATE), "meaningless action check with record: [%s]" % action
+        # TODO: this assert not work, why?
+        # assert (action not in {A.QUERY, A.QUERY_EX, A.CREATE}), "meaningless action check with record: [%s]" % action
 
         # 先行匹配规则适用范围
         rules = []
@@ -280,19 +281,21 @@ class Ability:
         # 逐个过检查
         if available is None:
             # 使用表的所有可用列进行权限测试，留下可以通过的列
-            available = self.can_with_columns(user, action, record.table, record.keys())
+            available = set(record.keys())
         else:
-            available = list(available)
+            available = set(available)
+
+        available = self.can_with_columns(user, action, record.table, available)
 
         for rule in rules:
             # rule: [table, actions, func]
             ret = rule[-1](self, user, action, record, available)
             if isinstance(ret, (tuple, set, list)):
                 # 返回列表，那么使用改列表
-                available = list(ret)
+                available = set(ret)
             elif not ret:
                 # 没有返回值，清空
-                available = []
+                available = set()
 
         return available
 
