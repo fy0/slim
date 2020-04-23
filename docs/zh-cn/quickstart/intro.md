@@ -54,7 +54,7 @@ app = Application(
 )
 
 
-@app.route('topic')
+@app.route.view('topic')
 class TopicView(PeeweeView):
     model = Topic
 

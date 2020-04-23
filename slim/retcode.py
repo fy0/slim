@@ -13,7 +13,7 @@ class RETCODE(StateObject):
     ALREADY_EXISTS = -248  # 已存在
 
     PERMISSION_DENIED = -239  # 无权访问
-    INVALID_ROLE = -238  # 无效的权限角色
+    INVALID_ROLE = -238  # 无法获得此权限角色
     INVALID_TOKEN = -237  # 无效token
 
     CHECK_FAILURE = -229  # 校验失败（文件上传等）
@@ -38,7 +38,7 @@ class RETCODE(StateObject):
         ALREADY_EXISTS: '已存在',
 
         PERMISSION_DENIED: '无权访问',
-        INVALID_ROLE: '无效的权限角色',
+        INVALID_ROLE: '无法获得此权限角色',
         INVALID_TOKEN: '无效的 token',
 
         CHECK_FAILURE: '校验失败',

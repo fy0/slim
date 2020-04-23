@@ -19,7 +19,7 @@ from slim.retcode import RETCODE
 from app import app
 
 
-@app.route('misc')
+@app.route.view('misc')
 class MiscView(BaseView):
     @app.route.interface('GET')
     async def info(self):
@@ -46,7 +46,7 @@ POST /api/misc/hello
 
 结合代码，能够看出URL的拼装规律，首先 `/api` 是恒定前缀（可以在app.py中统一修改，Application对象构造函数的mountpoint参数）。
 
-其次 `@app.route('misc')` 提供了第二段地址，函数名 `info` 提供了第三段地址。
+其次 `@app.route.view('misc')` 提供了第二段地址，函数名 `info` 提供了第三段地址。
 
 `@app.route.interface('GET')`则是将这个方法注册成为了 `GET` 接口。
 
@@ -94,7 +94,7 @@ def finish(self, code: int, data=sentinel, msg=sentinel, *, headers=None):
 提取 Web 请求中的常用输入数据请看示例：
 
 ```python
-@app.route('misc')
+@app.route.view('misc')
 class MiscView(BaseView):
     @app.route.interface('POST')
     async def hello(self):
@@ -128,7 +128,7 @@ class SignupDataModel(Model):
     nickname = StringType(min_length=2, max_length=10, metadata=ValidatorDoc('Nickname'))
 
 
-@app.route('user')
+@app.route.view('user')
 class UserView(PeeweeView, UserMixin):
     model = User
 
@@ -226,7 +226,7 @@ class SigninDataModel(Model):
 实际我们是见不到 AbstractSQLView 这个类的，我们会见到的是其子类 `PeeweeView`，能够以这样的形式将 peewee 的 Model 映射出增删改查系列API接口：
 
 ```python
-@app.route('/topic')
+@app.route.view('/topic')
 class TopicView(PeeweeView):
     model = Topic
 ```
@@ -268,7 +268,7 @@ class AbstractSQLView(BaseView):
 用法示例：
 
 ```python
-@app.route('/topic')
+@app.route.view('/topic')
 class TopicView(PeeweeView):
     model = Topic
     LIST_PAGE_SIZE = 50

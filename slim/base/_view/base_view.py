@@ -91,7 +91,7 @@ class BaseView(metaclass=MetaClassForInit):
 
     @classmethod
     def use_lst(cls, name, summary=None, va_query=None, va_post=None, va_headers=None, va_resp=None, deprecated=False):
-        return cls.use_lst(name, summary=summary, va_query=va_query, va_post=va_post,
+        return cls._use_lst(name, summary=summary, va_query=va_query, va_post=va_post,
                            va_headers=va_headers, va_resp=va_resp, deprecated=deprecated)
 
     @classmethod

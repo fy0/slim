@@ -1,3 +1,12 @@
+#### 0.5.9 update 2020.04.23
+
+* Changed: Renamed paginator's `page_numbers` to `numbers`
+
+* Fixed: `BaseView.use_lst` error
+
+* Fixed: `records` is tuple in `after_read`, should be list
+
+
 #### 0.5.8 update 2020.04.01
 
 * Added: Write operator `set_add` and `set_remove` for `ArrayField`

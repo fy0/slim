@@ -15,7 +15,7 @@ from aiohttp.web_request import FileField
 app = Application(cookies_secret=b'123456', permission=ALL_PERMISSION)
 
 
-@app.route('test')
+@app.route.view('test')
 class TestView(BaseView):
     @app.route.interface('POST')
     async def upload(self):

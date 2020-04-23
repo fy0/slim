@@ -50,3 +50,5 @@
 * cli 支持自动添加一套 model api permission 和 tests
 
 * new 接口文档生成出必填值
+
+* 添加一个检查after_read中的records类型的测试

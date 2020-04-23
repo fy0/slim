@@ -242,7 +242,8 @@ class AbstractSQLView(BaseView):
                         # 外键没有找到值，也许全部都是null，这很常见
                         continue
 
-                    # if not fk_records: continue
+                    if not fk_records: continue
+                    fk_records = list(fk_records)
                     await v.check_records_permission(info2, fk_records)
 
                     fk_dict = {}
@@ -332,6 +333,8 @@ class AbstractSQLView(BaseView):
             info = SQLQueryInfo(self.params, view=self)
             await self._call_handle(self.before_query, info)
             records, count = await self._sql.select_page(info, page, size)
+            # records should be list because after_read maybe change it
+            records = list(records)
             await self.check_records_permission(info, records)
 
             if size == -1:
