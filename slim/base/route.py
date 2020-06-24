@@ -33,7 +33,7 @@ def get_request_solver(app: 'Application'):
         if not app.route._is_beacon(handler):
             return await handler(request)
         else:
-            t = time.clock()
+            t = time.perf_counter()
             beacon = app.route._beacons[handler]
             handler_name = beacon.handler_name
 
@@ -69,7 +69,7 @@ def get_request_solver(app: 'Application'):
                     if not isinstance(resp, web_response.StreamResponse):
                         status_code = 500
 
-            took = round((time.clock() - t) * 1000, 2)
+            took = round((time.perf_counter() - t) * 1000, 2)
             # GET /api/get -> TopicView.get 200 30ms
             logger.info("{} {:4s} -> {} {}, took {}ms".format(method, ascii_encodable_path, handler_name, status_code, took))
 
