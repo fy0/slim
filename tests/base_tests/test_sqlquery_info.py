@@ -100,7 +100,7 @@ async def test_very_simple_condition():
 
     for i in SQL_OP.ALL:
         sqi = SQLQueryInfo()
-        if i in SQL_OP.IN.value:
+        if i in SQL_OP.IN.value or i in SQL_OP.CONTAINS.value or i in SQL_OP.CONTAINS_ANY.value:
             sqi.parse_then_add_condition('a', i, '[1,2]')
             assert sqi.conditions[0] == ['a', SQL_OP.txt2op[i], [1,2]]
         else:
@@ -112,7 +112,7 @@ class ATestModel(Model):
     name = TextField()
 
 
-@app.route('test1')
+@app.route.view('test1')
 class ATestView(PeeweeView):
     model = ATestModel
 
@@ -148,15 +148,8 @@ async def test_condition_bind_error_convert_failed():
 
 
 async def test_condition_bind_error_in_or_not_in_value():
-    # TODO: add condition 时就根据 in 这种运算符做了特殊解析，认为值校验的时机不一致，需要重新考量
-    pass
-    '''
     sqi = SQLQueryInfo()
-    sqi.parse_then_add_condition('name', 'in', 1)
-    view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'GET', '/api/test1')
 
     with pytest.raises(InvalidParams) as e:
-        sqi.bind(view)
-
-    assert 'name' in e.value.args[0]
-    '''
+        sqi.parse_then_add_condition('name', 'in', [1, 2])
+        assert 'name' in e.value.args[0]

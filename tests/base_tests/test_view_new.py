@@ -31,7 +31,7 @@ Topic.create(time=time.time(), title='Hello3', content='World')
 Topic.create(time=time.time(), title='Hello4', content='World')
 
 
-@app.route('/topic')
+@app.route.view('/topic')
 class TopicView(PeeweeView):
     model = Topic
 
@@ -41,11 +41,18 @@ app._prepare()
 
 async def test_new_simple():
     post = {"title": '111', "content": "test"}
-    resp = await invoke_interface(app, TopicView().new, post=post)
-    assert resp.ret_val['code'] == RETCODE.SUCCESS
+    view = await invoke_interface(app, TopicView().new, post=post)
+    assert view.ret_val['code'] == RETCODE.SUCCESS
 
 
 async def test_new_bulk():
-    post = [{"title": '111', "content": "test"}, {"title": '222', "content": "test"}]
-    resp = await invoke_interface(app, TopicView().bulk_insert, post=post)
-    assert resp.ret_val['code'] == RETCODE.SUCCESS
+    items = [{"title": '111', "content": "test"}, {"title": '222', "content": "test"}]
+    view = await invoke_interface(app, TopicView().bulk_insert, post={'items': items})
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+
+
+async def test_new_bulk_ignore():
+    items = [{"id":1 ,"title": '111', "content": "test"}, {"title": '222', "content": "test"}]
+    view = await invoke_interface(app, TopicView().bulk_insert, post={'items': items}, returning=True)
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+    assert len(view.ret_val['data']) == 1

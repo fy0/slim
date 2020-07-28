@@ -13,7 +13,8 @@ class RETCODE(StateObject):
     ALREADY_EXISTS = -248  # 已存在
 
     PERMISSION_DENIED = -239  # 无权访问
-    INVALID_ROLE = -238  # 权限申请失败
+    INVALID_ROLE = -238  # 无法获得此权限角色
+    INVALID_TOKEN = -237  # 无效token
 
     CHECK_FAILURE = -229  # 校验失败（文件上传等）
     PARAM_REQUIRED = -228  # 需要参数
@@ -31,13 +32,14 @@ class RETCODE(StateObject):
         TIMEOUT: '超时',
         UNKNOWN: '未知错误',
         TOO_FREQUENT: '请求过于频繁',
-        DEPRECATED: '此接口已不推荐使用',
+        DEPRECATED: '此接口已被弃用',
 
         NOT_FOUND: '未找到',
         ALREADY_EXISTS: '已存在',
 
         PERMISSION_DENIED: '无权访问',
-        INVALID_ROLE: '无效的权限角色',
+        INVALID_ROLE: '无法获得此权限角色',
+        INVALID_TOKEN: '无效的 token',
 
         CHECK_FAILURE: '校验失败',
         PARAM_REQUIRED: '缺少参数',
@@ -63,6 +65,7 @@ class RETCODE(StateObject):
 
         PERMISSION_DENIED: 'permission denied',
         INVALID_ROLE: 'acquire role failed',
+        INVALID_TOKEN: 'invalid access token',
 
         CHECK_FAILURE: 'check failure',
         PARAM_REQUIRED: 'parameter(s) required',

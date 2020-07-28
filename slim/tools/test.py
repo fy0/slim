@@ -1,15 +1,20 @@
 import inspect
+import io
 import json
 import logging
 from ipaddress import ip_address
 from typing import Optional, Callable, Union
 from unittest import mock
+
+import aiohttp
+from aiohttp import web
 from aiohttp.test_utils import make_mocked_request as _make_mocked_request
 from peewee import SqliteDatabase
 
 from slim import Application, ALL_PERMISSION
 from slim.base._view.abstract_sql_view import AbstractSQLView
 from slim.base.types.beacon import BeaconInfo
+from slim.base.user import BaseUser
 from slim.base.view import BaseView
 from slim.support.peewee import PeeweeView
 
@@ -26,13 +31,52 @@ def new_app(permission=ALL_PERMISSION, log_level=logging.WARN, **kwargs) -> Appl
     return app
 
 
-def _polyfill_post(request, post):
+class _MockResponse:
+    def __init__(self, headers, content):
+        self.headers = headers
+        self.content = content
+
+    async def release(self):
+        pass
+
+
+class _MockStream:
+    def __init__(self, content):
+        self.content = io.BytesIO(content)
+
+    async def read(self, size=None):
+        return self.content.read(size)
+
+    def at_eof(self):
+        return self.content.tell() == len(self.content.getbuffer())
+
+    async def readline(self):
+        return self.content.readline()
+
+    def unread_data(self, data):
+        self.content = io.BytesIO(data + self.content.read())
+
+
+def _polyfill_post(request: web.Request, post):
     if post:
-        try:
-            request._read_bytes = bytes(json.dumps(post), 'utf-8')
-        except TypeError:
-            # logger.warning(...)
-            pass
+        if isinstance(post, bytes):
+            request._read_bytes = post
+        else:
+            try:
+                request._read_bytes = bytes(json.dumps(post), 'utf-8')
+            except TypeError:
+                # logger.warning(...)
+                pass
+
+        if request.content_type == 'multipart/form-data':
+            resp = _MockResponse(request.headers, _MockStream(post))
+            mr = aiohttp.MultipartReader.from_response(resp)
+
+            async def multipart():
+                return mr
+
+            request.multipart = multipart
+
     else:
         request._read_bytes = b''
 
@@ -46,10 +90,14 @@ def get_peewee_db():
     return db
 
 
-async def make_mocked_view_instance(app, view_cls, method, url, params=None, post=None, *, headers=None) -> Union[BaseView, AbstractSQLView, PeeweeView]:
+async def make_mocked_view_instance(app, view_cls, method, url, params=None, post=None, *, headers=None,
+                                    content_type='application/json') -> Union[BaseView, AbstractSQLView, PeeweeView]:
     if not headers:
         headers = {}
-    headers['Content-Type'] = 'application/json'
+
+    if content_type:
+        headers['Content-Type'] = content_type
+
     request = _make_mocked_request(method, url, headers=headers, protocol=mock.Mock(), app=app)
     _polyfill_post(request, post)
 
@@ -62,7 +110,8 @@ async def make_mocked_view_instance(app, view_cls, method, url, params=None, pos
 
 
 async def invoke_interface(app: Application, func: [Callable], params=None, post=None, *, headers=None, method=None,
-                           user=None, bulk=False, role=None, json_request=True) -> Optional[BaseView]:
+                           user=None, bulk=False, returning=None, role=None, content_type='application/json',
+                           fill_post_cache=True) -> Optional[BaseView]:
     """
     :param app:
     :param func:
@@ -72,12 +121,16 @@ async def invoke_interface(app: Application, func: [Callable], params=None, post
     :param method: auto detect
     :param user:
     :param bulk:
+    :param returning:
     :param role:
-    :param json_request:
+    :param content_type:
+    :param fill_post_cache:
     :return:
     """
     url = 'mock_url'
 
+    if user:
+        assert isinstance(user, BaseUser), 'user must be a instance of `BaseUser`'
     assert inspect.ismethod(func), 'func must be method. e.g. UserView().get'
     view_cls = func.__self__.__class__
     func = func.__func__
@@ -99,9 +152,11 @@ async def invoke_interface(app: Application, func: [Callable], params=None, post
             headers['bulk'] = bulk
         if role:
             headers['role'] = role
+        if returning:
+            headers['returning'] = 'true'
 
-        if json_request:
-            headers['Content-Type'] = 'application/json'
+        if content_type:
+            headers['Content-Type'] = content_type
 
         request = _make_mocked_request(_method, url, headers=headers, protocol=mock.Mock(), app=app)
         _polyfill_post(request, post)
@@ -112,7 +167,8 @@ async def invoke_interface(app: Application, func: [Callable], params=None, post
             nonlocal view_ref
             view_ref = view
             view._params_cache = params
-            view._post_data_cache = post
+            if fill_post_cache:
+                view._post_data_cache = post
             view._ip_cache = ip_address('127.0.0.1')
             view._current_user = user
 

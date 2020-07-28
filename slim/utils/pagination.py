@@ -30,17 +30,17 @@ def pagination_calc(items_count, page_size, cur_page=1, nearby=2):
     next_page = cur_page + 1 if cur_page != page_count else None
 
     if page_count <= items_length:
-        items = range(1, page_count + 1)
+        number_items = range(1, page_count + 1)
     elif cur_page <= nearby:
         # start of items
-        items = range(1, items_length + 1)
+        number_items = range(1, items_length + 1)
         last_page = True
     elif cur_page >= page_count - nearby:
         # end of items
-        items = range(page_count - items_length + 1, page_count + 1)
+        number_items = range(page_count - items_length + 1, page_count + 1)
         first_page = True
     else:
-        items = range(cur_page - nearby, cur_page + nearby + 1)
+        number_items = range(cur_page - nearby, cur_page + nearby + 1)
         first_page, last_page = True, True
 
     if first_page:
@@ -55,11 +55,11 @@ def pagination_calc(items_count, page_size, cur_page=1, nearby=2):
 
         'first_page': first_page,
         'last_page': last_page,
-        'page_numbers': list(items),
+        'numbers': list(number_items),
 
         'info': {
-            'page_size': page_size,
-            'page_count': page_count,
-            'items_count': items_count,
+            'page_size': page_size,  # 分页大小
+            'page_count': page_count,  # 页数
+            'items_count': items_count,  # 总项个数
         }
     }

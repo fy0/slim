@@ -10,7 +10,7 @@ from slim.retcode import RETCODE
 from slim.support.peewee import PeeweeView
 
 from app import app
-from api.validate.user import SigninDataModel, SignupDataModel
+from api.validate.user import SigninDataModel, SignupDirectDataModel
 from api import run_in_thread
 from model.user import User
 from model.user_token import UserToken
@@ -57,13 +57,13 @@ class UserView(PeeweeView, UserMixin):
         cls.unregister('new')
         cls.unregister('delete')
 
-    @app.route.interface('POST', summary='注册', va_post=SignupDataModel)
+    @app.route.interface('POST', summary='注册', va_post=SignupDirectDataModel)
     async def signup(self):
         """
         用户注册接口
         User Signup Interface
         """
-        vpost: SignupDataModel = self._.validated_post
+        vpost: SignupDirectDataModel = self._.validated_post
 
         u = User.new(vpost.username, vpost.password, email=vpost.email, nickname=vpost.nickname)
         if not u:

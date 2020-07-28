@@ -24,7 +24,7 @@ class ATestModel(Model):
         database = db
 
 
-@app.route('test')
+@app.route.view('test')
 class ATestView(PeeweeView):
     model = ATestModel
 
@@ -35,13 +35,13 @@ app._prepare()
 
 
 async def test_post_blob():
-    view = await invoke_interface(app, ATestView().get, json_request=False)
+    view = await invoke_interface(app, ATestView().get, content_type=None)
     assert view.ret_val['code'] == RETCODE.NOT_FOUND
 
-    view = await invoke_interface(app, ATestView().new, post={'info': 'aabbcc'}, json_request=False)
+    view = await invoke_interface(app, ATestView().new, post={'info': 'aabbcc'}, content_type=None)
     assert view.ret_val['code'] == RETCODE.SUCCESS
 
-    view = await invoke_interface(app, ATestView().new, post={'info': 'a'}, json_request=False)  # 0x0A
+    view = await invoke_interface(app, ATestView().new, post={'info': 'a'}, content_type=None)  # 0x0A
     assert view.ret_val['code'] == RETCODE.SUCCESS
 
     view = await invoke_interface(app, ATestView().get)

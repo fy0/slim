@@ -21,7 +21,7 @@ class ATestModel(Model):
 db.create_tables([ATestModel])
 
 
-@app.route('test')
+@app.route.view('test')
 class ATestView(PeeweeView):
     model = ATestModel
 

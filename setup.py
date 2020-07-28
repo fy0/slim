@@ -7,22 +7,24 @@ from setuptools import setup, find_packages
 
 
 def description():
-    return """github: https://github.com/fy0/slim"""
+    return """A Web framework provides instant restful api for your database."""
 
 
 def long_desc():
     try:
-        return open("desc", 'r', encoding='utf-8').read()
+        txt = open("readme.md", 'r', encoding='utf-8').read()
+        return txt.replace('artworks/logo-full.png', 'https://raw.githubusercontent.com/fy0/slim/master/artworks/logo-full.png')
     except:
         return description()
 
 
 setup(
     name='slim',
-    version='0.5.2',
+    version='0.5.9',
 
     description=description(),
     long_description=long_desc(),
+    long_description_content_type='text/markdown',
     url="https://github.com/fy0/slim",
 
     author='fy',

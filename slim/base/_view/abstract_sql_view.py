@@ -2,7 +2,7 @@ import json
 import logging
 from abc import abstractmethod
 from enum import Enum
-from typing import Tuple, Union, Dict, Iterable, Type, List, Set, Any, Optional
+from typing import Tuple, Union, Dict, Iterable, Type, List, Set, Any, Optional, Mapping
 
 import schematics
 from aiohttp.web_request import BaseRequest, FileField
@@ -156,7 +156,8 @@ class AbstractSQLView(BaseView):
         if key in self.headers:
             return True
         if self.method in BaseRequest.POST_METHODS:
-            if key in (await self.post_data()):
+            post = await self.post_data()
+            if isinstance(post, Mapping) and key in post:
                 return True
         return key in self.params
 
@@ -241,7 +242,8 @@ class AbstractSQLView(BaseView):
                         # 外键没有找到值，也许全部都是null，这很常见
                         continue
 
-                    # if not fk_records: continue
+                    if not fk_records: continue
+                    fk_records = list(fk_records)
                     await v.check_records_permission(info2, fk_records)
 
                     fk_dict = {}
@@ -331,6 +333,8 @@ class AbstractSQLView(BaseView):
             info = SQLQueryInfo(self.params, view=self)
             await self._call_handle(self.before_query, info)
             records, count = await self._sql.select_page(info, page, size)
+            # records should be list because after_read maybe change it
+            records = list(records)
             await self.check_records_permission(info, records)
 
             if size == -1:
@@ -380,7 +384,7 @@ class AbstractSQLView(BaseView):
             else:
                 self.finish(RETCODE.NOT_FOUND)
 
-    async def _base_insert(self, raw_values_lst):
+    async def _base_insert(self, raw_values_lst, ignore_exists):
         with ErrorCatchContext(self):
             if isinstance(raw_values_lst, str):
                 try:
@@ -398,7 +402,7 @@ class AbstractSQLView(BaseView):
             for values in values_lst:
                 values.validate_before_execute_insert(self)
 
-            records = await self._sql.insert(values_lst, returning=True)
+            records = await self._sql.insert(values_lst, returning=True, ignore_exists=ignore_exists)
             await self.check_records_permission(None, records)
             await self._call_handle(self.after_insert, values_lst, records)
             return records
@@ -409,7 +413,10 @@ class AbstractSQLView(BaseView):
         赋值规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify?id=修改新建
         """
         self.current_interface = InnerInterfaceName.BULK_INSERT
-        records = await self._base_insert(await self.post_data())
+        post = await self.post_data()
+        if not 'items' in post:
+            raise InvalidPostData("`items` is required")
+        records = await self._base_insert(post['items'], True)
         if self.is_finished:
             return
 
@@ -425,7 +432,7 @@ class AbstractSQLView(BaseView):
         """
         self.current_interface = InnerInterfaceName.NEW
         raw_post = await self.post_data()
-        records = await self._base_insert([raw_post])
+        records = await self._base_insert([raw_post], False)
         if self.is_finished:
             return
 

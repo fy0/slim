@@ -60,11 +60,15 @@ class PermissionException(SlimException):
     pass
 
 
+class InvalidToken(PermissionException):
+    pass
+
+
 class InvalidRole(PermissionException):
     pass
 
 
-class PermissionDenied(SlimException):
+class PermissionDenied(PermissionException):
     pass
 
 

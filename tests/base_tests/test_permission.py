@@ -110,12 +110,12 @@ def test_record_filter():
     a1r = ab.can_with_columns(None, A.READ, record1.table, record1.keys())
     a1d = ab.can_with_columns(None, A.DELETE, record1.table, record1.keys())
     assert set(ab.can_with_record(None, A.READ, record1, available=a1r)) == {'a', 'b', 'c'}
-    assert ab.can_with_record(None, A.DELETE, record1, available=a1d) == []
+    assert ab.can_with_record(None, A.DELETE, record1, available=a1d) == set()
     record1_1 = DictDataRecord('rule_test1_1', {'a': 'aaa', 'b': 'bbb', 'c': 'ccc'})
     a1_1 = ab.can_with_columns(None, A.DELETE, record1_1.table, record1_1.keys())
     assert set(ab.can_with_record(None, A.DELETE, record1_1, available=a1_1)) == {'a', 'b', 'c'}
     assert set(ab.can_with_record(None, A.READ, record1)) == {'a', 'b', 'c'}
-    assert ab.can_with_record(None, A.DELETE, record1) == []
+    assert ab.can_with_record(None, A.DELETE, record1) == set()
     assert set(ab.can_with_record(None, A.DELETE, record1_1)) == {'a', 'b', 'c'}
 
     record2 = DictDataRecord('rule_test2', {'a': 'aaa', 'b': 'bbb', 'c': 'ccc'})
@@ -125,8 +125,8 @@ def test_record_filter():
     a2w = ab.can_with_columns(None, A.WRITE, record2.table, record2.keys())
     assert set(ab.can_with_record(None, A.READ, record2, available=a2r)) == {'a', 'b'}
     assert set(a2c) == {'a', 'b'}
-    assert ab.can_with_record(None, A.DELETE, record2, available=a2d) == []
-    assert ab.can_with_record(None, A.WRITE, record2, available=a2w) == []
+    assert ab.can_with_record(None, A.DELETE, record2, available=a2d) == set()
+    assert ab.can_with_record(None, A.WRITE, record2, available=a2w) == set()
 
     assert set(ab.can_with_record(None, A.READ, record2)) == {'a', 'b'}
     assert ab.can_with_record(None, A.DELETE, record2) == set()

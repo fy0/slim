@@ -18,7 +18,7 @@ class Topic(Model):
 
 # ...
 
-@app.route('topic')
+@app.route.view('topic')
 class TopicView(PeeweeView):
     model = Topic
 ```
@@ -198,7 +198,7 @@ http "http://localhost:9999/api/topic/list/1?time.ge=1577808000&order=time.desc&
 一、关闭接口
 
 ```python
-@app.route('user')
+@app.route.view('user')
 class UserViewView(PeeweeView, UserViewMixin):
     model = User
 
@@ -376,7 +376,7 @@ class Topic(Model):
 ```python
 import time
 
-@app.route('topic')
+@app.route.view('topic')
 class TopicView(PeeweeView):
     model = Topic
 

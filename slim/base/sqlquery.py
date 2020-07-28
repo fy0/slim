@@ -2,10 +2,12 @@ import json
 import logging
 import traceback
 from enum import Enum
+from typing import Union, Iterable, List, TYPE_CHECKING, Dict, Set, Mapping
 from typing import Union, Iterable, List, TYPE_CHECKING, Dict, Set
+from typing_extensions import Literal
 from multidict import MultiDict
 from schematics.exceptions import DataError, ConversionError
-from schematics.types import BaseType
+from schematics.types import BaseType, ListType
 
 from slim.base.const import ERR_TEXT_ROGUE_FIELD, ERR_TEXT_COLUMN_IS_NOT_FOREIGN_KEY
 from slim.base.types.func_meta import get_meta
@@ -129,11 +131,13 @@ class SQL_OP(Enum):
     IS_NOT = ('isnot', 'is not')
     AND = ('and',)
     OR = ('or',)
-    CONTAINS = ('contains',)
+    PREFIX = ('prefix',)  # string like only
+    CONTAINS = ('contains',)  # ArrayField only
+    CONTAINS_ANY = ('contains_any',)  # ArrayField only
     LIKE = ('like',)
     ILIKE = ('ilike',)
 
-    _COMMON = EQ + NE + LT + LE + GE + GT + IN + IS + IS_NOT + CONTAINS
+    _COMMON = EQ + NE + LT + LE + GE + GT + IN + IS + IS_NOT + PREFIX + CONTAINS + CONTAINS_ANY
     _ALL = _COMMON + LIKE + ILIKE
 
 
@@ -176,7 +180,8 @@ class QueryConditions(list):
 class SQLQueryInfo:
     """ SQL查询参数。"""
     def __init__(self, params=None, view=None):
-        self.select: Union[Set[str], ALL_COLUMNS] = ALL_COLUMNS
+        self.select: Union[Set[str], Literal[ALL_COLUMNS]] = ALL_COLUMNS
+        self.select_exclude: Set[str] = set()
         self.conditions = QueryConditions()
         self.orders: List[SQLQueryOrder] = []
         self.loadfk: Dict[str, List[Dict[str, object]]] = {}
@@ -226,7 +231,7 @@ class SQLQueryInfo:
             raise InvalidParams('Invalid select')
 
     @classmethod
-    def parse_select(cls, text: str) -> Set:
+    def parse_select(cls, text: str) -> Union[Set, Literal[ALL_COLUMNS]]:
         """
         get columns from select text
         :param text: col1, col2
@@ -288,7 +293,7 @@ class SQLQueryInfo:
                 val = default_value_dict.copy()
                 val['role'] = value
                 return val
-            elif isinstance(value, Dict):
+            elif isinstance(value, Mapping):
                 # {'role': <str>, 'as': <str>, ...}
                 return value_normalize_dict(value)
             else:
@@ -335,10 +340,11 @@ class SQLQueryInfo:
         if op_name not in SQL_OP.txt2op:
             raise SQLOperatorInvalid(op_name)
         op = SQL_OP.txt2op.get(op_name)
-        if op in (SQL_OP.IN, SQL_OP.NOT_IN):
+        if op in (SQL_OP.IN, SQL_OP.NOT_IN, SQL_OP.CONTAINS, SQL_OP.CONTAINS_ANY):
             try:
+                # 强制 json.loads() 右值，符合 parameters 的一般情况
                 value = json.loads(value)
-            except (json.JSONDecodeError, TypeError):
+            except (TypeError, json.JSONDecodeError):
                 raise InvalidParams('The right value of "in" condition must be serialized json string: %s' % value)
         self.add_condition(field_name, op, value)
 
@@ -360,6 +366,9 @@ class SQLQueryInfo:
             elif field_name == 'select':
                 self.select = self.parse_select(value)
                 continue
+            elif field_name == '-select':
+                self.select_exclude = self.parse_select(value)
+                continue
             elif field_name == 'loadfk':
                 try:
                     value = json.loads(value)  # [List, Dict[str, str]]
@@ -368,7 +377,7 @@ class SQLQueryInfo:
                 self.loadfk = self.parse_load_fk(value)
                 continue
 
-            op = info[1] if len(info) > 1 else '='
+            op = info[1] if len(info) > 1 else 'eq'
             self.parse_then_add_condition(field_name, op, value)
 
     def check_query_permission(self, view: "AbstractSQLView"):
@@ -446,15 +455,19 @@ class SQLQueryInfo:
                 raise ColumnNotFound({column: [ERR_TEXT_ROGUE_FIELD]})
 
         # select check
-        if self.select is ALL_COLUMNS:
-            self.select = view.fields.keys()
-        else:
-            for i, field_name in enumerate(self.select):
-                check_column_exists(field_name)
-                if field_name == PRIMARY_KEY:
-                    if not isinstance(self.select, List):
-                        self.select = list(self.select)
-                    self.select[i] = view.primary_key
+        def show_select(s: Union[Literal[ALL_COLUMNS], Set]) -> Set:
+            if s is ALL_COLUMNS:
+                return view.fields.keys()
+            else:
+                for field_name in s:
+                    check_column_exists(field_name)
+                if PRIMARY_KEY in s:
+                    s.remove(PRIMARY_KEY)
+                    s.add(view.primary_key)
+                return s
+
+        # select = normal select - reverse select
+        self.select = show_select(self.select) - show_select(self.select_exclude)
 
         # where convert
         for i in self.conditions:
@@ -477,14 +490,31 @@ class SQLQueryInfo:
                 i[0] = field_name = view.primary_key
 
             field_type: BaseType = view.fields[field_name]
+
             # 此处会进行类型转换和校验
-            # TODO: 这里的 null 感觉有很大问题，或许应该明确一下字符串"null"和null？
-            conv = lambda x: None if x in ('null', None) else field_type.validate(x)
+            # 一个重点是，因为之前的 check_query_permission 会调用很多回调，他们输入的值一般认为是符合类型的最终值，
+            # 而又有可能原始的值来自于 parameters，他们是文本！这引发了下面TODO的两个连带问题
+            def conv(x):
+                nonlocal field_type
+                if op in (SQL_OP.CONTAINS, SQL_OP.CONTAINS_ANY):
+                    assert isinstance(field_type, ListType), 'contains only works with ArrayField'
+                    field_type2 = field_type.field
+                else:
+                    field_type2 = field_type
+
+                # TODO: 这里的 null 感觉有很大问题，或许应该明确一下字符串"null"和null？
+                if x in ('null', None):
+                    return None
+                else:
+                    return field_type2.validate(x)
 
             try:
-                # 注：外键的类型会是其指向的类型，这里不用担心
-                # TODO: value 为啥直接是 Iterable 了？这里需要复查
-                if op in (SQL_OP.IN, SQL_OP.NOT_IN):
+                # 注：外键的类型会是其指向的类型，这里不用额外处理
+                # TODO: Iterable 似乎不是一个靠谱的类型？这样想对吗？
+                if op in (SQL_OP.CONTAINS, SQL_OP.CONTAINS_ANY):
+                    assert isinstance(field_type, ListType), 'contains only works with ArrayField'
+
+                if op in (SQL_OP.IN, SQL_OP.NOT_IN, SQL_OP.CONTAINS, SQL_OP.CONTAINS_ANY):
                     assert isinstance(value, Iterable)
                     i[2] = list(map(conv, value))
                 else:
@@ -495,7 +525,7 @@ class SQLQueryInfo:
             except Exception as e:
                 # 这里本来设计了一个 condition name，但是觉得会对整体性造成破坏，就不用了
                 # cond_name = '%s.%s' % (field_name, op.value[0])
-                raise InvalidParams({field_name: ['Invalid value']})
+                raise InvalidParams({field_name: ["Can not convert to data type of the field"]})
 
         # order check
         for i, od in enumerate(self.orders):
@@ -551,22 +581,30 @@ class SQLQueryInfo:
 
 
 class SQLValuesToWrite(dict):
-    def __init__(self, post_data=None, view: 'AbstractSQLView'=None, action=None, records=None):
+    def __init__(self, raw_data=None, view: 'AbstractSQLView'=None, action=None, records=None):
         super().__init__()
         self.returning = False
         self.view = view
 
-        if post_data:
-            assert isinstance(post_data, dict)
-            self.parse(post_data)
+        # design of incr/desc:
+        # 1. incr/desc/normal_set can't be appear in the same time
+        # 2. incr/desc use self to store data
+        self.incr_fields = set()
+        self.decr_fields = set()
+        self.set_add_fields = set()
+        self.set_remove_fields = set()
+        self.array_append = set()
+        self.array_remove = set()
+
+        if raw_data:
+            assert isinstance(raw_data, Mapping)
+            self.parse(raw_data)
             if view: self.bind(view, action, records)
 
     def parse(self, post_data: MultiDict):
         self.clear()
         if isinstance(post_data, dict):
             post_data = MultiDict(post_data)
-
-        self.incr_fields = set()
 
         for k, v in post_data.items():
             # 提交多个相同值，等价于提交一个数组（用于formdata和urlencode形式）
@@ -584,6 +622,16 @@ class SQLValuesToWrite(dict):
                 k, op = k.rsplit('.', 1)
                 if op == 'incr':
                     self.incr_fields.add(k)
+                elif op == 'decr':
+                    self.decr_fields.add(k)
+                elif op == 'set_add':
+                    self.set_add_fields.add(k)
+                elif op == 'set_remove':
+                    self.set_remove_fields.add(k)
+                # elif op == 'array_append':
+                #     self.array_append.add(k)
+                # elif op == 'array_remove':
+                #    self.array_remove.add(k)
 
             self[k] = v
 
@@ -662,12 +710,11 @@ class SQLValuesToWrite(dict):
             func = view.before_insert
 
         meta = get_meta(func)
-        model_cls = schematics_model_merge(view.data_model, *meta.va_post_lst)
+        model_cls = schematics_model_merge(view.data_model, *meta.va_write_value_lst)
 
         try:
             # 初次bind应该总在before_update / before_insert之前
             # 因此进行带partial的校验（即忽略required=True项，因为接下来还会有补全的可能）
-            # TODO: 这里未来需要做一件事情，忽略
             m = model_cls(self, strict=False, validate=True, partial=True)
             data = m.to_native()
 
@@ -675,8 +722,14 @@ class SQLValuesToWrite(dict):
                 self[k] = data.get(k)
 
             self.incr_fields.intersection_update(self.keys())
+            self.decr_fields.intersection_update(self.keys())
+            self.set_add_fields.intersection_update(self.keys())
+            self.set_remove_fields.intersection_update(self.keys())
+            self.array_append.intersection_update(self.keys())
+            self.array_remove.intersection_update(self.keys())
         except DataError as e:
             raise InvalidPostData(e.to_primitive())
+        # 没捕获 TypeError
 
         dict_filter_inplace(self, view.fields.keys())
 

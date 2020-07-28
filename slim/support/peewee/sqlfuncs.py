@@ -2,8 +2,10 @@ import logging
 import peewee
 
 from typing import List, Tuple, Iterable, Union
+from playhouse.postgres_ext import ArrayField, SQL
 
 from slim.support.peewee.data_record import PeeweeDataRecord
+from slim.utils import sentinel
 from ...base.sqlquery import SQL_OP, SQLQueryOrder, SQLQueryInfo, DataRecord, SQLValuesToWrite
 from ...base.sqlfuncs import AbstractSQLFunctions
 
@@ -30,6 +32,8 @@ _peewee_method_map = {
     SQL_OP.IS: '__rshift__',  # __rshift__ = _e(OP.IS)
     SQL_OP.IS_NOT: '__rshift__',
     SQL_OP.CONTAINS: 'contains',
+    SQL_OP.CONTAINS_ANY: 'contains_any',
+    SQL_OP.PREFIX: 'startswith',
 
     SQL_OP.LIKE: '__mod__',
     SQL_OP.ILIKE: '__pow__'
@@ -70,6 +74,7 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
     def _build_condition(self, args):
         pw_args = []
         for field_name, op, value in args:
+            assert self._fields.get(field_name), 'Column name in condition not found: %r' % field_name
             cond = getattr(self._fields[field_name], _peewee_method_map[op])(value)
             if op == SQL_OP.IS_NOT:
                 cond = ~cond
@@ -101,25 +106,32 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
         return q
 
     async def select_one(self, info: SQLQueryInfo) -> DataRecord:
-        try:
-            item = self._make_select(info).get()
-            return PeeweeDataRecord(None, item, view=self.vcls)
-        except self._model.DoesNotExist:
-            raise RecordNotFound(self.vcls.table_name)
+        db = self.vcls.model._meta.database
+        with PeeweeContext(db):
+            try:
+                item = self._make_select(info).get()
+                return PeeweeDataRecord(None, item, view=self.vcls)
+            except self._model.DoesNotExist:
+                raise RecordNotFound(self.vcls.table_name)
 
     async def select_page(self, info: SQLQueryInfo, page=1, size=1) -> Tuple[Tuple[DataRecord, ...], int]:
         q = self._make_select(info)
-        count = q.count()
+        db = self.vcls.model._meta.database
 
-        # 0.4.2: list api does not return NOT_FOUND anymore
-        # if count == 0: raise RecordNotFound(self.vcls.table_name)
+        # select may cause transaction aborted
+        # for example: select * from xx where id in ()
+        with PeeweeContext(db):
+            count = q.count()
 
-        if size == -1:
-            page = 1
-            size = count
+            # 0.4.2: list api does not return NOT_FOUND anymore
+            # if count == 0: raise RecordNotFound(self.vcls.table_name)
 
-        func = lambda item: PeeweeDataRecord(None, item, view=self.vcls)
-        return tuple(map(func, q.paginate(page, size))), count
+            if size == -1:
+                page = 1
+                size = count
+
+            func = lambda item: PeeweeDataRecord(None, item, view=self.vcls)
+            return tuple(map(func, q.paginate(page, size))), count
 
     def _build_write_condition(self, records: Iterable[DataRecord]):
         records_pk = []
@@ -139,9 +151,29 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
         for k, v in values.items():
             if k in fields:
                 field = fields[k]
+                is_array_field = isinstance(field, ArrayField)
 
-                if k in values.incr_fields:
-                    v = field + v
+                if is_array_field:
+                    if k in values.set_add_fields:
+                        # 这里需要加 [v] 的原因是，params需要数组，举例来说为，[v1,v2,v3]
+                        # v = SQL('%s || %%s' % field.column_name, [v])
+                        v = SQL('(select ARRAY((select unnest(%s)) union (select unnest(%%s))))' % field.column_name, [v])
+
+                    if k in values.set_remove_fields:
+                        v = SQL('(select ARRAY((select unnest(%s)) except (select unnest(%%s))))' % field.column_name, [v])
+
+                    # 尚未启用
+                    # if k in values.array_append:
+                    #     v = SQL('array_append(%s, %%s)' % field.column_name, [v])
+
+                    # if k in values.array_remove:
+                    #     v = SQL('array_remove(%s, %%s)' % field.column_name, [v])
+
+                else:
+                    if k in values.incr_fields:
+                        v = field + v
+                    if k in values.decr_fields:
+                        v = field - v
 
                 new_vals[k] = v
 
@@ -164,7 +196,8 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
                 to_record = lambda x: PeeweeDataRecord(None, x, view=self.vcls)
                 return list(map(to_record, model.select().where(cond).execute()))
 
-    async def insert(self, values_lst: Iterable[SQLValuesToWrite], returning=False) -> Union[int, List[DataRecord]]:
+    async def insert(self, values_lst: Iterable[SQLValuesToWrite], returning=False, ignore_exists=False) -> Union[int, List[DataRecord]]:
+        # 基本上，单条插入时，不忽略重复，多条时忽略
         model = self.vcls.model
         db = model._meta.database
 
@@ -173,6 +206,8 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
                 # 对 postgres 可以直接使用 returning，另外防止一种default的bug
                 # https://github.com/coleifer/peewee/issues/1555
                 q = model.insert_many(values_lst)
+                if ignore_exists:
+                    q = q.on_conflict_ignore()
                 if returning:
                     ret = q.returning(*model._meta.fields.values()).execute()
                     if get_peewee_ver() >= (3, 8, 2):
@@ -189,11 +224,19 @@ class PeeweeSQLFunctions(AbstractSQLFunctions):
                 if returning:
                     items = []
                     for values in values_lst:
-                        item = model.create(**values)
-                        items.append(PeeweeDataRecord(None, item, view=self.vcls))
+                        try:
+                            item = model.create(**values)
+                            items.append(PeeweeDataRecord(None, item, view=self.vcls))
+                        except peewee.IntegrityError as e:
+                            db.rollback()
+                            if not ignore_exists:
+                                raise e
                     return items
                 else:
-                    count = model.insert_many(values_lst).execute()
+                    q = model.insert_many(values_lst)
+                    if ignore_exists:
+                        q = q.on_conflict_ignore()
+                    count = q.execute()
                     return count
 
     async def delete(self, records: Iterable[DataRecord]):

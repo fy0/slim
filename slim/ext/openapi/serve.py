@@ -13,12 +13,12 @@ if TYPE_CHECKING:
 def doc_serve(app: 'Application'):
     spec_url = urljoin(app.mountpoint, '/openapi.json')
 
-    @app.route(spec_url, 'GET')
+    @app.route._aiohttp_func(spec_url, 'GET')
     async def openapi(request):
         role = request.query.get('role')
         return web.json_response(get_openapi(app, role))
 
-    @app.route('/redoc', 'GET')
+    @app.route._aiohttp_func('/redoc', 'GET')
     async def openapi(request: Request):
         role = request.query.get('role', None)
 

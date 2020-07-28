@@ -106,7 +106,7 @@ class Application:
 
     def _prepare(self):
         from .view import AbstractSQLView
-        self.route.bind()
+        self.route._bind()
 
         for vi in self.route.views:
             cls = vi.view_cls
@@ -149,7 +149,10 @@ class Application:
         if cors:
             for r in list(self._raw_app.router.routes()):
                 if type(r.resource) != StaticResource and r.handler not in ws_set:
-                    cors.add(r)
+                    try:
+                        cors.add(r)
+                    except ValueError:
+                        pass
 
         for vi in self.route.views:
             vi.view_cls._ready()

@@ -1,3 +1,64 @@
+#### 0.5.10 update 2020.07.29
+
+* Added: `-select` for exclude specified columns
+
+* Changed: Catch transaction aborted exception for select
+
+
+#### 0.5.9 update 2020.04.23
+
+* Changed: Renamed paginator's `page_numbers` to `numbers`
+
+* Fixed: `BaseView.use_lst` error
+
+* Fixed: `records` is tuple in `after_read`, should be list
+
+
+#### 0.5.8 update 2020.04.01
+
+* Added: Write operator `set_add` and `set_remove` for `ArrayField`
+
+* Fixed: Delete permission bug fix
+
+
+#### 0.5.7 update 2020.03.28
+
+* Changed: `bulk_insert` will skip exists items
+
+
+#### 0.5.6 update 2020.03.27
+
+* Added: SQL operator `contains_any` and `prefix`
+
+* Changed: `contains` only works on `ArrayField`
+
+* Removed: `route.__call__`
+
+
+#### 0.5.5 update 2020.03.20
+
+* Added: File upload document and test case
+
+* Added: `returning` parameter for `slim.tools.test_tool.invoke_interface`
+
+
+#### 0.5.4 update 2020.03.16
+
+* Fixed: `SQL_OP.CONTAINS` not works
+
+* Fixed: Post with form data raise AssertionError when `new` or `set`
+
+
+#### 0.5.3 update 2020.03.15
+
+* Added: New validator `va_write_value` for `before_update` and `before_insert`
+
+* Changed(break): `bulk_insert` accepts data like `{"items": []}` instead of `[]`
+
+* Changed(break): `view.postdata()` certainly returns `Mapping` when post is allowed, otherwise returns `None`
+
+* Fixed: OpenAPI document of some interfaces' request body were incorrect
+
 
 #### 0.5.2 update 2020.03.13
 
@@ -8,7 +69,7 @@
 * Fixed: OpenAPI syntax error
 
 
-#### 0.5.1 update 2020.03.12
+#### 0.5.1 update 2020.03.12 (unpublished)
 
 * Changed: Schematics field convert to schema support choices option and more types (ModelType, ListType, DictType, PolyModelType)
 

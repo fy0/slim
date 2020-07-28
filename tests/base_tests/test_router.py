@@ -6,5 +6,5 @@ app = Application(cookies_secret=b'123456', permission=ALL_PERMISSION)
 
 def test_router_simple():
     route = Route(app)
-    route.bind()
+    route._bind()
 

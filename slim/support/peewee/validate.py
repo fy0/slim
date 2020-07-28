@@ -44,8 +44,7 @@ def field_class_to_schematics_field(field: peewee.Field) -> BaseType:
     kwargs = {}
 
     # 检查是否 require
-    if not ((field.default is not None) or field.null or field.sequence or \
-            isinstance(field, peewee.AutoField)):
+    if not ((field.default is not None) or field.null or field.sequence or isinstance(field, peewee.AutoField)):
         kwargs['required'] = True
 
     if field.help_text:

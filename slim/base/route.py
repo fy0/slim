@@ -1,4 +1,5 @@
 import logging
+import time
 from asyncio import iscoroutinefunction, Future
 from typing import Iterable, Type, TYPE_CHECKING, Dict, Callable, Awaitable, Any, List
 from aiohttp import web, web_response
@@ -32,6 +33,7 @@ def get_request_solver(app: 'Application'):
         if not app.route._is_beacon(handler):
             return await handler(request)
         else:
+            t = time.perf_counter()
             beacon = app.route._beacons[handler]
             handler_name = beacon.handler_name
 
@@ -67,8 +69,9 @@ def get_request_solver(app: 'Application'):
                     if not isinstance(resp, web_response.StreamResponse):
                         status_code = 500
 
-            # GET /api/get -> TopicView.get 200
-            logger.info("{} {:4s} -> {} {}".format(method, ascii_encodable_path, handler_name, status_code))
+            took = round((time.perf_counter() - t) * 1000, 2)
+            # GET /api/get -> TopicView.get 200 30ms
+            logger.info("{} {:4s} -> {} {}, took {}ms".format(method, ascii_encodable_path, handler_name, status_code, took))
 
             if logger.isEnabledFor(logging.DEBUG):
                 logger.debug('query parameters: %s', view_instance.params)
@@ -76,7 +79,9 @@ def get_request_solver(app: 'Application'):
                     logger.debug('post data: %s', await view_instance.post_data())
 
             if status_code == 500:
-                resp.set_status(status_code, "The handler {!r} did not called `view.finish()`.".format(handler_name))
+                warn_text = "The handler {!r} did not called `view.finish()`.".format(handler_name)
+                logger.warning(warn_text)
+                view_instance.finish_raw(warn_text.encode('utf-8'), status=500)
                 return resp
 
             await view_instance._on_finish()
@@ -212,30 +217,31 @@ class Route:
 
         return wrapper
 
+    def websocket(self, url, obj):
+        """
+        Register Websocket
+        :param url:
+        :param obj:
+        :return:
+        """
+        def wrapper(cls):
+            if issubclass(cls, WSRouter):
+                self.websockets.append((url, obj()))
+            return cls
+
+        return wrapper
+
     def _is_beacon(self, func):
         return func in self._beacons
 
-    def __call__(self, url, method: [Iterable, str, None] = 'GET'):
+    def _aiohttp_func(self, url, method: [Iterable, str, None] = 'GET'):
         def _(obj):
-            from .view import BaseView
             if iscoroutinefunction(obj):
                 # 这里可以判断是否为 method，但没有必要
                 assert method, "Must give at least one method to http handler `%s`" % obj.__name__
                 if type(method) == str: methods = (method,)
                 else: methods = list(method)
                 self.funcs.append((url, methods, obj))
-            elif isinstance(obj, type):
-                if issubclass(obj, WSRouter):
-                    self.websockets.append((url, obj()))
-                elif issubclass(obj, BaseView):
-                    if method is None:
-                        # internal view, can't request over http
-                        obj._no_route = True
-                    self.views.append(RouteViewInfo(url, obj))
-                else:
-                    raise BaseException('Invalid type for router: %r' % type(obj).__name__)
-            else:
-                raise BaseException('Invalid type for router: %r' % type(obj).__name__)
             return obj
         return _
 
@@ -248,7 +254,7 @@ class Route:
         """
         self.statics.append((prefix, path, kwargs),)
 
-    def bind(self):
+    def _bind(self):
         app = self.app
         raw_router = app._raw_app.router
 
