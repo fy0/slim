@@ -1,4 +1,4 @@
-#### 0.5.10 update 2020.07.29
+#### 0.5.10 update 2020.07.30
 
 * Added: `-select` for exclude specified columns
 

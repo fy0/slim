@@ -464,6 +464,25 @@ async def test_delete():
     assert ATestModel.select().where(ATestModel.name=='Name1B').count() == 0
 
 
+async def test_select_exclude():
+    params = {
+        'select': 'name,binary,count,active,flt,json,value',
+        '-select': 'binary'
+    }
+    view = await invoke_interface(app, ATestView().get, params)
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+    assert view.ret_val['data'].keys() == {'name', 'count', 'active', 'flt', 'json', 'value'}
+
+
+async def test_select_exclude2():
+    params = {
+        '-select': 'binary'
+    }
+    view = await invoke_interface(app, ATestView().get, params)
+    assert view.ret_val['code'] == RETCODE.SUCCESS
+    assert view.ret_val['data'].keys() == {'id', 'name', 'count', 'active', 'flt', 'json', 'value'}
+
+
 async def test_select():
     # 1. success
     view = await make_mocked_view_instance(app, ATestView, 'GET', '/api/test1',
