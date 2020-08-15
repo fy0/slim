@@ -1,14 +1,11 @@
 import json
-from unittest import mock
-
 import pytest
-from aiohttp.web_request import FileField
 
 from slim.base._view.base_view import BaseView
 from slim import Application, ALL_PERMISSION
 from slim.exception import PermissionDenied, InvalidPostData
 from slim.retcode import RETCODE
-from slim.tools.test import _polyfill_post, invoke_interface, make_mocked_request
+from slim.tools.test import invoke_interface, make_mocked_request
 
 pytestmark = [pytest.mark.asyncio]
 app = Application(cookies_secret=b'123456', permission=ALL_PERMISSION)
