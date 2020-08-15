@@ -4,33 +4,29 @@ import logging
 import time
 from collections import OrderedDict
 from dataclasses import dataclass
-from http import cookies as http_cookeis
 from io import BytesIO
 from types import FunctionType
 from typing import Set, List, Union, Optional, Dict, Mapping, Any
-from unittest import mock
 from urllib.parse import parse_qs
-
-from aiohttp import hdrs, web
 from ipaddress import IPv4Address, IPv6Address, ip_address
-
-from aiohttp.web_request import BaseRequest, FileField
-from multidict import MultiDict, CIMultiDictProxy, MultiDictProxy, CIMultiDict
+from multidict import MultiDict, CIMultiDict
 from yarl import URL
 
-from slim import Application, json_ex_dumps
-from slim.base import const
-from slim.base._view.err_catch_context import ErrorCatchContext
-from slim.base.const import CONTENT_TYPE
-from slim.base.helper import create_signed_value, decode_signed_value
-from slim.base.permission import Permissions
-from slim.base.types.temp_storage import TempStorage
-from slim.base.user import BaseUser, BaseUserViewMixin
-from slim.exception import NoUserViewMixinException, InvalidPostData
-from slim.retcode import RETCODE
+from ..app import Application
+from ...base import const
+from ...base._view.err_catch_context import ErrorCatchContext
+from ...base.const import CONTENT_TYPE
+from ...base.helper import create_signed_value, decode_signed_value
+from ...base.permission import Permissions
+from ...base.types.temp_storage import TempStorage
+from ...base.user import BaseUser, BaseUserViewMixin
+from ...exception import NoUserViewMixinException, InvalidPostData
+from ...ext.decorator import deprecated
+from ...retcode import RETCODE
 
-from slim.utils import MetaClassForInit, async_call, sentinel, sync_call
-from slim.utils.cookies import cookie_parser
+from ...utils import MetaClassForInit, async_call, sentinel, sync_call
+from ...utils.cookies import cookie_parser
+from ...utils.json_ex import json_ex_dumps
 
 logger = logging.getLogger(__name__)
 
@@ -72,8 +68,8 @@ class Response:
                 if 'expires' in v:
                     value += f"; Expires={v['expires']}"
 
-                if 'max_age' in v:
-                    value += f"; Max-Age={v['max_age']}"
+                if 'max-age' in v:
+                    value += f"; Max-Age={v['max-age']}"
 
                 if 'domain' in v:
                     value += f"; Domain={v['domain']}"
@@ -127,12 +123,14 @@ class BaseView(metaclass=MetaClassForInit):
 
     def __init__(self, app: Application = None, req: ASGIRequest = None):
         self.app = app
-        self._req: Optional[ASGIRequest] = req
 
+        self.request: Optional[ASGIRequest] = req
         self.ret_val = None
         self.response: Optional[Response] = None
         self.session = None
+
         self._cookie_set = OrderedDict()
+        self._route_info = {}
 
         self._ip_cache = None
         self._cookies_cache = None
@@ -190,15 +188,15 @@ class BaseView(metaclass=MetaClassForInit):
         pass
 
     def _check_req(self):
-        assert self._req, 'no request found'
+        assert self.request, 'no request found'
 
     @property
     def method(self) -> str:
         self._check_req()
-        return self._req.scope['method']
+        return self.request.scope['method']
 
     async def get_x_forwarded_for(self) -> List[Union[IPv4Address, IPv6Address]]:
-        lst = self._request.headers.getall(hdrs.X_FORWARDED_FOR, [])
+        lst = self.headers.getall(const.X_FORWARDED_FOR, [])
         if not lst: return []
         lst = map(str.strip, lst[0].split(','))
         return [ip_address(x) for x in lst if x]
@@ -210,8 +208,9 @@ class BaseView(metaclass=MetaClassForInit):
         """
         if not self._ip_cache:
             xff = await self.get_x_forwarded_for()
-            if xff: return xff[0]
-            ip_addr = self._request.transport.get_extra_info('peername')[0]
+            if xff:
+                return xff[0]
+            ip_addr = self.request.scope['client'][0]
             self._ip_cache = ip_address(ip_addr)
         return self._ip_cache
 
@@ -249,13 +248,6 @@ class BaseView(metaclass=MetaClassForInit):
         if self.is_finished:
             return self.ret_val['code']
 
-    def _finish_end(self):
-        for i in self._cookie_set or ():
-            if i[0] == 'set':
-                self.response.set_cookie(i[1], i[2], **i[3])
-            else:
-                self.response.del_cookie(i[1])
-
     def finish(self, code: int, data=sentinel, msg=sentinel, *, headers=None):
         """
         Set response as {'code': xxx, 'data': xxx}
@@ -274,8 +266,7 @@ class BaseView(metaclass=MetaClassForInit):
             body['msg'] = msg
 
         self.ret_val = body
-        self.response = JSONResponse(body=body, json_dumps=json_ex_dumps, headers=headers)
-        self._finish_end()
+        self.response = JSONResponse(body=body, json_dumps=json_ex_dumps, headers=headers, cookies=self._cookie_set)
 
     def finish_raw(self, body: bytes = b'', status: int = 200, content_type: Optional[str] = None, *,
                    headers=None, body_writer=None):
@@ -288,9 +279,7 @@ class BaseView(metaclass=MetaClassForInit):
         :return:
         """
         self.ret_val = body
-        Response(headers=headers, )
-        self.response = web.Response(body=body, status=status, content_type=content_type, headers=headers)
-        self._finish_end()
+        self.response = Response(body=body, status=status, content_type=content_type, headers=headers, cookies=self._cookie_set)
 
     @property
     def params(self) -> "MultiDict[str]":
@@ -300,14 +289,14 @@ class BaseView(metaclass=MetaClassForInit):
         """
         self._check_req()
         if self._params_cache is None:
-            self._params_cache = URL('?' + self._req.scope['query_string'].decode('utf-8')).query
+            self._params_cache = URL('?' + self.request.scope['query_string'].decode('utf-8')).query
         return self._params_cache
 
     @property
     def content_type(self) -> str:
         return self.headers.get(CONTENT_TYPE)
 
-    async def post_data(self) -> "Optional[Mapping[str, Union[str, bytes, FileField]]]":
+    async def post_data(self) -> "Optional[Mapping[str, Union[str, bytes, 'FileField']]]":
         """
         :return: 在有post的情况下必返回Mapping，否则返回None
         """
@@ -316,30 +305,33 @@ class BaseView(metaclass=MetaClassForInit):
 
         async def read_body(receive):
             # TODO: fit content-length
-            body = BytesIO()
+            body_buf = BytesIO()
             more_body = True
             max_size = self.app.client_max_size
             cur_size = 0
 
             while more_body:
                 message = await receive()
-                cur_size += body.write(message.get('body', b''))
+                cur_size += body_buf.write(message.get('body', b''))
                 if cur_size > max_size:
                     raise Exception('body size limited')
                 more_body = message.get('more_body', False)
 
-            return body
+            body_buf.seek(0)
+            return body_buf
 
         if self.content_type in ('application/json', ''):
             try:
-                body_buffer = await read_body(self._req.receive())
-                self._post_data_cache = json.loads(body_buffer.read())
+                body_buffer = await read_body(self.request.receive)
+                body = body_buffer.read()
+                self._post_data_cache = json.loads(body)
                 if not isinstance(self._post_data_cache, Mapping):
                     raise InvalidPostData('post data should be a mapping.')
-            except json.JSONDecodeError:
-                self._post_data_cache = {}
+            except json.JSONDecodeError as e:
+                raise InvalidPostData('json decoded failed')
+
         elif self.content_type == 'application/x-www-form-urlencoded':
-            body_buffer = await read_body(self._req.receive())
+            body_buffer = await read_body(self.request.receive())
 
             post = MultiDict()
             for k, v in parse_qs(body_buffer.read().decode('utf-8')).items():
@@ -363,6 +355,10 @@ class BaseView(metaclass=MetaClassForInit):
         """
         Get cookie from request.
         """
+        if name in self._cookie_set:
+            cookie = self._cookie_set.get(name)
+            if cookie['max_age'] != 0:
+                return cookie
         return self.cookies.get(name, default)
 
     def set_cookie(self, name, value, *, path=None, expires=None, domain=None, max_age=None, secure=None,
@@ -373,9 +369,9 @@ class BaseView(metaclass=MetaClassForInit):
         """
         key = (name, domain, path)
         info_full = {'name': name, 'value': value, 'path': path, 'expires': expires, 'domain': domain,
-                     'max_age': max_age, 'secure': secure, 'httponly': httponly, 'version': version}
+                     'max-age': max_age, 'secure': secure, 'httponly': httponly, 'version': version}
 
-        info = {*filter(lambda x: x[1] is not None, info_full.items())}
+        info = dict(filter(lambda x: x[1] is not None, info_full.items()))
         self._cookie_set[key] = info
 
     def del_cookie(self, name, *, domain: Optional[str] = None, path: Optional[str] = None):
@@ -384,7 +380,7 @@ class BaseView(metaclass=MetaClassForInit):
         """
         self.set_cookie(name, '', max_age=0, expires='Thu, 01 Jan 1970 00:00:00 GMT', domain=domain, path=path)
 
-    def set_secure_cookie(self, name, value: bytes, *, httponly=True, max_age=30):
+    def set_secure_cookie(self, name, value, *, httponly=True, max_age=30 * 24 * 60 * 60):
         #  一般来说是 UTC
         # https://stackoverflow.com/questions/16554887/does-pythons-time-time-return-a-timestamp-in-utc
         timestamp = int(time.time())
@@ -412,7 +408,7 @@ class BaseView(metaclass=MetaClassForInit):
         self._check_req()
         if self._headers_cache is None:
             headers = CIMultiDict()
-            for k, v in self._req.scope['headers']:
+            for k, v in self.request.scope['headers']:
                 k: bytes
                 v: bytes
                 headers.add(k.decode('utf-8'), v.decode('utf-8'))
@@ -420,13 +416,13 @@ class BaseView(metaclass=MetaClassForInit):
         return self._headers_cache
 
     @property
+    @deprecated('deprecated, use function arguments to instead')
     def route_info(self):
         """
         info matched by router
         :return:
         """
-        self._request: web.Request
-        return self._request.match_info
+        return self._route_info
 
     @classmethod
     def _ready(cls):

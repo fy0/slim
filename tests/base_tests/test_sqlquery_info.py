@@ -6,7 +6,7 @@ from slim.support.peewee import PeeweeView
 
 from slim.base.sqlquery import SQLQueryInfo, SQLQueryOrder, ALL_COLUMNS, SQL_OP
 from slim.exception import SyntaxException, InvalidParams, ColumnNotFound
-from slim.tools.test import make_mocked_view_instance
+from slim.tools.test import make_mocked_view, make_mocked_request
 
 pytestmark = [pytest.mark.asyncio]
 app = Application(cookies_secret=b'123456', permission=ALL_PERMISSION)
@@ -120,14 +120,14 @@ class ATestView(PeeweeView):
 async def test_condition_bind():
     sqi = SQLQueryInfo()
     sqi.parse_then_add_condition('name', '=', '1')
-    view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'GET', '/api/test1')
+    view: PeeweeView = await make_mocked_view(app, ATestView, 'GET', '/api/test1')
     sqi.bind(view)
 
 
 async def test_condition_bind_error_column_not_found():
     sqi = SQLQueryInfo()
     sqi.parse_then_add_condition('name1', '=', '1')
-    view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'GET', '/api/test1')
+    view: PeeweeView = await make_mocked_view(app, ATestView, 'GET', '/api/test1')
 
     with pytest.raises(ColumnNotFound) as e:
         sqi.bind(view)
@@ -138,7 +138,7 @@ async def test_condition_bind_error_column_not_found():
 async def test_condition_bind_error_convert_failed():
     sqi = SQLQueryInfo()
     sqi.parse_then_add_condition('name', '=', {})
-    view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'GET', '/api/test1')
+    view: PeeweeView = await make_mocked_view(app, ATestView, 'GET', '/api/test1')
 
     with pytest.raises(InvalidParams) as e:
         sqi.bind(view)

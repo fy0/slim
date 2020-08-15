@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from types import FunctionType
-from typing import Type, TYPE_CHECKING, Set, Optional
+from typing import Type, TYPE_CHECKING, Set, Optional, List
 
 from schematics import Model
 
@@ -17,7 +17,7 @@ class RouteViewInfo:
 
 @dataclass
 class RouteInterfaceInfo:
-    method: str
+    methods: List[str]
     url: str
     handler: FunctionType
 
@@ -26,7 +26,6 @@ class RouteInterfaceInfo:
     names_varkw: Optional[str]
 
     summary: str = None  # 简介
-    handler_name: str = None
     view_cls: Type['BaseView'] = None
     fullpath: str = None
 

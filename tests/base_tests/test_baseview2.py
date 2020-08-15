@@ -5,6 +5,7 @@ import pytest
 
 from slim import Application
 from slim.base.view import BaseView
+from slim.tools.test import make_mocked_request
 
 pytestmark = [pytest.mark.asyncio]
 
@@ -32,8 +33,7 @@ class ATestView(BaseView):
 
 
 async def test_get_captcha():
-    request = make_mocked_request('GET', '/api/base_test', headers={},
-                                  protocol=mock.Mock(), app=app)
+    request = make_mocked_request('GET', '/api/base_test')
     view = ATestView(app, request)
     await view._prepare()
     await view.captcha()

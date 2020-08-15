@@ -1,7 +1,6 @@
 import pytest
 from slim import Application
 from slim.base.view import BaseView
-from slim.tools.test import make_asgi_request
 
 pytestmark = [pytest.mark.asyncio]
 
@@ -17,4 +16,4 @@ class ATestView(BaseView):
 
 
 async def test_a():
-    make_asgi_request
+    pass

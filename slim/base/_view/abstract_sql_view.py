@@ -6,6 +6,7 @@ from typing import Tuple, Union, Dict, Iterable, Type, List, Set, Any, Optional,
 
 import schematics
 from aiohttp.web_request import BaseRequest, FileField
+from multidict import istr
 from schematics.types import BaseType
 
 from slim.base.types import InnerInterfaceName
@@ -138,7 +139,7 @@ class AbstractSQLView(BaseView):
         return self.ability
 
     def bulk_num(self):
-        bulk_key = 'Bulk'
+        bulk_key = istr('Bulk')
         if bulk_key in self.headers:
             try:
                 num = int(self.headers.get(bulk_key))
@@ -239,8 +240,8 @@ class AbstractSQLView(BaseView):
 
                     # 3. query foreign keys
                     vcls = self.app.tables[fkvalues['table']]
-                    v = vcls(self.app, self._request)  # fake view
-                    await v.prepare()
+                    v = vcls(self.app, self.request)  # fake view
+                    await v._prepare()
                     info2 = SQLQueryInfo()
                     info2.set_select(ALL_COLUMNS)
                     info2.add_condition(PRIMARY_KEY, SQL_OP.IN, pks)
@@ -283,14 +284,13 @@ class AbstractSQLView(BaseView):
         if self.is_finished:
             raise FinishQuitException()
 
-    def _get_list_page_and_size(self) -> Tuple[int, int]:
-        page = self.route_info.get('page', '1').strip()
+    def _get_list_page_and_size(self, page, client_size) -> Tuple[int, int]:
+        page = page.strip()
 
         if not page.isdigit():
             raise InvalidParams("`page` is not a number")
         page = int(page)
 
-        client_size = self.route_info.get('size', '').strip()
         if self.LIST_ACCEPT_SIZE_FROM_CLIENT and client_size:
             page_size_limit = self.LIST_PAGE_SIZE_CLIENT_LIMIT or self.LIST_PAGE_SIZE
             if client_size == '-1':  # -1 means all
@@ -336,13 +336,13 @@ class AbstractSQLView(BaseView):
             else:
                 self.finish(RETCODE.NOT_FOUND)
 
-    async def list(self):
+    async def list(self, page='1', size=''):
         """
         获取分页记录接口，查询规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify
         """
         self.current_interface = InnerInterfaceName.LIST
         with ErrorCatchContext(self):
-            page, size = self._get_list_page_and_size()
+            page, size = self._get_list_page_and_size(page, size)
             info = SQLQueryInfo(self.params, view=self)
             await self._call_handle(self.before_query, info)
             records, count = await self._sql.select_page(info, page, size)

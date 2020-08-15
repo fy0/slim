@@ -202,24 +202,22 @@ class OpenAPIGenerator:
                 ]
             }
 
-        for i in self.app.route._beacons.values():
-            i: RouteInterfaceInfo
+        for func in self.app.route._funcs:
+            i: RouteInterfaceInfo = func._route_info
             path_item_object = {}
 
             view_cls = i.view_cls
             is_sql_view = issubclass(view_cls, AbstractSQLView)
             self._view_to_path.setdefault(view_cls, [])
 
-            for method in i['route']['method']:
-                raw = i['route']['raw']
-                relpath = i['route']['relpath']
+            for method in i.methods:
                 need_post_body = method in Request.POST_METHODS
 
                 parameters = []
                 request_body_schema = {}
                 response_schema = deepcopy(std_resp_schema)
 
-                summary = raw.get('summary') or i['name']
+                summary = i.summary or i.handler.__name__
 
                 if issubclass(view_cls, BaseUserViewMixin):
                     parameters.append({

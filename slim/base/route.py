@@ -69,7 +69,7 @@ class Route:
                 names_include.add(i)
 
             func._route_info = RouteInterfaceInfo(
-                method,
+                [method],
                 url or func.__name__,
                 func,
                 summary=summary,
@@ -107,18 +107,20 @@ class Route:
 
     def _bind(self):
         from ._view.base_view import ViewRequest
+        from ._view.abstract_sql_view import AbstractSQLView
 
         def add_to_url_mapping(_meta, _fullpath):
-            if ':' not in _fullpath and '(' not in _fullpath:
-                self._url_mappings.setdefault(_meta.method, {})
-                self._url_mappings[_meta.method][_fullpath] = _meta
-            else:
-                self.url_mappings_regex.setdefault(_meta.method, {})
-                try:
-                    _re = repath.pattern(_fullpath)
-                    self.url_mappings_regex[_meta.method][re.compile(_re)] = _meta
-                except Exception as e:
-                    raise InvalidRouteUrl(_fullpath, e)
+            for method in _meta.methods:
+                if ':' not in _fullpath and '(' not in _fullpath:
+                    self._url_mappings.setdefault(method, {})
+                    self._url_mappings[method][_fullpath] = _meta
+                else:
+                    self.url_mappings_regex.setdefault(method, {})
+                    try:
+                        _re = repath.pattern(_fullpath)
+                        self.url_mappings_regex[method][re.compile(_re)] = _meta
+                    except Exception as e:
+                        raise InvalidRouteUrl(_fullpath, e)
 
         # bind views
         for view_info in self._views:
@@ -135,6 +137,10 @@ class Route:
 
                         fullpath = urljoin(self._app.mountpoint, view_info.url, meta.url)
                         add_to_url_mapping(meta, fullpath)
+
+            if issubclass(view_cls, AbstractSQLView):
+                self._app.tables[view_cls.table_name] = view_cls
+            view_cls._ready()
 
         # bind functions
         for i in self._funcs:
@@ -165,15 +171,7 @@ class Route:
             for i, route_info in path_mapping.items():
                 m = i.fullmatch(path)
                 if m:
-                    call_kwargs = m.groupdict()
-                    if route_info.names_varkw is not None:
-                        for j in route_info.names_exclude:
-                            del call_kwargs[j]
-
-                    for j in call_kwargs.keys() - route_info.names_include:
-                        del call_kwargs[j]
-
-                    return route_info, call_kwargs
+                    return route_info, m.groupdict()
 
         return None, None
 

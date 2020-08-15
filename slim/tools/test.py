@@ -5,22 +5,22 @@ import json
 import logging
 from ipaddress import ip_address
 from types import FunctionType
-from typing import Optional, Callable, Union
+from typing import Optional, Callable, Union, Dict
 from unittest import mock
 
-import aiohttp
-from aiohttp import web
-from aiohttp.test_utils import make_mocked_request as _make_mocked_request
+from multidict import MultiDict
 from peewee import SqliteDatabase
 
 from slim import Application, ALL_PERMISSION
 from slim.base._view.abstract_sql_view import AbstractSQLView
+from slim.base._view.base_view import ASGIRequest
 from slim.base._view.err_catch_context import ErrorCatchContext
 from slim.base.types.route_meta_info import RouteInterfaceInfo
 from slim.base.user import BaseUser
 from slim.base.view import BaseView
 from slim.exception import SlimException
 from slim.support.peewee import PeeweeView
+from slim.utils import sentinel
 
 
 def new_app(permission=ALL_PERMISSION, log_level=logging.WARN, **kwargs) -> Application:
@@ -35,33 +35,7 @@ def new_app(permission=ALL_PERMISSION, log_level=logging.WARN, **kwargs) -> Appl
     return app
 
 
-class _MockResponse:
-    def __init__(self, headers, content):
-        self.headers = headers
-        self.content = content
-
-    async def release(self):
-        pass
-
-
-class _MockStream:
-    def __init__(self, content):
-        self.content = io.BytesIO(content)
-
-    async def read(self, size=None):
-        return self.content.read(size)
-
-    def at_eof(self):
-        return self.content.tell() == len(self.content.getbuffer())
-
-    async def readline(self):
-        return self.content.readline()
-
-    def unread_data(self, data):
-        self.content = io.BytesIO(data + self.content.read())
-
-
-def _polyfill_post(request: web.Request, post):
+def _polyfill_post(request: 'web.Request', post):
     if post:
         if isinstance(post, bytes):
             request._read_bytes = post
@@ -94,28 +68,70 @@ def get_peewee_db():
     return db
 
 
-async def make_mocked_view_instance(app, view_cls, method, url, params=None, post=None, *, headers=None,
-                                    content_type='application/json') -> Union[BaseView, AbstractSQLView, PeeweeView]:
-    if not headers:
-        headers = {}
+def make_mocked_request(method, path: str, *, headers: Dict[str, str] = None, body: bytes = None):
+    path_split = path.split('?', 1)
+    path = path_split[0]
+
+    if len(path_split) > 1:
+        query_string = path_split[1].encode('ascii', 'backslashreplace')
+    else:
+        query_string = b''
+
+    scope = {
+        'asgi': {'spec_version': '2.1', 'version': '3.0'},
+        'client': ('127.0.0.1', 13284),
+        'headers': [],
+        'http_version': '1.1',
+        'method': method,
+        'path': path,
+        'query_string': query_string,
+        'raw_path': path.encode('utf-8'),
+        'root_path': '',
+        'scheme': 'http',
+        'server': ('127.0.0.1', 5001),
+        'type': 'http'
+    }
+
+    if headers:
+        for k, v in headers.items():
+            scope['headers'].append([k.encode('utf-8'), v.encode('utf-8')])
+
+    async def receive():
+        return {'body': body}
+
+    return ASGIRequest(scope, receive, mock.Mock())
+
+
+async def make_mocked_view(app, view_cls, method, url, params=None, post=sentinel, *, headers=None, user=None,
+                           content_type='application/json') -> Union[BaseView, AbstractSQLView, PeeweeView]:
+    if isinstance(view_cls, BaseView):
+        view = view_cls
+    else:
+        view = view_cls()
+
+    headers = headers or {}
 
     if content_type:
         headers['Content-Type'] = content_type
 
-    request = _make_mocked_request(method, url, headers=headers, protocol=mock.Mock(), app=app)
-    _polyfill_post(request, post)
+    view.request = make_mocked_request(method, url)
+    view.app = app
 
-    view = view_cls(app, request)
     view._params_cache = params
+    view._headers_cache = MultiDict(headers)
     view._post_data_cache = post
+    view._ip_cache = ip_address('127.0.0.1')
+    view._current_user = user
 
-    await view.prepare()
+    with ErrorCatchContext(view):
+        await view._prepare()
+
     return view
 
 
-async def invoke_interface(app: Application, func: FunctionType, params=None, post=None, *, headers=None, method=None,
-                           user=None, bulk=False, returning=None, role=None, content_type='application/json',
-                           fill_post_cache=True) -> Optional[BaseView]:
+async def invoke_interface(app: Application, func: FunctionType, params=None, post=sentinel, *, headers=None,
+                           method=None, user=None, bulk=False, returning=None, role=None,
+                           content_type='application/json') -> Optional[BaseView]:
     """
     Invoke a interface programmatically
     :param app: Application object
@@ -129,7 +145,6 @@ async def invoke_interface(app: Application, func: FunctionType, params=None, po
     :param returning:
     :param role:
     :param content_type:
-    :param fill_post_cache:
     :return:
     """
     url = 'mock_url'
@@ -150,9 +165,6 @@ async def invoke_interface(app: Application, func: FunctionType, params=None, po
         view = meta.view_cls(app)
         handler = func.__get__(view)
 
-    view._req = 1
-    view.app = app
-
     headers = headers or {}
     if bulk:
         headers['bulk'] = bulk
@@ -161,20 +173,10 @@ async def invoke_interface(app: Application, func: FunctionType, params=None, po
     if returning:
         headers['returning'] = 'true'
 
-    if content_type:
-        headers['Content-Type'] = content_type
+    _method = method if method else meta.methods[0]
 
-    view._params_cache = params
-    view._headers_cache = headers
-    if fill_post_cache:
-        view._post_data_cache = post
-    view._ip_cache = ip_address('127.0.0.1')
-    view._current_user = user
-
-    with ErrorCatchContext(view):
-        await view._prepare()
-
-    _method = method if method else meta.method
+    view = await make_mocked_view(app, view, _method, url, params=params, post=post, headers=headers,
+                                  content_type=content_type)
 
     # url = info.route.fullpath
     # _method = next(iter(info.route.method))
@@ -193,23 +195,3 @@ async def invoke_interface(app: Application, func: FunctionType, params=None, po
                 handler()
 
             return view
-
-
-def make_asgi_request(method):
-    return {
-        'asgi': {'spec_version': '2.1', 'version': '3.0'},
-        'client': ('127.0.0.1', 13284),
-        'headers': [(b'connection', b'keep-alive'),
-                    (b'user-agent', b'slim tester'),
-                    (b'accept-encoding', b'gzip, deflate, br'),
-                    (b'cookie', b'A=1')],
-        'http_version': '1.1',
-        'method': method,
-        'path': '/',
-        'query_string': b'asdasd=123&b=2&b=3&c=4',
-        'raw_path': b'/',
-        'root_path': '',
-        'scheme': 'http',
-        'server': ('127.0.0.1', 5001),
-        'type': 'http'
-    }

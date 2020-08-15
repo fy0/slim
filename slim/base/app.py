@@ -149,9 +149,6 @@ class Application:
                     except ValueError:
                         pass
 
-        for vi in self.route._views:
-            vi.view_cls._ready()
-
     async def __call__(self, scope, receive, send):
         if scope['type'] == 'lifespan':
             while True:
@@ -165,14 +162,24 @@ class Application:
                     return
 
         if scope['type'] == 'http':
-            route_info, call_kwargs = self.route.query_path(scope['method'], scope['path'])
+            route_info, call_kwargs_raw = self.route.query_path(scope['method'], scope['path'])
 
             if route_info:
                 t = time.perf_counter()
-                # if hack_view: hack_view(view_instance)
+
+                # filter call_kwargs
+                call_kwargs = call_kwargs_raw.copy()
+                if route_info.names_varkw is not None:
+                    for j in route_info.names_exclude:
+                        del call_kwargs[j]
+
+                for j in call_kwargs.keys() - route_info.names_include:
+                    del call_kwargs[j]
 
                 # build a view instance
                 view = await route_info.view_cls._assemble(self, scope, receive, send)
+                view._route_info = call_kwargs
+
                 # make the method bounded
                 handler = route_info.handler.__get__(view)
 
