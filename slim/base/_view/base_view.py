@@ -324,9 +324,10 @@ class BaseView(metaclass=MetaClassForInit):
             try:
                 body_buffer = await read_body(self.request.receive)
                 body = body_buffer.read()
-                self._post_data_cache = json.loads(body)
-                if not isinstance(self._post_data_cache, Mapping):
-                    raise InvalidPostData('post data should be a mapping.')
+                if body:
+                    self._post_data_cache = json.loads(body)
+                    if not isinstance(self._post_data_cache, Mapping):
+                        raise InvalidPostData('post data should be a mapping.')
             except json.JSONDecodeError as e:
                 raise InvalidPostData('json decoded failed')
 

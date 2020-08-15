@@ -5,12 +5,11 @@ from enum import Enum
 from typing import Tuple, Union, Dict, Iterable, Type, List, Set, Any, Optional, Mapping
 
 import schematics
-from aiohttp.web_request import BaseRequest, FileField
 from multidict import istr
 from schematics.types import BaseType
 
 from slim.base.types import InnerInterfaceName
-from .base_view import BaseView
+from .base_view import BaseView, ASGIRequest
 from .err_catch_context import ErrorCatchContext
 from .view_options import SQLViewOptions
 from slim.exception import SlimException, PermissionDenied, FinishQuitException, InvalidParams, RecordNotFound, \
@@ -156,10 +155,9 @@ class AbstractSQLView(BaseView):
         key = 'returning'
         if key in self.headers:
             return True
-        if self.method in BaseRequest.POST_METHODS:
-            post = await self.post_data()
-            if isinstance(post, Mapping) and key in post:
-                return True
+        post = await self.post_data()
+        if isinstance(post, Mapping) and key in post:
+            return True
         return key in self.params
 
     @property
@@ -172,8 +170,8 @@ class AbstractSQLView(BaseView):
         if role_val is not None:
             return int(role_val) if role_val.isdigit() else role_val
 
-    def __init__(self, app: Application = None, aiohttp_request: BaseRequest = None):
-        super().__init__(app, aiohttp_request)
+    def __init__(self, app: Application = None, req: ASGIRequest = None):
+        super().__init__(app, req)
         self._sql = None
         self.current_interface = None
 

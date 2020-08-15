@@ -2,8 +2,6 @@
 from copy import deepcopy
 from typing import Type, TYPE_CHECKING
 
-from aiohttp.web_request import Request
-
 from slim.base.types import InnerInterfaceName as IIN
 from slim.base.types.route_meta_info import RouteInterfaceInfo
 from slim.base.types.func_meta import FuncMeta
