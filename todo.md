@@ -1,4 +1,26 @@
 
+## todo v2
+
+* cors support
+
+* stream response body support
+
+* static file support
+
+* websocket support
+
+* function handler support
+
+* middleware support
+
+* log
+
+* auto docs
+
+* ~~route~~
+
+* works again
+
 ## todo
 
 * 'select' for loadfk

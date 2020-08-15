@@ -25,7 +25,7 @@ db.create_tables([ATestModel])
 class ATestView(PeeweeView):
     model = ATestModel
 
-app._prepare()
+app.prepare()
 
 
 async def test_invoke_interface():

@@ -28,4 +28,4 @@ async def test_openapi_gen_peewee_view_simple():
     get_openapi(app)
 
 
-app._prepare()
+app.prepare()

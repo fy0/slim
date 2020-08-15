@@ -1,4 +1,4 @@
-﻿from peewee import *
+from peewee import *
 from model import BaseModel
 
 

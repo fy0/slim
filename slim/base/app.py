@@ -1,18 +1,14 @@
 import logging
 import asyncio
-from typing import Union, List, Optional, TYPE_CHECKING, Iterable, Callable, Awaitable
-from aiohttp import web
-from aiohttp.web_request import Request
-from aiohttp.web_response import Response
-from aiohttp.web_urldispatcher import StaticResource
+import time
+from typing import Union, List, Optional, TYPE_CHECKING, Iterable, Callable, Awaitable, Dict
 
 from slim.base.types.doc import ApplicationDocInfo
 from slim.ext.decorator import deprecated
-from slim.ext.openapi.serve import doc_serve
+# from slim.ext.openapi.serve import doc_serve
 from .session import CookieSession
 from ..utils import get_ioloop
 from ..utils.jsdict import JsDict
-import aiohttp_cors
 from . import log
 
 if TYPE_CHECKING:
@@ -46,12 +42,10 @@ class CORSOptions:
 
 
 class Application:
-    _request_solver: Callable[[Request, Callable, Optional[Callable]], Awaitable[Response]]
-
     def __init__(self, *, cookies_secret: bytes, log_level=logging.INFO, session_cls=CookieSession,
                  mountpoint: str = '/api', doc_enable=True, doc_info=ApplicationDocInfo(),
-                 permission: Optional['Permissions'] = None, client_max_size=2 * 1024 * 1024,
-                 cors_options: Optional[Union[CORSOptions, List[CORSOptions]]] = None):
+                 permission: Optional['Permissions'] = None, client_max_size=100 * 1024 * 1024,
+                 cors_options: Optional[CORSOptions] = None):
         """
         :param cookies_secret:
         :param log_level:
@@ -60,9 +54,9 @@ class Application:
         :param mountpoint:
         :param doc_enable:
         :param doc_info:
-        :param client_max_size: 2MB is default client_max_body_size of nginx
+        :param client_max_size: 100MB
         """
-        from .route import get_request_solver, Route
+        from .route import Route
         from .permission import Permissions, Ability, ALL_PERMISSION, EMPTY_PERMISSION
 
         self.on_startup = []
@@ -75,7 +69,8 @@ class Application:
         self.doc_info = doc_info
 
         if self.doc_enable:
-            doc_serve(self)
+            # doc_serve(self)
+            pass
 
         if permission is ALL_PERMISSION:
             logger.warning('app.permission is ALL_PERMISSION, it means everyone has all permissions for any table')
@@ -101,14 +96,14 @@ class Application:
         self.options = ApplicationOptions()
         self.options.cookies_secret = cookies_secret
         self.options.session_cls = session_cls
-        self._request_solver = get_request_solver(self)
-        self._raw_app = web.Application(middlewares=[self._request_solver], client_max_size=client_max_size)
+        self.client_max_size = client_max_size
 
-    def _prepare(self):
+    def prepare(self):
         from .view import AbstractSQLView
         self.route._bind()
+        return
 
-        for vi in self.route.views:
+        for vi in self.route._views:
             cls = vi.view_cls
             if issubclass(cls, AbstractSQLView):
                 '''
@@ -154,35 +149,85 @@ class Application:
                     except ValueError:
                         pass
 
-        for vi in self.route.views:
+        for vi in self.route._views:
             vi.view_cls._ready()
 
+    async def __call__(self, scope, receive, send):
+        if scope['type'] == 'lifespan':
+            while True:
+                message = await receive()
+                if message['type'] == 'lifespan.startup':
+                    await self.prepare()
+                    await send({'type': 'lifespan.startup.complete'})
+
+                elif message['type'] == 'lifespan.shutdown':
+                    await send({'type': 'lifespan.shutdown.complete'})
+                    return
+
+        if scope['type'] == 'http':
+            route_info, call_kwargs = self.route.query_path(scope['method'], scope['path'])
+
+            if route_info:
+                t = time.perf_counter()
+                # if hack_view: hack_view(view_instance)
+
+                # build a view instance
+                view = await route_info.view_cls._assemble(self, scope, receive, send)
+                # make the method bounded
+                handler = route_info.handler.__get__(view)
+
+                # note: view.prepare() may case finished
+                if not view.is_finished:
+                    # user's validator check
+                    from slim.base._view.validate import view_validate_check
+                    await view_validate_check(view, route_info.va_query, route_info.va_post, route_info.va_headers)
+
+                    if not view.is_finished:
+                        # call the request handler
+                        if asyncio.iscoroutinefunction(handler):
+                            await handler(**call_kwargs)
+                        else:
+                            handler(**call_kwargs)
+
+                took = round((time.perf_counter() - t) * 1000, 2)
+                # GET /api/get -> TopicView.get 200 30ms
+                # logger.info("{} {:4s} -> {} {}, took {}ms".format(method, ascii_encodable_path, handler_name, status_code, took))
+
+                # if status_code == 500:
+                #     warn_text = "The handler {!r} did not called `view.finish()`.".format(handler_name)
+                #     logger.warning(warn_text)
+                #     view_instance.finish_raw(warn_text.encode('utf-8'), status=500)
+                #     return resp
+                #
+                # await view_instance._on_finish()
+
+                if view.response:
+                    resp = view.response
+                    await send({
+                        'type': 'http.response.start',
+                        'status': resp.status,
+                        'headers': resp.build_headers()
+                    })
+
+                await send({
+                    'type': 'http.response.body',
+                    'body': await resp.get_body(),
+                })
+                return
+
+            await send({
+                'type': 'http.response.start',
+                'status': 404,
+                'headers': [
+                    [b'content-type', b'text/plain'],
+                ]
+            })
+
+            await send({
+                'type': 'http.response.body',
+                'body': b'not found',
+            })
+
     def run(self, host, port):
-        def reg(mine, target):
-            assert isinstance(mine, Iterable)
-
-            for i in mine:
-                assert i, asyncio.Future
-
-                async def dummy(_raw_app):
-                    await i()
-                target.append(dummy)
-
-        reg(self.on_startup, self._raw_app.on_startup)
-        reg(self.on_shutdown, self._raw_app.on_shutdown)
-        reg(self.on_cleanup, self._raw_app.on_cleanup)
-
-        self._prepare()
-        web.run_app(host=host, port=port, app=self._raw_app)
-
-    @staticmethod
-    @deprecated('@app.timer is deprecated, use @slim.ext.decorator.timer to instead.')
-    def timer(interval_seconds, *, exit_when):
-        """
-        Set up a timer
-        :param interval_seconds:
-        :param exit_when:
-        :return:
-        """
-        from slim.ext.decorator import timer
-        return timer(interval_seconds, exit_when=exit_when)
+        import uvicorn
+        uvicorn.run(self, host=host, port=port, log_level='info')

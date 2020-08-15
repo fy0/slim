@@ -51,7 +51,7 @@ setup(
         'Programming Language :: Python :: 3.8'
     ],
 
-    keywords='slim web framework model aiohttp asyncpg peewee',
+    keywords='slim web framework model asgi asyncpg peewee',
     packages=find_packages(exclude=['tests']) + ['slim_cli',
                                                  'slim_cli.template',
                                                  'slim_cli.template.permissions',
@@ -67,8 +67,8 @@ setup(
     include_package_data=True,
     platforms='any',
 
-    install_requires=['aiohttp', 'aiohttp_cors', 'click', 'schematics'],
-    python_requires='>=3.6.0',
+    install_requires=['schematics', 'typing_extensions', 'dataclass', 'yarl', 'uvicorn', 'click'],
+    python_requires='>=3.6.9',
 
     extras_require={
         'full': ['peewee', 'asyncpg', 'msgpack', 'psycopg2-binary'],

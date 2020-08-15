@@ -1,8 +1,8 @@
 from posixpath import join as urljoin
 from typing import TYPE_CHECKING
 
-from aiohttp import web
-from aiohttp.web_request import Request
+# from aiohttp import web
+# from aiohttp.web_request import Request
 
 from slim.ext.openapi.main import get_openapi
 
@@ -13,14 +13,15 @@ if TYPE_CHECKING:
 def doc_serve(app: 'Application'):
     spec_url = urljoin(app.mountpoint, '/openapi.json')
 
+    return
     @app.route._aiohttp_func(spec_url, 'GET')
     async def openapi(request):
-        role = request.query.get('role')
+        role = request.query_path.get('role')
         return web.json_response(get_openapi(app, role))
 
     @app.route._aiohttp_func('/redoc', 'GET')
     async def openapi(request: Request):
-        role = request.query.get('role', None)
+        role = request.query_path.get('role', None)
 
         def get_role_spec_url(role):
             if role is None:

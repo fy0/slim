@@ -55,8 +55,7 @@ class AbstractSQLView(BaseView):
 
     @classmethod
     def interface_register(cls):
-        super().interface_register()
-
+        '''
         cls._use('get', 'GET', _sql_query=True, summary='获取单项', _inner_name=InnerInterfaceName.GET)
         cls._use_lst('list', _sql_query=True, summary='获取列表', _inner_name=InnerInterfaceName.LIST,
                      summary_with_size='获取列表(自定义分页大小)', _inner_name_with_size=InnerInterfaceName.LIST_WITH_SIZE)
@@ -64,6 +63,7 @@ class AbstractSQLView(BaseView):
         cls._use('new', 'POST', _sql_post=True, summary='新建', _inner_name=InnerInterfaceName.NEW)
         cls._use('bulk_insert', 'POST', _sql_post=True, summary='新建(批量)', _inner_name=InnerInterfaceName.BULK_INSERT)
         cls._use('delete', 'POST', _sql_query=True, summary='删除', _inner_name=InnerInterfaceName.DELETE)
+        '''
 
     @classmethod
     def add_soft_foreign_key(cls, column, table_name, alias=None):
@@ -176,8 +176,21 @@ class AbstractSQLView(BaseView):
         self._sql = None
         self.current_interface = None
 
+    @classmethod
+    def _on_bind(cls, route):
+        super()._on_bind(route)
+
+        # register interface
+        route.interface('GET', summary='获取单项')(cls.get)
+        route.interface('GET', summary='获取列表')(cls.list)
+        route.interface('POST', summary='更新')(cls.set)
+        route.interface('POST', summary='新建')(cls.new)
+        route.interface('POST', summary='新建(批量)')(cls.bulk_insert)
+        route.interface('POST', summary='删除')(cls.delete)
+
     async def _prepare(self):
         await super()._prepare()
+
         # _sql 里使用了 self.err 存放数据
         # 那么可以推测在并发中，cls._sql.err 会被多方共用导致出错
         self._sql = self._sql_cls(self.__class__)
@@ -227,7 +240,7 @@ class AbstractSQLView(BaseView):
                     # 3. query foreign keys
                     vcls = self.app.tables[fkvalues['table']]
                     v = vcls(self.app, self._request)  # fake view
-                    await v._prepare()
+                    await v.prepare()
                     info2 = SQLQueryInfo()
                     info2.set_select(ALL_COLUMNS)
                     info2.add_condition(PRIMARY_KEY, SQL_OP.IN, pks)

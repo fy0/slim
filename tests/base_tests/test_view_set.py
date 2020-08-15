@@ -83,4 +83,4 @@ async def test_set_with_empty_values():
     assert t.content == '1'
 
 
-app._prepare()
+app.prepare()

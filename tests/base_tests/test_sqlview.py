@@ -591,4 +591,4 @@ async def test_ready():
     assert ATestReadyView2.a == 2
 
 
-app._prepare()
+app.prepare()

@@ -3,6 +3,10 @@ class SlimException(Exception):
     pass
 
 
+class InvalidRouteUrl(SlimException):
+    pass
+
+
 class NoUserViewMixinException(SlimException):
     pass
 

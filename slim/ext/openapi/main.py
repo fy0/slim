@@ -5,7 +5,7 @@ from typing import Type, TYPE_CHECKING
 from aiohttp.web_request import Request
 
 from slim.base.types import InnerInterfaceName as IIN
-from slim.base.types.beacon import BeaconInfo
+from slim.base.types.route_meta_info import RouteInterfaceInfo
 from slim.base.types.func_meta import FuncMeta
 from slim.base.user import BaseUserViewMixin
 from slim.retcode import RETCODE
@@ -136,7 +136,7 @@ class OpenAPIGenerator:
         from slim.base.view import BaseView, AbstractSQLView
         app = self.app
 
-        for vi in app.route.views:
+        for vi in app.route._views:
             view_cls = vi.view_cls
             is_sql_view = issubclass(view_cls, AbstractSQLView)
 
@@ -175,7 +175,7 @@ class OpenAPIGenerator:
                     'sql_cant_delete': len(available_columns[A.DELETE]) == 0,
                 }
 
-    def _interface_solve(self, beacon_info: BeaconInfo, method, parameters, request_body_schema):
+    def _interface_solve(self, beacon_info: RouteInterfaceInfo, method, parameters, request_body_schema):
         if beacon_info.va_query:
             for k, v in beacon_info.va_query._fields.items():
                 parameters.append(self._schematics_field_to_parameter(k, v))
@@ -203,7 +203,7 @@ class OpenAPIGenerator:
             }
 
         for i in self.app.route._beacons.values():
-            i: BeaconInfo
+            i: RouteInterfaceInfo
             path_item_object = {}
 
             view_cls = i.view_cls
@@ -462,7 +462,7 @@ class OpenAPIGenerator:
         if doc_info.tags:
             tags = []
 
-            for vi in self.app.route.views:
+            for vi in self.app.route._views:
                 tag = {
                     'name': vi.view_cls.__name__,
                     'description': (vi.view_cls.__doc__ or '').strip()

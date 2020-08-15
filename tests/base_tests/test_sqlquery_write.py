@@ -27,7 +27,7 @@ class ATestView(PeeweeView):
     model = ATestModel
 
 
-app._prepare()
+app.prepare()
 
 
 async def test_value_write_normal():

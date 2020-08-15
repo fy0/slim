@@ -31,7 +31,7 @@ class ATestView(PeeweeView):
 ATestView.ability = Ability({
     '*': '*'
 })
-app._prepare()
+app.prepare()
 
 
 async def test_pg_array_contains_bad_type():

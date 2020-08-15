@@ -37,7 +37,7 @@ class TopicView(PeeweeView):
     model = Topic
 
 
-app._prepare()
+app.prepare()
 
 
 async def test_view_get():

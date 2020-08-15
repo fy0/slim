@@ -1,8 +1,10 @@
+import asyncio
 import inspect
 import io
 import json
 import logging
 from ipaddress import ip_address
+from types import FunctionType
 from typing import Optional, Callable, Union
 from unittest import mock
 
@@ -13,9 +15,11 @@ from peewee import SqliteDatabase
 
 from slim import Application, ALL_PERMISSION
 from slim.base._view.abstract_sql_view import AbstractSQLView
-from slim.base.types.beacon import BeaconInfo
+from slim.base._view.err_catch_context import ErrorCatchContext
+from slim.base.types.route_meta_info import RouteInterfaceInfo
 from slim.base.user import BaseUser
 from slim.base.view import BaseView
+from slim.exception import SlimException
 from slim.support.peewee import PeeweeView
 
 
@@ -105,22 +109,23 @@ async def make_mocked_view_instance(app, view_cls, method, url, params=None, pos
     view._params_cache = params
     view._post_data_cache = post
 
-    await view._prepare()
+    await view.prepare()
     return view
 
 
-async def invoke_interface(app: Application, func: [Callable], params=None, post=None, *, headers=None, method=None,
+async def invoke_interface(app: Application, func: FunctionType, params=None, post=None, *, headers=None, method=None,
                            user=None, bulk=False, returning=None, role=None, content_type='application/json',
                            fill_post_cache=True) -> Optional[BaseView]:
     """
-    :param app:
-    :param func:
-    :param params:
-    :param post:
-    :param headers:
+    Invoke a interface programmatically
+    :param app: Application object
+    :param func: the interface function
+    :param params: http params
+    :param post: http post body
+    :param headers: http headers
     :param method: auto detect
-    :param user:
-    :param bulk:
+    :param user: current user
+    :param bulk: is bulk operation
     :param returning:
     :param role:
     :param content_type:
@@ -131,47 +136,80 @@ async def invoke_interface(app: Application, func: [Callable], params=None, post
 
     if user:
         assert isinstance(user, BaseUser), 'user must be a instance of `BaseUser`'
-    assert inspect.ismethod(func), 'func must be method. e.g. UserView().get'
-    view_cls = func.__self__.__class__
-    func = func.__func__
 
-    beacon_info_dict = app.route._handler_to_beacon_info.get(func)
-    beacon_info: BeaconInfo = beacon_info_dict.get(view_cls) if beacon_info_dict else None
+    if not getattr(func, '_route_info', None):
+        raise SlimException('invoke failed, not interface: %r' % func)
 
-    if beacon_info:
-        beacon_func = beacon_info.beacon_func
-        info = app.route._beacons[beacon_func]
-        url = info.route.fullpath
-        _method = next(iter(info.route.method))
+    meta: RouteInterfaceInfo = getattr(func, '_route_info')
+    assert meta.view_cls, 'invoke only work after app.prepare()'
 
-        if method:
-            _method = method
+    if inspect.ismethod(func):
+        handler = func
+        view = func.__self__
+    else:
+        view = meta.view_cls(app)
+        handler = func.__get__(view)
 
-        headers = headers or {}
-        if bulk:
-            headers['bulk'] = bulk
-        if role:
-            headers['role'] = role
-        if returning:
-            headers['returning'] = 'true'
+    view._req = 1
+    view.app = app
 
-        if content_type:
-            headers['Content-Type'] = content_type
+    headers = headers or {}
+    if bulk:
+        headers['bulk'] = bulk
+    if role:
+        headers['role'] = role
+    if returning:
+        headers['returning'] = 'true'
 
-        request = _make_mocked_request(_method, url, headers=headers, protocol=mock.Mock(), app=app)
-        _polyfill_post(request, post)
+    if content_type:
+        headers['Content-Type'] = content_type
 
-        view_ref: Optional[BaseView] = None
+    view._params_cache = params
+    view._headers_cache = headers
+    if fill_post_cache:
+        view._post_data_cache = post
+    view._ip_cache = ip_address('127.0.0.1')
+    view._current_user = user
 
-        def hack_view(view: BaseView):
-            nonlocal view_ref
-            view_ref = view
-            view._params_cache = params
-            if fill_post_cache:
-                view._post_data_cache = post
-            view._ip_cache = ip_address('127.0.0.1')
-            view._current_user = user
+    with ErrorCatchContext(view):
+        await view._prepare()
 
-        await app._request_solver(request, beacon_func, hack_view)
-        assert view_ref, 'Invoke interface failed. Did you call `app._prepare()`?'
-        return view_ref
+    _method = method if method else meta.method
+
+    # url = info.route.fullpath
+    # _method = next(iter(info.route.method))
+
+    # note: view.prepare() may case finished
+    if not view.is_finished:
+        # user's validator check
+        from slim.base._view.validate import view_validate_check
+        await view_validate_check(view, meta.va_query, meta.va_post, meta.va_headers)
+
+        if not view.is_finished:
+            # call the request handler
+            if asyncio.iscoroutinefunction(handler):
+                await handler()
+            else:
+                handler()
+
+            return view
+
+
+def make_asgi_request(method):
+    return {
+        'asgi': {'spec_version': '2.1', 'version': '3.0'},
+        'client': ('127.0.0.1', 13284),
+        'headers': [(b'connection', b'keep-alive'),
+                    (b'user-agent', b'slim tester'),
+                    (b'accept-encoding', b'gzip, deflate, br'),
+                    (b'cookie', b'A=1')],
+        'http_version': '1.1',
+        'method': method,
+        'path': '/',
+        'query_string': b'asdasd=123&b=2&b=3&c=4',
+        'raw_path': b'/',
+        'root_path': '',
+        'scheme': 'http',
+        'server': ('127.0.0.1', 5001),
+        'type': 'http'
+    }

@@ -1,9 +1,7 @@
-from typing import Optional, Type, TYPE_CHECKING, Iterable, Mapping, List, Tuple
+from typing import Optional, Type, TYPE_CHECKING, List, Tuple
 
-from aiohttp.web_request import BaseRequest
 from schematics import Model
 from schematics.exceptions import DataError
-from schematics.types import ListType, ModelType
 
 from slim.base.types import InnerInterfaceName
 from slim.exception import InvalidParams, InvalidPostData, InvalidHeaders
@@ -27,7 +25,7 @@ async def view_validate_check(view: "BaseView", va_query: Optional[Type[Model]],
             # TODO: 这里有问题，对SQL请求来说，多个同名参数项，会在实际解析时会被折叠为一个数组，但是这里没有
             view._.validated_query = do_validate(va_query, view.params, InvalidParams)
 
-        if view.method in BaseRequest.POST_METHODS:
+        if va_post or va_write_value:
             from slim.base._view.abstract_sql_view import AbstractSQLView
             post_data = await view.post_data()
 

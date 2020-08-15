@@ -24,7 +24,7 @@ class TopicView(BaseView):
         self.finish(RETCODE.SUCCESS)
 
 
-app._prepare()
+app.prepare()
 
 
 def make_req(method, data=None, raw_data: bytes = None):
