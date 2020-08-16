@@ -3,9 +3,7 @@ import json
 import logging
 import time
 from collections import OrderedDict
-from dataclasses import dataclass
 from io import BytesIO
-from types import FunctionType
 from typing import Set, List, Union, Optional, Dict, Mapping, Any
 from urllib.parse import parse_qs
 from ipaddress import IPv4Address, IPv6Address, ip_address
@@ -13,6 +11,8 @@ from multidict import MultiDict, CIMultiDict
 from yarl import URL
 
 from ..app import Application
+from ..types.route_meta_info import RouteViewInfo
+from ..web import ASGIRequest, Response, JSONResponse
 from ...base import const
 from ...base._view.err_catch_context import ErrorCatchContext
 from ...base.const import CONTENT_TYPE
@@ -31,87 +31,18 @@ from ...utils.json_ex import json_ex_dumps
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class ASGIRequest:
-    scope: Dict
-    receive: FunctionType
-    send: FunctionType
-
-
-@dataclass
-class Response:
-    status: int = 200
-    body: str = None
-    headers: Dict[str, Any] = None
-    content_type: str = 'text/plain'
-    cookies: Dict[str, Dict] = None
-
-    async def get_body(self) -> bytes:
-        if isinstance(self, JSONResponse):
-            body = self.json_dumps(self.body)
-        else:
-            body = self.body
-        if isinstance(body, str):
-            return body.encode('utf-8')
-
-    def build_headers(self):
-        headers = [
-            # TODO: bytes convert cache
-            [const.CONTENT_TYPE.encode('utf-8'), self.content_type.encode('utf-8')]
-         ]
-
-        if self.cookies:
-            set_cookie = const.SET_COOKIE.encode('utf-8')
-            for k, v in self.cookies.items():
-                value = f"{v['name']}={v['value']}"
-
-                if 'expires' in v:
-                    value += f"; Expires={v['expires']}"
-
-                if 'max-age' in v:
-                    value += f"; Max-Age={v['max-age']}"
-
-                if 'domain' in v:
-                    value += f"; Domain={v['domain']}"
-
-                if 'path' in v:
-                    value += f"; Path={v['path']}"
-
-                if v.get('secure'):
-                    value += f"; Secure"
-
-                if v.get('httponly'):
-                    value += f"; HttpOnly"
-
-                headers.append([set_cookie, value.encode('utf-8')])
-
-        if self.headers:
-            for k, v in self.headers.items():
-                if not isinstance(v, bytes):
-                    v = str(v).encode('utf-8')
-                headers.append([k.encode('utf-8'), v])
-
-        return headers
-
-
-@dataclass
-class JSONResponse(Response):
-    content_type: str = 'application/json'
-    json_dumps: FunctionType = json.dumps
-
-
 class BaseView(metaclass=MetaClassForInit):
     """
-    应在 cls_init 时完成全部接口的扫描与wrap函数创建
-    并在wrapper函数中进行实例化，传入 request 对象
+    Basic http view object.
     """
     _no_route = False
 
+    _route_info: Optional['RouteViewInfo']
     ret_val: Optional[Dict]
 
     @classmethod
     def cls_init(cls):
-        cls._interface = {}
+        pass
 
     @property
     def permission(self) -> Permissions:
@@ -130,7 +61,7 @@ class BaseView(metaclass=MetaClassForInit):
         self.session = None
 
         self._cookie_set = OrderedDict()
-        self._route_info = {}
+        self._legacy_route_info_cache = {}
 
         self._ip_cache = None
         self._cookies_cache = None
@@ -142,12 +73,12 @@ class BaseView(metaclass=MetaClassForInit):
         self._ = self.temp_storage = TempStorage()
 
     @classmethod
-    async def _assemble(cls, app, scope, receive, send) -> 'BaseView':
+    async def _build(cls, app, request: ASGIRequest) -> 'BaseView':
         """
         Create a view, and bind request data
         :return:
         """
-        view = cls(app, ASGIRequest(scope, receive, send))
+        view = cls(app, request)
 
         with ErrorCatchContext(view):
             await view._prepare()
@@ -268,7 +199,12 @@ class BaseView(metaclass=MetaClassForInit):
         self.ret_val = body
         self.response = JSONResponse(body=body, json_dumps=json_ex_dumps, headers=headers, cookies=self._cookie_set)
 
-    def finish_raw(self, body: bytes = b'', status: int = 200, content_type: Optional[str] = None, *,
+    def finish_json(self, data: Any, *, status: int = 200, headers=None):
+        self.ret_val = data
+        self.response = JSONResponse(body=data, json_dumps=json_ex_dumps, headers=headers, status=status,
+                                     cookies=self._cookie_set)
+
+    def finish_raw(self, body: Union[bytes, str] = b'', status: int = 200, content_type: str = 'text/plain', *,
                    headers=None, body_writer=None):
         """
         Set raw response
@@ -423,7 +359,7 @@ class BaseView(metaclass=MetaClassForInit):
         info matched by router
         :return:
         """
-        return self._route_info
+        return self._legacy_route_info_cache
 
     @classmethod
     def _ready(cls):
@@ -440,5 +376,3 @@ class BaseView(metaclass=MetaClassForInit):
         pass
 
 
-class ViewRequest(BaseView):
-    pass

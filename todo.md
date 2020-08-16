@@ -1,7 +1,9 @@
 
 ## todo v2
 
-* cors support
+* multipart form parse
+
+* ~~cors support~~ it works, but could be better
 
 * stream response body support
 
@@ -9,17 +11,17 @@
 
 * websocket support
 
-* function handler support
+* ~~function handler support~~
 
 * middleware support
 
 * log
 
-* auto docs
+* ~~auto docs~~
 
 * ~~route~~
 
-* works again
+* ~~works again~~
 
 ## todo
 

@@ -8,7 +8,7 @@ from schematics.types import StringType
 from slim import Application, ALL_PERMISSION
 from slim.base._view.base_view import BaseView
 from slim.base._view.validate import view_validate_check
-from slim.base.types import InnerInterfaceName
+from slim.base.types import BuiltinInterface
 from slim.retcode import RETCODE
 from slim.support.peewee import PeeweeView
 from slim.tools.test import make_mocked_view
@@ -84,7 +84,7 @@ async def test_va_write_value_bulk_success():
         {"name": '123'},
         {"name": '456'},
     ]})
-    view.current_interface = InnerInterfaceName.BULK_INSERT
+    view.current_interface = BuiltinInterface.BULK_INSERT
     await view_validate_check(view, None, None, va_write_value=WriteValueModel)
     assert view.ret_val is None, 'no error raised'
     assert view._.validated_write_values
@@ -93,7 +93,7 @@ async def test_va_write_value_bulk_success():
 
 async def test_va_write_value_set_or_update_success():
     view = await make_mocked_view(app, ATestView, 'POST', '/api/test1', post={"name": '123'})
-    view.current_interface = InnerInterfaceName.SET
+    view.current_interface = BuiltinInterface.SET
     await view_validate_check(view, None, None, va_write_value=WriteValueModel)
     assert view.ret_val is None, 'no error raised'
     assert view._.validated_write_values

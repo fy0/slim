@@ -35,3 +35,5 @@ class RouteInterfaceInfo:
     va_headers: Type[Model] = None
     deprecated: bool = False
     is_free_func = False
+
+    builtin_interface: Optional[str] = None

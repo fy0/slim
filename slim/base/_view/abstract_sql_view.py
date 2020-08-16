@@ -8,8 +8,9 @@ import schematics
 from multidict import istr
 from schematics.types import BaseType
 
-from slim.base.types import InnerInterfaceName
-from .base_view import BaseView, ASGIRequest
+from slim.base.types import BuiltinInterface
+from .base_view import BaseView
+from ..web import ASGIRequest
 from .err_catch_context import ErrorCatchContext
 from .view_options import SQLViewOptions
 from slim.exception import SlimException, PermissionDenied, FinishQuitException, InvalidParams, RecordNotFound, \
@@ -22,6 +23,7 @@ from slim.base.sqlfuncs import AbstractSQLFunctions
 from slim.retcode import RETCODE
 from slim.utils.cls_property import classproperty
 from slim.utils import pagination_calc, async_call, get_ioloop, get_class_full_name
+from ..route import Route
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +110,7 @@ class AbstractSQLView(BaseView):
         # because of BaseView.cls_init is a bound method (@classmethod)
         # so we can only route BaseView._interface, not cls._interface defined by user
         BaseView.cls_init.__func__(cls)
-        # super().cls_init()  # fixed in 3.6
+        super().cls_init()  # fixed in 3.6
 
         cls_full_name = get_class_full_name(cls)
         assert isinstance(cls.LIST_PAGE_SIZE, int), '%s.LIST_PAGE_SIZE must be int' % cls_full_name
@@ -176,16 +178,23 @@ class AbstractSQLView(BaseView):
         self.current_interface = None
 
     @classmethod
-    def _on_bind(cls, route):
+    def _on_bind(cls, route: Route):
         super()._on_bind(route)
 
         # register interface
-        route.interface('GET', summary='获取单项')(cls.get)
-        route.interface('GET', summary='获取列表')(cls.list)
-        route.interface('POST', summary='更新')(cls.set)
-        route.interface('POST', summary='新建')(cls.new)
-        route.interface('POST', summary='新建(批量)')(cls.bulk_insert)
-        route.interface('POST', summary='删除')(cls.delete)
+        route.get(summary='获取单项')(cls.get)
+        route.get(summary='获取列表', url='list/:page/:size?')(cls.list)
+        route.post(summary='更新')(cls.set)
+        route.post(summary='新建')(cls.new)
+        route.post(summary='新建(批量)')(cls.bulk_insert)
+        route.post(summary='删除')(cls.delete)
+
+        cls.get._route_info.builtin_interface = BuiltinInterface.GET
+        cls.list._route_info.builtin_interface = BuiltinInterface.LIST
+        cls.set._route_info.builtin_interface = BuiltinInterface.SET
+        cls.new._route_info.builtin_interface = BuiltinInterface.NEW
+        cls.bulk_insert._route_info.builtin_interface = BuiltinInterface.BULK_INSERT
+        cls.delete._route_info.builtin_interface = BuiltinInterface.DELETE
 
     async def _prepare(self):
         await super()._prepare()
@@ -308,7 +317,7 @@ class AbstractSQLView(BaseView):
 
         return page, client_size
 
-    async def check_records_permission(self, info, records, *, exception_cls: Type[SlimException]=PermissionDenied):
+    async def check_records_permission(self, info, records, *, exception_cls: Type[SlimException] = PermissionDenied):
         user = self.current_user if self.can_get_user else None
         for record in records:
             columns = record.set_info(info, self.ability, user)
@@ -319,7 +328,6 @@ class AbstractSQLView(BaseView):
         """
         获取单项记录接口，查询规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify
         """
-        self.current_interface = InnerInterfaceName.GET
         with ErrorCatchContext(self):
             info = SQLQueryInfo(self.params, view=self)
             await self._call_handle(self.before_query, info)
@@ -338,7 +346,6 @@ class AbstractSQLView(BaseView):
         """
         获取分页记录接口，查询规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify
         """
-        self.current_interface = InnerInterfaceName.LIST
         with ErrorCatchContext(self):
             page, size = self._get_list_page_and_size(page, size)
             info = SQLQueryInfo(self.params, view=self)
@@ -363,7 +370,6 @@ class AbstractSQLView(BaseView):
         查询规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify
         赋值规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify?id=修改新建
         """
-        self.current_interface = InnerInterfaceName.SET
         with ErrorCatchContext(self):
             info = SQLQueryInfo(self.params, self)
 
@@ -423,7 +429,6 @@ class AbstractSQLView(BaseView):
         批量新建接口
         赋值规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify?id=修改新建
         """
-        self.current_interface = InnerInterfaceName.BULK_INSERT
         post = await self.post_data()
         if not 'items' in post:
             raise InvalidPostData("`items` is required")
@@ -441,7 +446,6 @@ class AbstractSQLView(BaseView):
         新建接口
         赋值规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify?id=修改新建
         """
-        self.current_interface = InnerInterfaceName.NEW
         raw_post = await self.post_data()
         records = await self._base_insert([raw_post], False)
         if self.is_finished:
@@ -458,7 +462,6 @@ class AbstractSQLView(BaseView):
         查询规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify
         赋值规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify?id=修改新建
         """
-        self.current_interface = InnerInterfaceName.DELETE
         with ErrorCatchContext(self):
             info = SQLQueryInfo(self.params, self)
             await self._call_handle(self.before_query, info)

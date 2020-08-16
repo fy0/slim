@@ -92,4 +92,5 @@ class ErrorCatchContext:
 
         else:
             return  # 异常会传递出去
+
         return True

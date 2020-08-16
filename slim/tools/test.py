@@ -13,7 +13,7 @@ from peewee import SqliteDatabase
 
 from slim import Application, ALL_PERMISSION
 from slim.base._view.abstract_sql_view import AbstractSQLView
-from slim.base._view.base_view import ASGIRequest
+from slim.base.web import ASGIRequest
 from slim.base._view.err_catch_context import ErrorCatchContext
 from slim.base.types.route_meta_info import RouteInterfaceInfo
 from slim.base.user import BaseUser

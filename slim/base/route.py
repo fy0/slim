@@ -1,12 +1,9 @@
 import inspect
 import logging
 import re
-import time
-from asyncio import iscoroutinefunction, Future
 from types import FunctionType
-from typing import Iterable, Type, TYPE_CHECKING, Dict, Callable, Awaitable, Any, List, Optional, Tuple
+from typing import Iterable, Type, TYPE_CHECKING, Dict, List, Optional, Tuple
 from posixpath import join as urljoin
-
 
 from slim.base.types.doc import ResponseDataModel
 from slim.base.types.route_meta_info import RouteViewInfo, RouteInterfaceInfo
@@ -19,6 +16,8 @@ if TYPE_CHECKING:
     from .app import Application
 
 logger = logging.getLogger(__name__)
+
+
 # __all__ = ('Route',)
 
 
@@ -51,6 +50,7 @@ class Route:
         :param deprecated:
         :return:
         """
+
         def wrapper(func: FunctionType):
             self._funcs.append(func)
             arg_spec = inspect.getfullargspec(func)
@@ -84,6 +84,7 @@ class Route:
                 names_varkw=names_varkw
             )
             return func
+
         return wrapper
 
     def view(self, url, tag_name=None):
@@ -96,6 +97,7 @@ class Route:
         from .view import BaseView
 
         def wrapper(view_cls):
+            assert inspect.isclass(view_cls), '%r is not a class' % view_cls.__name__
             if issubclass(view_cls, BaseView):
                 view_url = url if url else camel_case_to_underscore_case(view_cls.__name__)
                 route_info = RouteViewInfo(view_url, view_cls, tag_name)
@@ -106,7 +108,7 @@ class Route:
         return wrapper
 
     def _bind(self):
-        from ._view.base_view import ViewRequest
+        from ._view.request_view import RequestView
         from ._view.abstract_sql_view import AbstractSQLView
 
         def add_to_url_mapping(_meta, _fullpath):
@@ -127,7 +129,7 @@ class Route:
             view_cls = view_info.view_cls
             view_cls._on_bind(self)
 
-            for k, v in vars(view_cls).items():
+            for k, v in inspect.getmembers(view_cls):
                 if isinstance(v, FunctionType):
                     # bind interface to url mapping
                     if getattr(v, '_route_info', None):
@@ -136,6 +138,7 @@ class Route:
                         meta.handler_name = '%s.%s' % (get_class_full_name(view_cls), meta.handler.__name__)
 
                         fullpath = urljoin(self._app.mountpoint, view_info.url, meta.url)
+                        meta.fullpath = fullpath
                         add_to_url_mapping(meta, fullpath)
 
             if issubclass(view_cls, AbstractSQLView):
@@ -146,11 +149,12 @@ class Route:
         for i in self._funcs:
             if not i._route_info.view_cls:
                 meta: RouteInterfaceInfo = i._route_info
-                meta.view_cls = ViewRequest
+                meta.view_cls = RequestView
                 meta.handler_name = meta.handler.__name__
                 meta.is_free_func = True
 
                 fullpath = urljoin(self._app.mountpoint, meta.url)
+                meta.fullpath = fullpath
                 add_to_url_mapping(meta, fullpath)
 
     def query_path(self, method, path) -> Tuple[Optional[RouteInterfaceInfo], Optional[Dict]]:
@@ -182,6 +186,7 @@ class Route:
         :param obj:
         :return:
         """
+
         def wrapper(cls):
             if issubclass(cls, WSRouter):
                 self.websockets.append((url, obj()))
@@ -196,18 +201,18 @@ class Route:
         :param kwargs:
         :return:
         """
-        self.statics.append((prefix, path, kwargs),)
+        self.statics.append((prefix, path, kwargs), )
 
     # alias function
 
     def get(self, url=None, *, summary=None, va_query=None, va_post=None, va_headers=None,
-                  va_resp=ResponseDataModel, deprecated=False):
+            va_resp=ResponseDataModel, deprecated=False):
         kwargs = locals()
         del kwargs['self']
         return self.interface('GET', **kwargs)
 
     def post(self, url=None, *, summary=None, va_query=None, va_post=None, va_headers=None,
-                  va_resp=ResponseDataModel, deprecated=False):
+             va_resp=ResponseDataModel, deprecated=False):
         kwargs = locals()
         del kwargs['self']
         return self.interface('GET', **kwargs)

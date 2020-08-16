@@ -7,7 +7,7 @@
 
 A Web framework provides instant restful api for your database.
 
-* Based on aiohttp and peewee.
+* Based on ASGI.
 
 * Instant restful api for your database model.
 
