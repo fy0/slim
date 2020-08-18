@@ -24,8 +24,8 @@ class ATestView(PeeweeView):
     model = ATestModel
 
 
+app.prepare()
+
+
 async def test_openapi_gen_peewee_view_simple():
     get_openapi(app)
-
-
-app.prepare()

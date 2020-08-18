@@ -200,8 +200,7 @@ class OpenAPIGenerator:
                 ]
             }
 
-        for func in self.app.route._funcs:
-            i: RouteInterfaceInfo = func._route_info
+        for i in self.app.route._funcs_meta:
             path_item_object = {}
 
             view_cls = i.view_cls

@@ -7,7 +7,7 @@ from io import BytesIO
 from typing import Set, List, Union, Optional, Dict, Mapping, Any
 from urllib.parse import parse_qs
 from ipaddress import IPv4Address, IPv6Address, ip_address
-from multidict import MultiDict, CIMultiDict
+from multidict import MultiDict, CIMultiDict, istr
 from multipart import multipart
 from yarl import URL
 
@@ -265,11 +265,13 @@ class BaseView(metaclass=MetaClassForInit):
                     self._post_data_cache = json.loads(body)
                     if not isinstance(self._post_data_cache, Mapping):
                         raise InvalidPostData('post data should be a mapping.')
+                else:
+                    return None
             except json.JSONDecodeError as e:
                 raise InvalidPostData('json decoded failed')
 
         elif self.content_type == 'application/x-www-form-urlencoded':
-            body_buffer = await read_body(self.request.receive())
+            body_buffer = await read_body(self.request.receive)
 
             post = MultiDict()
             for k, v in parse_qs(body_buffer.read().decode('utf-8')).items():
@@ -294,13 +296,14 @@ class BaseView(metaclass=MetaClassForInit):
             post = MultiDict()
 
             def on_field(field: multipart.Field):
-                post.add(field.field_name, field.value)
+                post.add(field.field_name.decode('utf-8'), field.value)
 
             def on_file(field: multipart.File):
-                post.add(field.field_name, field)
+                post.add(field.field_name.decode('utf-8'), field)
+                field.file_object.seek(0)
 
-            parser = multipart.create_form_parser(self.headers, on_field, on_file)
-            await read_multipart(self.request.receive())
+            parser = multipart.create_form_parser({'Content-Type': self.content_type}, on_field, on_file)
+            await read_multipart(self.request.receive)
             self._post_data_cache = post
 
         return self._post_data_cache
@@ -372,7 +375,7 @@ class BaseView(metaclass=MetaClassForInit):
             for k, v in self.request.scope['headers']:
                 k: bytes
                 v: bytes
-                headers.add(k.decode('utf-8'), v.decode('utf-8'))
+                headers.add(istr(k.decode('utf-8')), v.decode('utf-8'))
             self._headers_cache = headers
         return self._headers_cache
 

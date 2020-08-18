@@ -16,9 +16,9 @@ class TopicView(BaseView):
     @app.route.interface('POST')
     async def upload(self):
         post = await self.post_data()
-        field: FileField = post.get('file')
+        field = post.get('file')
         # assert isinstance(field, FileField)
-        assert field.file.read() == b'FILE_CONTENT'
+        assert field.file_object.read() == b'FILE_CONTENT'
         self.finish(RETCODE.SUCCESS)
 
 
@@ -57,4 +57,4 @@ async def test_view_postdata_invalid_json():
 
 async def test_view_post_file():
     post_raw = b'------WebKitFormBoundaryRanewtcan8ETWm3N\r\nContent-Disposition: form-data; name="file"; filename="hhhh.txt"\r\nContent-Type: text/plain\r\n\r\nFILE_CONTENT\r\n------WebKitFormBoundaryRanewtcan8ETWm3N--\r\n'
-    await invoke_interface(app, TopicView().upload, content_type='multipart/form-data; boundary=----WebKitFormBoundaryRanewtcan8ETWm3N', post=post_raw)
+    await invoke_interface(app, TopicView().upload, content_type='multipart/form-data; boundary=----WebKitFormBoundaryRanewtcan8ETWm3N', body=post_raw)
