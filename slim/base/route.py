@@ -215,4 +215,4 @@ class Route:
              va_resp=ResponseDataModel, deprecated=False):
         kwargs = locals()
         del kwargs['self']
-        return self.interface('GET', **kwargs)
+        return self.interface('POST', **kwargs)
