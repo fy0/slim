@@ -8,6 +8,7 @@ from typing import Set, List, Union, Optional, Dict, Mapping, Any
 from urllib.parse import parse_qs
 from ipaddress import IPv4Address, IPv6Address, ip_address
 from multidict import MultiDict, CIMultiDict
+from multipart import multipart
 from yarl import URL
 
 from ..app import Application
@@ -276,8 +277,31 @@ class BaseView(metaclass=MetaClassForInit):
                     post.add(k, j)
             self._post_data_cache = post
         else:
-            # post body: form data
-            self._post_data_cache = None
+            async def read_multipart(receive):
+                more_body = True
+                max_size = self.app.client_max_size
+                cur_size = 0
+
+                while more_body:
+                    message = await receive()
+                    chunk = message.get('body', b'')
+                    cur_size += len(chunk)
+                    parser.write(chunk)
+                    if cur_size > max_size:
+                        raise Exception('body size limited')
+                    more_body = message.get('more_body', False)
+
+            post = MultiDict()
+
+            def on_field(field: multipart.Field):
+                post.add(field.field_name, field.value)
+
+            def on_file(field: multipart.File):
+                post.add(field.field_name, field)
+
+            parser = multipart.create_form_parser(self.headers, on_field, on_file)
+            await read_multipart(self.request.receive())
+            self._post_data_cache = post
 
         return self._post_data_cache
 

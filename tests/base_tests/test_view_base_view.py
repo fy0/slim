@@ -17,7 +17,7 @@ class TopicView(BaseView):
     async def upload(self):
         post = await self.post_data()
         field: FileField = post.get('file')
-        assert isinstance(field, FileField)
+        # assert isinstance(field, FileField)
         assert field.file.read() == b'FILE_CONTENT'
         self.finish(RETCODE.SUCCESS)
 
