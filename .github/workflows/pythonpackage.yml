@@ -23,6 +23,7 @@ jobs:
         pip install typing_extensions
         pip install dataclasses
         pip install multidict
+        pip install python-multipart
         pip install yarl
         pip install uvicorn
         pip install click

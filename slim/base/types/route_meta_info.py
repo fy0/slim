@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import FunctionType
 from typing import Type, TYPE_CHECKING, Set, Optional, List
 
@@ -28,6 +28,7 @@ class RouteInterfaceInfo:
     summary: str = None  # 简介
     view_cls: Type['BaseView'] = None
     fullpath: str = None
+    view_cls_set: Set[Type['BaseView']] = field(default_factory=lambda: set())  # plan b of clone
 
     va_query: Type[Model] = None
     va_post: Type[Model] = None
@@ -37,3 +38,6 @@ class RouteInterfaceInfo:
     is_free_func = False
 
     builtin_interface: Optional[str] = None
+
+    def clone(self):
+        return RouteInterfaceInfo(**self.__dict__)

@@ -7,17 +7,14 @@ from posixpath import join as urljoin
 
 import typing
 
-from starlette.routing import Mount
-from starlette.types import ASGIApp, Scope
-
 from slim.base.types.doc import ResponseDataModel
 from slim.base.types.route_meta_info import RouteViewInfo, RouteInterfaceInfo
 # from slim.base.ws import WSRouter
 from slim.exception import InvalidPostData, InvalidParams, InvalidRouteUrl
-from slim.utils import get_class_full_name, camel_case_to_underscore_case, repath
 from .web import Response
-from ..utils.exceptions import HTTPException
-from ..utils.types import ASGIInstance
+from slim.utils.exceptions import HTTPException
+from slim.utils.types import ASGIInstance, ASGIApp, Scope
+from slim.utils import get_class_full_name, camel_case_to_underscore_case, repath, sentinel
 
 if TYPE_CHECKING:
     from .view import BaseView
@@ -35,6 +32,7 @@ class Route:
     def __init__(self, app):
         self._funcs = []
         self._views = []
+        self._funcs_meta = []
         self.statics = []
 
         self._app = app
@@ -151,12 +149,17 @@ class Route:
                     # bind interface to url mapping
                     if getattr(v, '_route_info', None):
                         meta: RouteInterfaceInfo = v._route_info
+                        meta.view_cls = sentinel  # just a flag
+                        meta.view_cls_set.add(view_cls)
+
+                        meta = meta.clone()  # make clone because interface could be inherit.
                         meta.view_cls = view_cls
                         meta.handler_name = '%s.%s' % (get_class_full_name(view_cls), meta.handler.__name__)
 
                         fullpath = urljoin(self._app.mountpoint, view_info.url, meta.url)
                         meta.fullpath = fullpath
                         add_to_url_mapping(meta, fullpath)
+                        self._funcs_meta.append(meta)
 
             if issubclass(view_cls, AbstractSQLView):
                 self._app.tables[view_cls.table_name] = view_cls
@@ -173,6 +176,7 @@ class Route:
                 fullpath = urljoin(self._app.mountpoint, meta.url)
                 meta.fullpath = fullpath
                 add_to_url_mapping(meta, fullpath)
+                self._funcs_meta.append(meta)
 
         for i in self.statics:
             fullpath = urljoin(self._app.mountpoint, i.path)

@@ -8,10 +8,11 @@ from types import FunctionType
 from typing import Optional, Callable, Union, Dict
 from unittest import mock
 
-from multidict import MultiDict
+from multidict import MultiDict, istr
 from peewee import SqliteDatabase
 
 from slim import Application, ALL_PERMISSION
+from slim.base import const
 from slim.base._view.abstract_sql_view import AbstractSQLView
 from slim.base.web import ASGIRequest
 from slim.base._view.err_catch_context import ErrorCatchContext
@@ -23,7 +24,7 @@ from slim.support.peewee import PeeweeView
 from slim.utils import sentinel
 
 
-def new_app(permission=ALL_PERMISSION, log_level=logging.WARN, **kwargs) -> Application:
+def app_create(permission=ALL_PERMISSION, log_level=logging.WARN, **kwargs) -> Application:
     """
     Get application instance
     :param permission:
@@ -97,13 +98,14 @@ def make_mocked_request(method, path: str, *, headers: Dict[str, str] = None, bo
             scope['headers'].append([k.encode('utf-8'), v.encode('utf-8')])
 
     async def receive():
-        return {'body': body}
+        return {'body': body or b''}
 
     return ASGIRequest(scope, receive, mock.Mock())
 
 
 async def make_mocked_view(app, view_cls, method, url, params=None, post=sentinel, *, headers=None, user=None,
-                           content_type='application/json') -> Union[BaseView, AbstractSQLView, PeeweeView]:
+                           content_type='application/json', body: Optional[bytes] = None)\
+        -> Union[BaseView, AbstractSQLView, PeeweeView]:
     if isinstance(view_cls, BaseView):
         view = view_cls
     else:
@@ -114,14 +116,18 @@ async def make_mocked_view(app, view_cls, method, url, params=None, post=sentine
     if content_type:
         headers['Content-Type'] = content_type
 
-    view.request = make_mocked_request(method, url)
+    view.request = make_mocked_request(method, url, headers=headers, body=body)
     view.app = app
 
     view._params_cache = params
-    view._headers_cache = MultiDict(headers)
-    view._post_data_cache = post
+    view._headers_cache = MultiDict()
+    if not body:
+        view._post_data_cache = post
     view._ip_cache = ip_address('127.0.0.1')
     view._current_user = user
+
+    for k, v in headers.items():
+        view._headers_cache[istr(k)] = v
 
     with ErrorCatchContext(view):
         await view._prepare()
@@ -130,8 +136,8 @@ async def make_mocked_view(app, view_cls, method, url, params=None, post=sentine
 
 
 async def invoke_interface(app: Application, func: FunctionType, params=None, post=sentinel, *, headers=None,
-                           method=None, user=None, bulk=False, returning=None, role=None,
-                           content_type='application/json') -> Optional[BaseView]:
+                           method=None, user=None, bulk=False, returning=None, role=None, body: Optional[bytes] = None,
+                           content_type='application/json', view_cls=None) -> Optional[BaseView]:
     """
     Invoke a interface programmatically
     :param app: Application object
@@ -162,6 +168,10 @@ async def invoke_interface(app: Application, func: FunctionType, params=None, po
         handler = func
         view = func.__self__
     else:
+        if len(meta.view_cls_set) > 1:
+            # TODO: multi view classes exists for this interface, please specified the view class you want
+            pass
+
         view = meta.view_cls(app)
         handler = func.__get__(view)
 
@@ -176,7 +186,7 @@ async def invoke_interface(app: Application, func: FunctionType, params=None, po
     _method = method if method else meta.methods[0]
 
     view = await make_mocked_view(app, view, _method, url, params=params, post=post, headers=headers,
-                                  content_type=content_type)
+                                  body=body, content_type=content_type)
 
     # url = info.route.fullpath
     # _method = next(iter(info.route.method))
