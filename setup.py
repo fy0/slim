@@ -67,7 +67,7 @@ setup(
     include_package_data=True,
     platforms='any',
 
-    install_requires=['schematics', 'typing_extensions', 'dataclasses', 'multidict', 'yarl', 'uvicorn', 'click'],
+    install_requires=['schematics', 'typing_extensions', 'dataclasses', 'multidict', 'yarl', 'uvicorn', 'click', 'aiofiles'],
     python_requires='>=3.6.9',
 
     extras_require={
