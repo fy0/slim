@@ -19,7 +19,7 @@ class RouteViewInfo:
 class RouteInterfaceInfo:
     methods: List[str]
     url: str
-    handler: FunctionType
+    handler: Optional[FunctionType]
 
     names_exclude: Set[str]
     names_include: Set[str]

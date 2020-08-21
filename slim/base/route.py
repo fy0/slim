@@ -5,10 +5,15 @@ from types import FunctionType
 from typing import Iterable, Type, TYPE_CHECKING, Dict, List, Optional, Tuple
 from posixpath import join as urljoin
 
+import typing
+
 from slim.base.types.doc import ResponseDataModel
 from slim.base.types.route_meta_info import RouteViewInfo, RouteInterfaceInfo
 # from slim.base.ws import WSRouter
 from slim.exception import InvalidPostData, InvalidParams, InvalidRouteUrl
+from .web import Response
+from slim.utils.exceptions import HTTPException
+from slim.utils.types import ASGIInstance, ASGIApp, Scope
 from slim.utils import get_class_full_name, camel_case_to_underscore_case, repath, sentinel
 
 if TYPE_CHECKING:
@@ -35,7 +40,8 @@ class Route:
         self.after_bind = []  # on_bind(app)
 
         self._url_mappings: Dict[str, Dict[str, RouteInterfaceInfo]] = {}
-        self.url_mappings_regex: Dict[str, Dict[re.Pattern, RouteInterfaceInfo]] = {}
+        self._url_mappings_regex: Dict[str, Dict[re.Pattern, RouteInterfaceInfo]] = {}
+        self._statics_mappings_regex: Dict[str, Dict[re.Pattern, PathPrefix]] = {}
 
     def interface(self, method, url=None, *, summary=None, va_query=None, va_post=None, va_headers=None,
                   va_resp=ResponseDataModel, deprecated=False):
@@ -114,16 +120,24 @@ class Route:
 
         def add_to_url_mapping(_meta, _fullpath):
             for method in _meta.methods:
-                if ':' not in _fullpath and '(' not in _fullpath:
-                    self._url_mappings.setdefault(method, {})
-                    self._url_mappings[method][_fullpath] = _meta
-                else:
-                    self.url_mappings_regex.setdefault(method, {})
+                if isinstance(_meta, PathPrefix):
+                    self._statics_mappings_regex.setdefault(method, {})
                     try:
                         _re = repath.pattern(_fullpath)
-                        self.url_mappings_regex[method][re.compile(_re)] = _meta
+                        self._statics_mappings_regex[method][re.compile(_re)] = _meta
                     except Exception as e:
                         raise InvalidRouteUrl(_fullpath, e)
+                else:
+                    if ':' not in _fullpath and '(' not in _fullpath:
+                        self._url_mappings.setdefault(method, {})
+                        self._url_mappings[method][_fullpath] = _meta
+                    else:
+                        self._url_mappings_regex.setdefault(method, {})
+                        try:
+                            _re = repath.pattern(_fullpath)
+                            self._url_mappings_regex[method][re.compile(_re)] = _meta
+                        except Exception as e:
+                            raise InvalidRouteUrl(_fullpath, e)
 
         # bind views
         for view_info in self._views:
@@ -164,6 +178,11 @@ class Route:
                 add_to_url_mapping(meta, fullpath)
                 self._funcs_meta.append(meta)
 
+        for i in self.statics:
+            fullpath = urljoin(self._app.mountpoint, i.path)
+            i.fullpath = fullpath
+            add_to_url_mapping(i, fullpath)
+
     def query_path(self, method, path) -> Tuple[Optional[RouteInterfaceInfo], Optional[Dict]]:
         """
         Get route info for specified method and path.
@@ -177,7 +196,17 @@ class Route:
             if ret:
                 return ret, {}
 
-        path_mapping = self.url_mappings_regex.get(method, None)
+        path_mapping = self._url_mappings_regex.get(method, None)
+        if path_mapping:
+            for i, route_info in path_mapping.items():
+                m = i.fullmatch(path)
+                if m:
+                    return route_info, m.groupdict()
+
+        return None, None
+
+    def statics_path(self, method, path) -> Tuple[Optional[typing.Any], Optional[Dict]]:
+        path_mapping = self._statics_mappings_regex.get(method, None)
         if path_mapping:
             for i, route_info in path_mapping.items():
                 m = i.fullmatch(path)
@@ -208,9 +237,12 @@ class Route:
         :param kwargs:
         :return:
         """
-        self.statics.append((prefix, path, kwargs), )
+        # self.statics.append(_route_info)
+        pass
 
-    # alias function
+    def mount(self, path: str, app: ASGIApp, methods=None) -> None:
+        prefix = PathPrefix(path, app=app, methods=methods)
+        self.statics.append(prefix)
 
     def get(self, url=None, *, summary=None, va_query=None, va_post=None, va_headers=None,
             va_resp=ResponseDataModel, deprecated=False):
@@ -222,4 +254,23 @@ class Route:
              va_resp=ResponseDataModel, deprecated=False):
         kwargs = locals()
         del kwargs['self']
-        return self.interface('GET', **kwargs)
+        return self.interface('POST', **kwargs)
+
+
+class PathPrefix:
+    def __init__(
+            self, path: str, app: ASGIApp, methods: typing.Sequence[str] = ()
+    ) -> None:
+        self.path = path
+        self.app = app
+        self.methods = methods
+        regex = "^" + path
+        regex = re.sub("{([a-zA-Z_][a-zA-Z0-9_]*)}", r"(?P<\1>[^/]*)", regex)
+        self.path_regex = re.compile(regex)
+
+    def __call__(self, scope: Scope) -> ASGIInstance:
+        if self.methods and scope["method"] not in self.methods:
+            if "app" in scope:
+                raise HTTPException(status_code=405)
+            return Response(body="Method Not Allowed", status=405)
+        return self.app(scope)

@@ -1,13 +1,21 @@
 import asyncio
+import hashlib
 import json
+import os
 import time
 import traceback
 from dataclasses import dataclass
+from email.utils import formatdate
 from types import FunctionType
 from typing import Dict, Any, TYPE_CHECKING, Sequence, Optional, Iterable
+from mimetypes import guess_type
+
+import aiofiles
+from aiofiles.os import stat as aio_stat
 
 from slim.base import const
 from slim.utils import async_call
+from slim.utils.types import Receive, Send
 
 if TYPE_CHECKING:
     from slim import Application
@@ -121,12 +129,85 @@ class Response:
 
         return headers_new
 
+    async def __call__(self, receive: Receive, send: Send) -> None:
+        await send(
+            {
+                "type": "http.response.start",
+                "status": self.status,
+                "headers": self.headers,
+            }
+        )
+        await send({"type": "http.response.body", "body": self.body})
+
 
 @dataclass
 class JSONResponse(Response):
     body: Dict[str, Any] = None
     content_type: str = 'application/json'
     json_dumps: FunctionType = json.dumps
+
+
+@dataclass
+class FileResponse(Response):
+    chunk_size = 4096
+
+    def __init__(
+            self,
+            path: str,
+            headers: dict = {},
+            content_type: str = None,
+            filename: str = None,
+            stat_result: os.stat_result = None,
+    ) -> None:
+        assert aiofiles is not None, "'aiofiles' must be installed to use FileResponse"
+        self.path = path
+        self.status = 200
+        self.filename = filename
+        if content_type is None:
+            content_type = guess_type(filename or path)[0] or "text/plain"
+        self.content_type = content_type
+        self.headers = headers
+        if self.filename is not None:
+            content_disposition = 'attachment; filename="{}"'.format(self.filename)
+            self.headers.setdefault("content-disposition", content_disposition)
+        self.stat_result = stat_result
+        if stat_result is not None:
+            self.set_stat_headers(stat_result)
+
+    def set_stat_headers(self, stat_result):
+        content_length = str(stat_result.st_size)
+        last_modified = formatdate(stat_result.st_mtime, usegmt=True)
+        etag_base = str(stat_result.st_mtime) + "-" + str(stat_result.st_size)
+        etag = hashlib.md5(etag_base.encode()).hexdigest()
+        self.headers.setdefault("content-length", content_length)
+        self.headers.setdefault("last-modified", last_modified)
+        self.headers.setdefault("etag", etag)
+
+    async def __call__(self, receive: Receive, send: Send) -> None:
+        if self.stat_result is None:
+            stat_result = await aio_stat(self.path)
+            self.set_stat_headers(stat_result)
+        if isinstance(self.headers, dict):
+            self.headers = [[k, v] for k, v in self.headers.items()]
+        await send(
+            {
+                "type": "http.response.start",
+                "status": self.status,
+                "headers": self.headers,
+            }
+        )
+        async with aiofiles.open(self.path, mode="rb") as file:
+            more_body = True
+            while more_body:
+                chunk = await file.read(self.chunk_size)
+                more_body = len(chunk) == self.chunk_size
+                await send(
+                    {
+                        "type": "http.response.body",
+                        "body": chunk,
+                        "more_body": more_body,
+                    }
+                )
 
 
 async def handle_request(app: 'Application', scope, receive, send):
@@ -140,6 +221,7 @@ async def handle_request(app: 'Application', scope, receive, send):
     """
     from ._view.abstract_sql_view import AbstractSQLView
     from ._view.validate import view_validate_check
+    finish = False
 
     if scope['type'] == 'lifespan':
         while True:
@@ -174,6 +256,13 @@ async def handle_request(app: 'Application', scope, receive, send):
                     i: CORSOptions
                     resp = Response(headers=i.pack_headers(request.origin))
         else:
+            from slim.base.route import PathPrefix
+            path_prefix, call_kwargs_raw_ = app.route.statics_path(scope['method'], scope['path'])
+            if isinstance(path_prefix, PathPrefix):
+                resp_ = path_prefix(scope)
+                await resp_(receive, send)
+                finish = True
+
             route_info, call_kwargs_raw = app.route.query_path(scope['method'], scope['path'])
 
             if route_info:
@@ -223,7 +312,6 @@ async def handle_request(app: 'Application', scope, receive, send):
 
                 if view.response:
                     resp = view.response
-
         if resp:
             body = await resp.get_body()
 
@@ -251,16 +339,16 @@ async def handle_request(app: 'Application', scope, receive, send):
                 'body': body,
             })
             return
+        if not finish:
+            await send({
+                'type': 'http.response.start',
+                'status': 404,
+                'headers': [
+                    [b'content-type', b'text/plain'],
+                ]
+            })
 
-        await send({
-            'type': 'http.response.start',
-            'status': 404,
-            'headers': [
-                [b'content-type', b'text/plain'],
-            ]
-        })
-
-        await send({
-            'type': 'http.response.body',
-            'body': b'not found',
-        })
+            await send({
+                'type': 'http.response.body',
+                'body': b'not found',
+            })
