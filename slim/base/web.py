@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import json
+import logging
 import os
 import time
 import traceback
@@ -16,6 +17,8 @@ from aiofiles.os import stat as aio_stat
 from slim.base import const
 from slim.utils import async_call
 from slim.utils.types import Receive, Send
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from slim import Application
@@ -261,7 +264,7 @@ async def handle_request(app: 'Application', scope, receive, send):
             if isinstance(path_prefix, PathPrefix):
                 resp_ = path_prefix(scope)
                 await resp_(receive, send)
-                finish = True
+                return
 
             route_info, call_kwargs_raw = app.route.query_path(scope['method'], scope['path'])
 
@@ -300,7 +303,8 @@ async def handle_request(app: 'Application', scope, receive, send):
 
                 took = round((time.perf_counter() - t) * 1000, 2)
                 # GET /api/get -> TopicView.get 200 30ms
-                # logger.info("{} {:4s} -> {} {}, took {}ms".format(method, ascii_encodable_path, handler_name, status_code, took))
+                name = handler.__name__
+                logger.info("{} {:4s} -> {} {}, took {}ms".format(view.method, view.path, name, 200, took))
 
                 # if status_code == 500:
                 #     warn_text = "The handler {!r} did not called `view.finish()`.".format(handler_name)
@@ -339,7 +343,7 @@ async def handle_request(app: 'Application', scope, receive, send):
                 'body': body,
             })
             return
-        if not finish:
+        else:
             await send({
                 'type': 'http.response.start',
                 'status': 404,
