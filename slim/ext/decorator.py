@@ -106,10 +106,17 @@ def _role_decorator(role, view_check_func):
             return await func(view, *args, **kwargs)
 
         meta = _decorator_fix(inner, func)
-        if meta.interface_roles is None:
-            meta.interface_roles = {role}
+        if isinstance(role, list):
+            if meta.interface_roles is None:
+                meta.interface_roles = set(role)
+            else:
+                for r in role:
+                    meta.interface_roles.add(r)
         else:
-            meta.interface_roles.add(role)
+            if meta.interface_roles is None:
+                meta.interface_roles = {role}
+            else:
+                meta.interface_roles.add(role)
         return inner
     return _
 
@@ -121,10 +128,18 @@ def require_role(role=None):
     :return:
     """
     async def role_check_func(view):
-        if role not in view.roles:
+        if isinstance(role, str):
+            if role not in view.roles:
+                view.finish(RETCODE.INVALID_ROLE)
+                return True
+        elif isinstance(role, list):
+            check = [True for i in view.roles if i in role]
+            if not check:
+                view.finish(RETCODE.INVALID_ROLE)
+                return True
+        else:
             view.finish(RETCODE.INVALID_ROLE)
             return True
-
     return _role_decorator(role, role_check_func)
 
 
