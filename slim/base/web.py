@@ -284,7 +284,7 @@ async def handle_request(app: 'Application', scope, receive, send):
                         i: CORSOptions
                         resp = Response(headers=i.pack_headers(request.origin))
             else:
-                _route_info, call_kwargs_raw_ = app.route.statics_path(scope['method'], scope['path'])
+                _route_info, call_kwargs_raw_ = app.route.query_statics_path(scope['method'], scope['path'])
                 if isinstance(_route_info, RouteStaticsInfo):
                     file_ = _route_info.handler(scope)
                     await file_(receive, send)
