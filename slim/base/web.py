@@ -158,14 +158,16 @@ class Response:
         return headers_new
 
     async def __call__(self, receive: Receive, send: Send) -> None:
+        headers = self.build_headers()
+        body = await self.get_body()
         await send(
             {
                 "type": "http.response.start",
                 "status": self.status,
-                "headers": self.headers,
+                "headers": headers,
             }
         )
-        await send({"type": "http.response.body", "body": self.body})
+        await send({"type": "http.response.body", "body": body})
 
 
 @dataclass
@@ -275,7 +277,7 @@ async def handle_request(app: 'Application', scope, receive, send):
         if scope['type'] == 'http':
             request = ASGIRequest(scope, receive, send)
             resp = None
-
+            is_static = False
             if scope['method'] == 'OPTIONS':
                 # Configure CORS settings.
                 if app.cors_options:
@@ -286,8 +288,8 @@ async def handle_request(app: 'Application', scope, receive, send):
             else:
                 _route_info, call_kwargs_raw_ = app.route.statics_path(scope['method'], scope['path'])
                 if isinstance(_route_info, RouteStaticsInfo):
-                    file_ = _route_info.handler(scope)
-                    await file_(receive, send)
+                    resp = _route_info.handler(scope)
+                    is_static = True
 
                 route_info, call_kwargs_raw = app.route.query_path(scope['method'], scope['path'])
 
@@ -340,44 +342,24 @@ async def handle_request(app: 'Application', scope, receive, send):
                     if view.response:
                         resp = view.response
             if resp:
-                body = await resp.get_body()
+                if is_static:
+                    await resp(receive, send)
+                else:
+                    # Configure CORS settings.
+                    if app.cors_options:
+                        # TODO: host match
+                        for i in app.cors_options:
+                            i: CORSOptions
+                            if resp.headers:
+                                resp.headers.update(i.pack_headers(request.origin))
+                            else:
+                                resp.headers = i.pack_headers(request.origin)
 
-                # Configure CORS settings.
-                if app.cors_options:
-                    # TODO: host match
-                    for i in app.cors_options:
-                        i: CORSOptions
-                        if resp.headers:
-                            resp.headers.update(i.pack_headers(request.origin))
-                        else:
-                            resp.headers = i.pack_headers(request.origin)
-
-                headers = resp.build_headers()
-                # [[b'Content-Length', str(len(body)).encode('utf-8')]]
-
-                await send({
-                    'type': 'http.response.start',
-                    'status': resp.status,
-                    'headers': headers
-                })
-
-                await send({
-                    'type': 'http.response.body',
-                    'body': body,
-                })
-                return
+                    # [[b'Content-Length', str(len(body)).encode('utf-8')]]
+                    await resp(receive, send)
             else:
-                await send({
-                    'type': 'http.response.start',
-                    'status': 404,
-                    'headers': [
-                        [b'content-type', b'text/plain'],
-                    ]
-                })
+                resp = Response(body="Not Found", status=404)
+                await resp(receive, send)
 
-                await send({
-                    'type': 'http.response.body',
-                    'body': b'not found',
-                })
     except Exception as e:
         traceback.print_exc()

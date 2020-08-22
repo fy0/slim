@@ -26,7 +26,7 @@ class StaticFiles:
         assert scope["type"] == "http"
         if scope["method"] not in ("GET", "HEAD"):
             return Response(body="Method Not Allowed", status=405)
-        path = os.path.normpath(os.path.join(*scope["path"].split("/")))
+        path = os.path.normpath(os.path.join(scope["path"].split("/")[-1]))
         if path.startswith(".."):
             return Response(body="Not Found", status=404)
         path = os.path.join(self.directory, path)
