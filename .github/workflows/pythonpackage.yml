@@ -34,7 +34,9 @@ jobs:
         pip install psycopg2-binary
         pip install pytest-asyncio
         pip install pytest-cov
-        pip install schematics
+         pip install schematics
+        pip install aiofiles
+
     - name: Test with pytest
       run: |
         pip install pytest

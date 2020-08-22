@@ -41,3 +41,10 @@ class RouteInterfaceInfo:
 
     def clone(self):
         return RouteInterfaceInfo(**self.__dict__)
+
+
+@dataclass
+class RouteStaticsInfo:
+    methods: List[str]
+    url: str
+    handler: Optional[FunctionType]

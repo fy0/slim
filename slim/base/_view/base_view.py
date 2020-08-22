@@ -44,7 +44,7 @@ class BaseView(metaclass=MetaClassForInit):
 
     @classmethod
     def cls_init(cls):
-        pass
+        cls._interface_disable = set()
 
     @classmethod
     def unregister(cls, name):
