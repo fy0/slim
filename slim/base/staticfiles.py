@@ -13,7 +13,7 @@ class StaticFile:
     def __call__(self, scope: Scope) -> ASGIInstance:
         assert scope["type"] == "http"
         if scope["method"] not in ("GET", "HEAD"):
-            return Response(body="Method Not Allowed", status=405)
+            return Response(body=b"Method Not Allowed", status=405, headers=[])
         return _StaticFileResponder(scope, path=self.path)
 
 
@@ -25,10 +25,10 @@ class StaticFiles:
     def __call__(self, scope: Scope) -> ASGIInstance:
         assert scope["type"] == "http"
         if scope["method"] not in ("GET", "HEAD"):
-            return Response(body="Method Not Allowed", status=405)
-        path = os.path.normpath(os.path.join(*scope["path"].split("/")))
+            return Response(body=b"Method Not Allowed", status=405, headers=[])
+        path = os.path.normpath(os.path.join(scope["path"].split("/")[-1]))
         if path.startswith(".."):
-            return Response(body="Not Found", status=404)
+            return Response(body=b"Not Found", status=404, headers=[])
         path = os.path.join(self.directory, path)
         if self.config_checked:
             check_directory = None
@@ -84,11 +84,11 @@ class _StaticFilesResponder:
         try:
             stat_result = await aio_stat(self.path)
         except FileNotFoundError:
-            response = Response(body="Not Found", status=404)  # type: Response
+            response = Response(body=b"Not Found", status=404, headers=[])  # type: Response
         else:
             mode = stat_result.st_mode
             if not stat.S_ISREG(mode):
-                response = Response(body="Not Found", status=404)
+                response = Response(body=b"Not Found", status=404, headers=[])
             else:
                 response = FileResponse(self.path, stat_result=stat_result)
 

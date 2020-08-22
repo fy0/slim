@@ -275,7 +275,7 @@ async def handle_request(app: 'Application', scope, receive, send):
         if scope['type'] == 'http':
             request = ASGIRequest(scope, receive, send)
             resp = None
-
+            is_static = False
             if scope['method'] == 'OPTIONS':
                 # Configure CORS settings.
                 if app.cors_options:
@@ -286,8 +286,8 @@ async def handle_request(app: 'Application', scope, receive, send):
             else:
                 _route_info, call_kwargs_raw_ = app.route.statics_path(scope['method'], scope['path'])
                 if isinstance(_route_info, RouteStaticsInfo):
-                    file_ = _route_info.handler(scope)
-                    await file_(receive, send)
+                    resp = _route_info.handler(scope)
+                    is_static = True
 
                 route_info, call_kwargs_raw = app.route.query_path(scope['method'], scope['path'])
 
@@ -340,32 +340,35 @@ async def handle_request(app: 'Application', scope, receive, send):
                     if view.response:
                         resp = view.response
             if resp:
-                body = await resp.get_body()
+                if is_static:
+                    await resp(receive, send)
+                else:
+                    body = await resp.get_body()
 
-                # Configure CORS settings.
-                if app.cors_options:
-                    # TODO: host match
-                    for i in app.cors_options:
-                        i: CORSOptions
-                        if resp.headers:
-                            resp.headers.update(i.pack_headers(request.origin))
-                        else:
-                            resp.headers = i.pack_headers(request.origin)
+                    # Configure CORS settings.
+                    if app.cors_options:
+                        # TODO: host match
+                        for i in app.cors_options:
+                            i: CORSOptions
+                            if resp.headers:
+                                resp.headers.update(i.pack_headers(request.origin))
+                            else:
+                                resp.headers = i.pack_headers(request.origin)
 
-                headers = resp.build_headers()
-                # [[b'Content-Length', str(len(body)).encode('utf-8')]]
+                    headers = resp.build_headers()
+                    # [[b'Content-Length', str(len(body)).encode('utf-8')]]
 
-                await send({
-                    'type': 'http.response.start',
-                    'status': resp.status,
-                    'headers': headers
-                })
+                    await send({
+                        'type': 'http.response.start',
+                        'status': resp.status,
+                        'headers': headers
+                    })
 
-                await send({
-                    'type': 'http.response.body',
-                    'body': body,
-                })
-                return
+                    await send({
+                        'type': 'http.response.body',
+                        'body': body,
+                    })
+                    return
             else:
                 await send({
                     'type': 'http.response.start',
