@@ -8,4 +8,4 @@ from . import base
 from . import support
 from . import utils
 
-__version__ = '0.6.0a2'
+__version__ = '0.6.0a3'
