@@ -2,6 +2,7 @@ import json
 import pytest
 
 from slim.base._view.base_view import BaseView
+from slim.base.web import FileField
 from slim import Application, ALL_PERMISSION
 from slim.exception import PermissionDenied, InvalidPostData
 from slim.retcode import RETCODE
@@ -17,8 +18,8 @@ class TopicView(BaseView):
     async def upload(self):
         post = await self.post_data()
         field = post.get('file')
-        # assert isinstance(field, FileField)
-        assert field.file_object.read() == b'FILE_CONTENT'
+        assert isinstance(field, FileField)
+        assert field.file.read() == b'FILE_CONTENT'
         self.finish(RETCODE.SUCCESS)
 
 

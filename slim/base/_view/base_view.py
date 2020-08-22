@@ -13,7 +13,7 @@ from yarl import URL
 
 from ..app import Application
 from ..types.route_meta_info import RouteViewInfo
-from ..web import ASGIRequest, Response, JSONResponse
+from ..web import ASGIRequest, Response, JSONResponse, FileField
 from ...base import const
 from ...base._view.err_catch_context import ErrorCatchContext
 from ...base.const import CONTENT_TYPE
@@ -39,11 +39,17 @@ class BaseView(metaclass=MetaClassForInit):
     _no_route = False
 
     _route_info: Optional['RouteViewInfo']
+    _interface_disable: Set[str]
     ret_val: Optional[Dict]
 
     @classmethod
     def cls_init(cls):
         pass
+
+    @classmethod
+    def unregister(cls, name):
+        """ interface unregister"""
+        cls._interface_disable.add(name)
 
     @property
     def permission(self) -> Permissions:
@@ -303,8 +309,7 @@ class BaseView(metaclass=MetaClassForInit):
                 post.add(field.field_name.decode('utf-8'), field.value)
 
             def on_file(field: multipart.File):
-                post.add(field.field_name.decode('utf-8'), field)
-                field.file_object.seek(0)
+                post.add(field.field_name.decode('utf-8'), FileField(field))
 
             parser = multipart.create_form_parser({'Content-Type': self.content_type}, on_field, on_file)
             await read_multipart(self.request.receive)

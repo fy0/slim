@@ -1,11 +1,11 @@
 
 #### 0.6.0 update
 
+* Added: `app.route.get` `app.route.post`
+
 * Changed: Increase post data limit to 100mb.
 
 * Changed: slim build on asgi now.
-
-* Removed: `view.interface_register()`
 
 
 #### 0.5.10 update 2020.07.30

@@ -13,7 +13,7 @@ from slim.base.types.route_meta_info import RouteViewInfo, RouteInterfaceInfo, R
 from slim.exception import InvalidPostData, InvalidParams, InvalidRouteUrl
 from .web import Response
 from slim.utils.exceptions import HTTPException
-from slim.utils.types import ASGIInstance, ASGIApp, Scope
+from slim.utils.types import ASGIInstance, Scope
 from slim.utils import get_class_full_name, camel_case_to_underscore_case, repath, sentinel
 
 if TYPE_CHECKING:
@@ -195,18 +195,20 @@ class Route:
         if path_mapping:
             ret = path_mapping.get(path)
             if ret:
-                return ret, {}
+                if ret.handler.__name__ not in ret.view_cls._interface_disable:
+                    return ret, {}
 
         path_mapping = self._url_mappings_regex.get(method, None)
         if path_mapping:
             for i, route_info in path_mapping.items():
                 m = i.fullmatch(path)
                 if m:
-                    return route_info, m.groupdict()
+                    if route_info.handler.__name__ not in route_info.view_cls._interface_disable:
+                        return route_info, m.groupdict()
 
         return None, None
 
-    def statics_path(self, method, path) -> Tuple[Optional[typing.Any], Optional[Dict]]:
+    def query_statics_path(self, method, path) -> Tuple[Optional[typing.Any], Optional[Dict]]:
         path_mapping = self._statics_mappings_regex.get(method, None)
         if path_mapping:
             for i, route_info in path_mapping.items():
@@ -231,18 +233,15 @@ class Route:
 
         return wrapper
 
-    def add_static(self, prefix, path, **kwargs):
+    def add_static(self, prefix, path):
         """
         :param prefix: URL prefix
         :param path: file directory
         :param kwargs:
         :return:
         """
-        # self.statics.append(_route_info)
-        pass
-
-    def mount(self, path: str, app: ASGIApp, methods=None) -> None:
-        prefix = PathPrefix(path, app=app, methods=methods)
+        from slim.base.staticfiles import StaticFiles
+        prefix = PathPrefix(prefix, app=StaticFiles(directory=path), methods=['GET'])
         self.statics.append(prefix)
 
     def get(self, url=None, *, summary=None, va_query=None, va_post=None, va_headers=None,
@@ -260,7 +259,7 @@ class Route:
 
 class PathPrefix:
     def __init__(
-            self, path: str, app: ASGIApp, methods: typing.Sequence[str] = ()
+            self, path: str, app, methods: typing.Sequence[str] = ()
     ) -> None:
         self.path = path
         self.app = app
