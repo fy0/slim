@@ -380,7 +380,7 @@ import time
 class TopicView(PeeweeView):
     model = Topic
 
-    async def before_insert(self, values_lst: List[SQLValuesToWrite]):
+    async def before_insert(cls, values_lst: List[SQLValuesToWrite]):
         for values in values_lst:
             values['time'] = int(time.time())
 ```

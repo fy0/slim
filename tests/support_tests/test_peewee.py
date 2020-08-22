@@ -31,7 +31,7 @@ class ATestView(PeeweeView):
 
 db.create_tables([ATestModel])
 
-app._prepare()
+app.prepare()
 
 
 async def test_post_blob():

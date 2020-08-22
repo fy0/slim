@@ -1,15 +1,15 @@
 import json
 import logging
 from abc import abstractmethod
-from enum import Enum
-from typing import Tuple, Union, Dict, Iterable, Type, List, Set, Any, Optional, Mapping
+from typing import Tuple, Union, Dict, Iterable, Type, List, Optional, Mapping
 
 import schematics
-from aiohttp.web_request import BaseRequest, FileField
+from multidict import istr
 from schematics.types import BaseType
 
-from slim.base.types import InnerInterfaceName
+from slim.base.types import BuiltinInterface
 from .base_view import BaseView
+from ..web import ASGIRequest
 from .err_catch_context import ErrorCatchContext
 from .view_options import SQLViewOptions
 from slim.exception import SlimException, PermissionDenied, FinishQuitException, InvalidParams, RecordNotFound, \
@@ -17,11 +17,12 @@ from slim.exception import SlimException, PermissionDenied, FinishQuitException,
 
 from slim.base.sqlquery import SQLQueryInfo, SQLForeignKey, SQLValuesToWrite, ALL_COLUMNS, PRIMARY_KEY, SQL_OP
 from slim.base.app import Application
-from slim.base.permission import Permissions, Ability, BaseUser, A, DataRecord
+from slim.base.permission import A, DataRecord
 from slim.base.sqlfuncs import AbstractSQLFunctions
 from slim.retcode import RETCODE
 from slim.utils.cls_property import classproperty
 from slim.utils import pagination_calc, async_call, get_ioloop, get_class_full_name
+from ..route import Route
 
 logger = logging.getLogger(__name__)
 
@@ -55,8 +56,7 @@ class AbstractSQLView(BaseView):
 
     @classmethod
     def interface_register(cls):
-        super().interface_register()
-
+        '''
         cls._use('get', 'GET', _sql_query=True, summary='获取单项', _inner_name=InnerInterfaceName.GET)
         cls._use_lst('list', _sql_query=True, summary='获取列表', _inner_name=InnerInterfaceName.LIST,
                      summary_with_size='获取列表(自定义分页大小)', _inner_name_with_size=InnerInterfaceName.LIST_WITH_SIZE)
@@ -64,6 +64,7 @@ class AbstractSQLView(BaseView):
         cls._use('new', 'POST', _sql_post=True, summary='新建', _inner_name=InnerInterfaceName.NEW)
         cls._use('bulk_insert', 'POST', _sql_post=True, summary='新建(批量)', _inner_name=InnerInterfaceName.BULK_INSERT)
         cls._use('delete', 'POST', _sql_query=True, summary='删除', _inner_name=InnerInterfaceName.DELETE)
+        '''
 
     @classmethod
     def add_soft_foreign_key(cls, column, table_name, alias=None):
@@ -108,7 +109,7 @@ class AbstractSQLView(BaseView):
         # because of BaseView.cls_init is a bound method (@classmethod)
         # so we can only route BaseView._interface, not cls._interface defined by user
         BaseView.cls_init.__func__(cls)
-        # super().cls_init()  # fixed in 3.6
+        super().cls_init()  # fixed in 3.6
 
         cls_full_name = get_class_full_name(cls)
         assert isinstance(cls.LIST_PAGE_SIZE, int), '%s.LIST_PAGE_SIZE must be int' % cls_full_name
@@ -138,7 +139,7 @@ class AbstractSQLView(BaseView):
         return self.ability
 
     def bulk_num(self):
-        bulk_key = 'Bulk'
+        bulk_key = istr('Bulk')
         if bulk_key in self.headers:
             try:
                 num = int(self.headers.get(bulk_key))
@@ -153,12 +154,11 @@ class AbstractSQLView(BaseView):
 
     async def is_returning(self) -> bool:
         key = 'returning'
-        if key in self.headers:
+        if istr(key) in self.headers:
             return True
-        if self.method in BaseRequest.POST_METHODS:
-            post = await self.post_data()
-            if isinstance(post, Mapping) and key in post:
-                return True
+        post = await self.post_data()
+        if isinstance(post, Mapping) and key in post:
+            return True
         return key in self.params
 
     @property
@@ -167,17 +167,41 @@ class AbstractSQLView(BaseView):
         Current role requesting by client.
         :return:
         """
-        role_val = self.headers.get('Role', None)
+        role_val = self.headers.get(istr('Role'), None)
         if role_val is not None:
             return int(role_val) if role_val.isdigit() else role_val
 
-    def __init__(self, app: Application = None, aiohttp_request: BaseRequest = None):
-        super().__init__(app, aiohttp_request)
+    def __init__(self, app: Application = None, req: ASGIRequest = None):
+        super().__init__(app, req)
         self._sql = None
         self.current_interface = None
 
+    @classmethod
+    def _on_bind(cls, route: Route):
+        super()._on_bind(route)
+
+        # register interface
+        route.get(summary='获取单项')(cls.get)
+        route.get(summary='获取列表', url='list/:page/:size?')(cls.list)
+        route.post(summary='更新')(cls.set)
+        route.post(summary='新建')(cls.new)
+        route.post(summary='新建(批量)')(cls.bulk_insert)
+        route.post(summary='删除')(cls.delete)
+
+        cls.get._route_info.builtin_interface = BuiltinInterface.GET
+        cls.list._route_info.builtin_interface = BuiltinInterface.LIST
+        cls.set._route_info.builtin_interface = BuiltinInterface.SET
+        cls.new._route_info.builtin_interface = BuiltinInterface.NEW
+        cls.bulk_insert._route_info.builtin_interface = BuiltinInterface.BULK_INSERT
+        cls.delete._route_info.builtin_interface = BuiltinInterface.DELETE
+
+        if cls.interface_register != AbstractSQLView.interface_register:
+            pass
+        cls.interface_register()
+
     async def _prepare(self):
         await super()._prepare()
+
         # _sql 里使用了 self.err 存放数据
         # 那么可以推测在并发中，cls._sql.err 会被多方共用导致出错
         self._sql = self._sql_cls(self.__class__)
@@ -226,7 +250,7 @@ class AbstractSQLView(BaseView):
 
                     # 3. query foreign keys
                     vcls = self.app.tables[fkvalues['table']]
-                    v = vcls(self.app, self._request)  # fake view
+                    v = vcls(self.app, self.request)  # fake view
                     await v._prepare()
                     info2 = SQLQueryInfo()
                     info2.set_select(ALL_COLUMNS)
@@ -270,14 +294,13 @@ class AbstractSQLView(BaseView):
         if self.is_finished:
             raise FinishQuitException()
 
-    def _get_list_page_and_size(self) -> Tuple[int, int]:
-        page = self.route_info.get('page', '1').strip()
+    def _get_list_page_and_size(self, page, client_size) -> Tuple[int, int]:
+        page = page.strip()
 
         if not page.isdigit():
             raise InvalidParams("`page` is not a number")
         page = int(page)
 
-        client_size = self.route_info.get('size', '').strip()
         if self.LIST_ACCEPT_SIZE_FROM_CLIENT and client_size:
             page_size_limit = self.LIST_PAGE_SIZE_CLIENT_LIMIT or self.LIST_PAGE_SIZE
             if client_size == '-1':  # -1 means all
@@ -297,7 +320,7 @@ class AbstractSQLView(BaseView):
 
         return page, client_size
 
-    async def check_records_permission(self, info, records, *, exception_cls: Type[SlimException]=PermissionDenied):
+    async def check_records_permission(self, info, records, *, exception_cls: Type[SlimException] = PermissionDenied):
         user = self.current_user if self.can_get_user else None
         for record in records:
             columns = record.set_info(info, self.ability, user)
@@ -308,7 +331,6 @@ class AbstractSQLView(BaseView):
         """
         获取单项记录接口，查询规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify
         """
-        self.current_interface = InnerInterfaceName.GET
         with ErrorCatchContext(self):
             info = SQLQueryInfo(self.params, view=self)
             await self._call_handle(self.before_query, info)
@@ -323,13 +345,12 @@ class AbstractSQLView(BaseView):
             else:
                 self.finish(RETCODE.NOT_FOUND)
 
-    async def list(self):
+    async def list(self, page='1', size=''):
         """
         获取分页记录接口，查询规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify
         """
-        self.current_interface = InnerInterfaceName.LIST
         with ErrorCatchContext(self):
-            page, size = self._get_list_page_and_size()
+            page, size = self._get_list_page_and_size(page, size)
             info = SQLQueryInfo(self.params, view=self)
             await self._call_handle(self.before_query, info)
             records, count = await self._sql.select_page(info, page, size)
@@ -352,7 +373,6 @@ class AbstractSQLView(BaseView):
         查询规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify
         赋值规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify?id=修改新建
         """
-        self.current_interface = InnerInterfaceName.SET
         with ErrorCatchContext(self):
             info = SQLQueryInfo(self.params, self)
 
@@ -412,7 +432,6 @@ class AbstractSQLView(BaseView):
         批量新建接口
         赋值规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify?id=修改新建
         """
-        self.current_interface = InnerInterfaceName.BULK_INSERT
         post = await self.post_data()
         if not 'items' in post:
             raise InvalidPostData("`items` is required")
@@ -430,7 +449,6 @@ class AbstractSQLView(BaseView):
         新建接口
         赋值规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify?id=修改新建
         """
-        self.current_interface = InnerInterfaceName.NEW
         raw_post = await self.post_data()
         records = await self._base_insert([raw_post], False)
         if self.is_finished:
@@ -447,7 +465,6 @@ class AbstractSQLView(BaseView):
         查询规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify
         赋值规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify?id=修改新建
         """
-        self.current_interface = InnerInterfaceName.DELETE
         with ErrorCatchContext(self):
             info = SQLQueryInfo(self.params, self)
             await self._call_handle(self.before_query, info)

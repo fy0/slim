@@ -1,7 +1,6 @@
 import json
 import logging
 from abc import abstractmethod
-import aiohttp
 import asyncio
 from aiohttp import web
 from aiohttp.web_request import BaseRequest

@@ -17,7 +17,7 @@ def app_init():
     loop = get_ioloop()
     # loop.run_until_complete(redis.init(loop))
 
-    app._prepare()
+    app.prepare()
 
 
 app_init()

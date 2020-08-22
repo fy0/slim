@@ -1,4 +1,4 @@
-﻿# coding:utf-8
+# coding:utf-8
 
 from peewee import *
 from model import BaseModel

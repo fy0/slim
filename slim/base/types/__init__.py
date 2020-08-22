@@ -1,1 +1,1 @@
-from .inner_interface_name import InnerInterfaceName
+from .inner_interface_name import BuiltinInterface

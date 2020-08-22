@@ -20,8 +20,12 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install aiohttp
-        pip install aiohttp_cors
+        pip install typing_extensions
+        pip install dataclasses
+        pip install multidict
+        pip install python-multipart
+        pip install yarl
+        pip install uvicorn
         pip install click
         pip install peewee
         pip install asyncpg

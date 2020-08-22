@@ -1,18 +1,11 @@
 import logging
-import asyncio
-from typing import Union, List, Optional, TYPE_CHECKING, Iterable, Callable, Awaitable
-from aiohttp import web
-from aiohttp.web_request import Request
-from aiohttp.web_response import Response
-from aiohttp.web_urldispatcher import StaticResource
+from typing import Optional, TYPE_CHECKING
 
 from slim.base.types.doc import ApplicationDocInfo
-from slim.ext.decorator import deprecated
 from slim.ext.openapi.serve import doc_serve
 from .session import CookieSession
-from ..utils import get_ioloop
+from .web import handle_request, CORSOptions
 from ..utils.jsdict import JsDict
-import aiohttp_cors
 from . import log
 
 if TYPE_CHECKING:
@@ -34,24 +27,11 @@ class ApplicationOptions:
         self.session_cls = CookieSession
 
 
-class CORSOptions:
-    def __init__(self, host, *, allow_credentials=False, expose_headers=(),
-                 allow_headers=(), max_age=None, allow_methods=None):
-        self.host = host
-        self.allow_credentials = allow_credentials
-        self.expose_headers = expose_headers
-        self.allow_headers = allow_headers
-        self.max_age = max_age
-        self.allow_methods = allow_methods
-
-
 class Application:
-    _request_solver: Callable[[Request, Callable, Optional[Callable]], Awaitable[Response]]
-
     def __init__(self, *, cookies_secret: bytes, log_level=logging.INFO, session_cls=CookieSession,
                  mountpoint: str = '/api', doc_enable=True, doc_info=ApplicationDocInfo(),
-                 permission: Optional['Permissions'] = None, client_max_size=2 * 1024 * 1024,
-                 cors_options: Optional[Union[CORSOptions, List[CORSOptions]]] = None):
+                 permission: Optional['Permissions'] = None, client_max_size=100 * 1024 * 1024,
+                 cors_options: Optional[CORSOptions] = None):
         """
         :param cookies_secret:
         :param log_level:
@@ -60,14 +40,13 @@ class Application:
         :param mountpoint:
         :param doc_enable:
         :param doc_info:
-        :param client_max_size: 2MB is default client_max_body_size of nginx
+        :param client_max_size: 100MB
         """
-        from .route import get_request_solver, Route
+        from .route import Route
         from .permission import Permissions, Ability, ALL_PERMISSION, EMPTY_PERMISSION
 
         self.on_startup = []
         self.on_shutdown = []
-        self.on_cleanup = []
 
         self.mountpoint = mountpoint
         self.route = Route(self)
@@ -101,45 +80,11 @@ class Application:
         self.options = ApplicationOptions()
         self.options.cookies_secret = cookies_secret
         self.options.session_cls = session_cls
-        self._request_solver = get_request_solver(self)
-        self._raw_app = web.Application(middlewares=[self._request_solver], client_max_size=client_max_size)
+        self.client_max_size = client_max_size
 
-    def _prepare(self):
-        from .view import AbstractSQLView
+    def prepare(self):
         self.route._bind()
-
-        for vi in self.route.views:
-            cls = vi.view_cls
-            if issubclass(cls, AbstractSQLView):
-                '''
-                def get_exists_view_full_name():
-                    view_cls = self.tables[cls.table_name]
-                    return '%s.%s' % (view_cls.__module__, view_cls.__name__)
-
-                def get_view_full_name():
-                    return '%s.%s' % (cls.__module__, cls.__name__)
-
-                if cls.table_name in self.tables:
-                    logger.error("Binding %r failed, the table %r is already binded to %r." % (get_view_full_name(), cls.table_name, get_exists_view_full_name()))
-                    exit(-1)
-                '''
-
-                self.tables[cls.table_name] = cls
-
-        # Configure default CORS settings.
-        if self.cors_options:
-            vals = {}
-            for i in self.cors_options:
-                vals[i.host] = aiohttp_cors.ResourceOptions(
-                    allow_credentials=i.allow_credentials,
-                    expose_headers=i.expose_headers,
-                    allow_headers=i.allow_headers,
-                    max_age=i.max_age,
-                    allow_methods=i.allow_methods
-                )
-            cors = aiohttp_cors.setup(self._raw_app, defaults=vals)
-        else:
-            cors = None
+        return
 
         # Configure CORS on all routes.
         ws_set = set()
@@ -154,35 +99,11 @@ class Application:
                     except ValueError:
                         pass
 
-        for vi in self.route.views:
-            vi.view_cls._ready()
+    async def __call__(self, scope, receive, send):
+        await handle_request(self, scope, receive, send)
 
     def run(self, host, port):
-        def reg(mine, target):
-            assert isinstance(mine, Iterable)
-
-            for i in mine:
-                assert i, asyncio.Future
-
-                async def dummy(_raw_app):
-                    await i()
-                target.append(dummy)
-
-        reg(self.on_startup, self._raw_app.on_startup)
-        reg(self.on_shutdown, self._raw_app.on_shutdown)
-        reg(self.on_cleanup, self._raw_app.on_cleanup)
-
-        self._prepare()
-        web.run_app(host=host, port=port, app=self._raw_app)
-
-    @staticmethod
-    @deprecated('@app.timer is deprecated, use @slim.ext.decorator.timer to instead.')
-    def timer(interval_seconds, *, exit_when):
-        """
-        Set up a timer
-        :param interval_seconds:
-        :param exit_when:
-        :return:
-        """
-        from slim.ext.decorator import timer
-        return timer(interval_seconds, exit_when=exit_when)
+        import uvicorn
+        logger.info(f'Running on http://{host}:{port}')
+        logger.info('(Press CTRL+C to quit)')
+        uvicorn.run(self, host=host, port=port, log_level='critical')

@@ -1,180 +1,49 @@
+import inspect
 import logging
-import time
-from asyncio import iscoroutinefunction, Future
-from typing import Iterable, Type, TYPE_CHECKING, Dict, Callable, Awaitable, Any, List
-from aiohttp import web, web_response
+import re
+from types import FunctionType
+from typing import Iterable, Type, TYPE_CHECKING, Dict, List, Optional, Tuple
 from posixpath import join as urljoin
 
-from aiohttp.web_request import Request, BaseRequest
-from aiohttp.web_response import Response
-from schematics.exceptions import DataError
+import typing
 
-from slim.base._view.validate import view_validate_check
-from slim.base.types.beacon import BeaconInfo, BeaconRouteInfo
 from slim.base.types.doc import ResponseDataModel
-from slim.base.types.route_view_info import RouteViewInfo
-from slim.base.ws import WSRouter
-from slim.exception import InvalidPostData, InvalidParams
-from slim.utils import get_class_full_name
-from ..utils.async_run import sync_call, async_call
+from slim.base.types.route_meta_info import RouteViewInfo, RouteInterfaceInfo
+# from slim.base.ws import WSRouter
+from slim.exception import InvalidPostData, InvalidParams, InvalidRouteUrl
+from .web import Response
+from slim.utils.exceptions import HTTPException
+from slim.utils.types import ASGIInstance, Scope
+from slim.utils import get_class_full_name, camel_case_to_underscore_case, repath, sentinel
 
 if TYPE_CHECKING:
     from .view import BaseView
     from .app import Application
 
 logger = logging.getLogger(__name__)
+
+
 # __all__ = ('Route',)
 
 
-def get_request_solver(app: 'Application'):
-    @web.middleware
-    # noinspection PyProtectedMember
-    async def route_middleware(request: Request, handler: Callable, hack_view: Callable = None) -> Awaitable[Response]:
-        if not app.route._is_beacon(handler):
-            return await handler(request)
-        else:
-            t = time.perf_counter()
-            beacon = app.route._beacons[handler]
-            handler_name = beacon.handler_name
-
-            ascii_encodable_path = request.path_qs.encode('ascii', 'backslashreplace').decode('ascii')
-            status_code = 200
-
-            view_instance: BaseView = beacon.view_cls(app, request)
-            method = view_instance.method
-
-            # hack for test tool
-            if hack_view: hack_view(view_instance)
-
-            from .view import ErrorCatchContext
-
-            with ErrorCatchContext(view_instance):
-                await view_instance._prepare()
-
-            if view_instance.is_finished:
-                resp = view_instance.response
-            else:
-                # user's validator check
-                await view_validate_check(view_instance, beacon.va_query, beacon.va_post, beacon.va_headers)
-
-                if view_instance.is_finished:
-                    resp = view_instance.response
-                else:
-                    # handle request
-                    await beacon.handler(view_instance)
-
-                    # get response
-                    resp = view_instance.response
-
-                    if not isinstance(resp, web_response.StreamResponse):
-                        status_code = 500
-
-            took = round((time.perf_counter() - t) * 1000, 2)
-            # GET /api/get -> TopicView.get 200 30ms
-            logger.info("{} {:4s} -> {} {}, took {}ms".format(method, ascii_encodable_path, handler_name, status_code, took))
-
-            if logger.isEnabledFor(logging.DEBUG):
-                logger.debug('query parameters: %s', view_instance.params)
-                if method in BaseRequest.POST_METHODS:
-                    logger.debug('post data: %s', await view_instance.post_data())
-
-            if status_code == 500:
-                warn_text = "The handler {!r} did not called `view.finish()`.".format(handler_name)
-                logger.warning(warn_text)
-                view_instance.finish_raw(warn_text.encode('utf-8'), status=500)
-                return resp
-
-            await view_instance._on_finish()
-            return resp
-
-    return route_middleware
-
-
-def view_bind(app: 'Application', cls_url, view_cls: Type['BaseView']):
-    """
-    将 API 绑定到 web 服务上
-    :param view_cls:
-    :param app:
-    :param cls_url:
-    :return:
-    """
-    if view_cls._no_route: return
-    cls_url = cls_url or view_cls.__class__.__name__.lower()
-
-    def add_route(beacon_info: BeaconInfo):
-        route = beacon_info['route']
-        for method in route['method']:
-            async def beacon(request): pass
-            beacon_info['beacon_func'] = beacon
-            app._raw_app.router.add_route(method, route['fullpath'], beacon)
-            app.route._beacons[beacon] = beacon_info
-
-            handler = beacon_info['handler']
-            handler_to_beacon_info = app.route._handler_to_beacon_info
-
-            # handler_to_beacon_info 结构：
-            # { handler: { cls1: beacon_info, cls2: beacon_info } }
-            if handler in handler_to_beacon_info:
-                handler_to_beacon_info[handler][beacon_info.view_cls] = beacon_info
-            else:
-                handler_to_beacon_info[handler] = {
-                    beacon_info.view_cls: beacon_info
-                }
-
-    # noinspection PyProtectedMember
-    for name, route_info_lst in view_cls._interface.items():
-        for route_info in route_info_lst:
-            real_handler = getattr(view_cls, name, None)
-            if real_handler is None: continue  # TODO: delete
-            assert real_handler is not None, "handler must be exists"
-
-            handler_name = '%s.%s' % (get_class_full_name(view_cls), name or real_handler.__name__)
-            if not iscoroutinefunction(real_handler):
-                logger.error("Interface function must be async: %r" % handler_name)
-                exit(-1)
-
-            cls_url = cls_url or view_cls.__class__.__name__.lower()
-            route_key = route_info['url'] or name
-
-            beacon_info = BeaconInfo({
-                'view_cls': view_cls,
-                'name': name,  # name of function
-                'handler': real_handler,
-                'handler_name': handler_name,  # qualified name
-                'route': BeaconRouteInfo({
-                    'method': route_info['method'],  # Set[HttpMethod]
-                    'relpath': route_key,
-                    'fullpath': urljoin(app.mountpoint, cls_url, route_key),
-                    'raw': route_info
-                }),
-                'va_query': route_info.get('va_query'),
-                'va_post': route_info.get('va_post'),
-                'va_resp': route_info.get('va_resp'),
-                'va_headers': route_info.get('va_headers'),
-                'deprecated': route_info.get('deprecated')
-            })
-
-            add_route(beacon_info)
-
-
 class Route:
-    _beacons: Dict[Future, BeaconInfo]
-    views: List[RouteViewInfo]
+    _views: List[RouteViewInfo]
 
     def __init__(self, app):
-        self.funcs = []
-        self.views = []
+        self._funcs = []
+        self._views = []
+        self._funcs_meta = []
         self.statics = []
-        self.websockets = []
 
-        self.app = app
+        self._app = app
         self.before_bind = []
         self.after_bind = []  # on_bind(app)
-        self._beacons = {}
-        self._handler_to_beacon_info = {}  # used for test tool
 
-    @staticmethod
-    def interface(method, url=None, *, summary=None, va_query=None, va_post=None, va_headers=None,
+        self._url_mappings: Dict[str, Dict[str, RouteInterfaceInfo]] = {}
+        self._url_mappings_regex: Dict[str, Dict[re.Pattern, RouteInterfaceInfo]] = {}
+        self._statics_mappings_regex: Dict[str, Dict[re.Pattern, PathPrefix]] = {}
+
+    def interface(self, method, url=None, *, summary=None, va_query=None, va_post=None, va_headers=None,
                   va_resp=ResponseDataModel, deprecated=False):
         """
         Register interface
@@ -188,17 +57,41 @@ class Route:
         :param deprecated:
         :return:
         """
-        def wrapper(func):
-            meta = {
-                'summary': summary,
-                'va_query': va_query,
-                'va_post': va_post,
-                'va_headers': va_headers,
-                'va_resp': va_resp,
-                'deprecated': deprecated
-            }
-            func._interface = (method, url, meta)
+
+        def wrapper(func: FunctionType):
+            self._funcs.append(func)
+            arg_spec = inspect.getfullargspec(func)
+
+            names_exclude = set()
+            names_include = set()
+            names_varkw = arg_spec.varkw
+
+            if len(arg_spec.args) >= 1:
+                # skip the first argument, the view instance
+                names_exclude.add(arg_spec.args[0])
+                for i in arg_spec.args[1:]:
+                    names_include.add(i)
+
+            for i in arg_spec.kwonlyargs:
+                names_include.add(i)
+
+            func._route_info = RouteInterfaceInfo(
+                [method],
+                url or func.__name__,
+                func,
+                summary=summary,
+                va_query=va_query,
+                va_post=va_post,
+                va_headers=va_headers,
+                va_resp=va_resp,
+                deprecated=deprecated,
+
+                names_exclude=names_exclude,
+                names_include=names_include,
+                names_varkw=names_varkw
+            )
             return func
+
         return wrapper
 
     def view(self, url, tag_name=None):
@@ -210,12 +103,119 @@ class Route:
         """
         from .view import BaseView
 
-        def wrapper(cls):
-            if issubclass(cls, BaseView):
-                self.views.append(RouteViewInfo(url, cls, tag_name))
-            return cls
+        def wrapper(view_cls):
+            assert inspect.isclass(view_cls), '%r is not a class' % view_cls.__name__
+            if issubclass(view_cls, BaseView):
+                view_url = url if url else camel_case_to_underscore_case(view_cls.__name__)
+                route_info = RouteViewInfo(view_url, view_cls, tag_name)
+                view_cls._route_info = route_info
+                self._views.append(route_info)
+            return view_cls
 
         return wrapper
+
+    def _bind(self):
+        from ._view.request_view import RequestView
+        from ._view.abstract_sql_view import AbstractSQLView
+
+        def add_to_url_mapping(_meta, _fullpath):
+            for method in _meta.methods:
+                if isinstance(_meta, PathPrefix):
+                    self._statics_mappings_regex.setdefault(method, {})
+                    try:
+                        _re = repath.pattern(_fullpath)
+                        self._statics_mappings_regex[method][re.compile(_re)] = _meta
+                    except Exception as e:
+                        raise InvalidRouteUrl(_fullpath, e)
+                else:
+                    if ':' not in _fullpath and '(' not in _fullpath:
+                        self._url_mappings.setdefault(method, {})
+                        self._url_mappings[method][_fullpath] = _meta
+                    else:
+                        self._url_mappings_regex.setdefault(method, {})
+                        try:
+                            _re = repath.pattern(_fullpath)
+                            self._url_mappings_regex[method][re.compile(_re)] = _meta
+                        except Exception as e:
+                            raise InvalidRouteUrl(_fullpath, e)
+
+        # bind views
+        for view_info in self._views:
+            view_cls = view_info.view_cls
+            view_cls._on_bind(self)
+
+            for k, v in inspect.getmembers(view_cls):
+                if isinstance(v, FunctionType):
+                    # bind interface to url mapping
+                    if getattr(v, '_route_info', None):
+                        meta: RouteInterfaceInfo = v._route_info
+                        meta.view_cls = sentinel  # just a flag
+                        meta.view_cls_set.add(view_cls)
+
+                        meta = meta.clone()  # make clone because interface could be inherit.
+                        meta.view_cls = view_cls
+                        meta.handler_name = '%s.%s' % (get_class_full_name(view_cls), meta.handler.__name__)
+
+                        fullpath = urljoin(self._app.mountpoint, view_info.url, meta.url)
+                        meta.fullpath = fullpath
+                        add_to_url_mapping(meta, fullpath)
+                        self._funcs_meta.append(meta)
+
+            if issubclass(view_cls, AbstractSQLView):
+                self._app.tables[view_cls.table_name] = view_cls
+            view_cls._ready()
+
+        # bind functions
+        for i in self._funcs:
+            if not i._route_info.view_cls:
+                meta: RouteInterfaceInfo = i._route_info
+                meta.view_cls = RequestView
+                meta.handler_name = meta.handler.__name__
+                meta.is_free_func = True
+
+                fullpath = urljoin(self._app.mountpoint, meta.url)
+                meta.fullpath = fullpath
+                add_to_url_mapping(meta, fullpath)
+                self._funcs_meta.append(meta)
+
+        for i in self.statics:
+            fullpath = urljoin(self._app.mountpoint, i.path)
+            i.fullpath = fullpath
+            add_to_url_mapping(i, fullpath)
+
+    def query_path(self, method, path) -> Tuple[Optional[RouteInterfaceInfo], Optional[Dict]]:
+        """
+        Get route info for specified method and path.
+        :param method:
+        :param path:
+        :return:
+        """
+        path_mapping = self._url_mappings.get(method, None)
+        if path_mapping:
+            ret = path_mapping.get(path)
+            if ret:
+                if ret.handler.__name__ not in ret.view_cls._interface_disable:
+                    return ret, {}
+
+        path_mapping = self._url_mappings_regex.get(method, None)
+        if path_mapping:
+            for i, route_info in path_mapping.items():
+                m = i.fullmatch(path)
+                if m:
+                    if route_info.handler.__name__ not in route_info.view_cls._interface_disable:
+                        return route_info, m.groupdict()
+
+        return None, None
+
+    def query_statics_path(self, method, path) -> Tuple[Optional[typing.Any], Optional[Dict]]:
+        path_mapping = self._statics_mappings_regex.get(method, None)
+        if path_mapping:
+            for i, route_info in path_mapping.items():
+                m = i.fullmatch(path)
+                if m:
+                    return route_info, m.groupdict()
+
+        return None, None
 
     def websocket(self, url, obj):
         """
@@ -224,6 +224,7 @@ class Route:
         :param obj:
         :return:
         """
+
         def wrapper(cls):
             if issubclass(cls, WSRouter):
                 self.websockets.append((url, obj()))
@@ -231,48 +232,44 @@ class Route:
 
         return wrapper
 
-    def _is_beacon(self, func):
-        return func in self._beacons
-
-    def _aiohttp_func(self, url, method: [Iterable, str, None] = 'GET'):
-        def _(obj):
-            if iscoroutinefunction(obj):
-                # 这里可以判断是否为 method，但没有必要
-                assert method, "Must give at least one method to http handler `%s`" % obj.__name__
-                if type(method) == str: methods = (method,)
-                else: methods = list(method)
-                self.funcs.append((url, methods, obj))
-            return obj
-        return _
-
-    def add_static(self, prefix, path, **kwargs):
+    def add_static(self, prefix, path):
         """
         :param prefix: URL prefix
         :param path: file directory
         :param kwargs:
         :return:
         """
-        self.statics.append((prefix, path, kwargs),)
+        from slim.base.staticfiles import StaticFiles
+        prefix = PathPrefix(prefix, app=StaticFiles(directory=path), methods=['GET'])
+        self.statics.append(prefix)
 
-    def _bind(self):
-        app = self.app
-        raw_router = app._raw_app.router
+    def get(self, url=None, *, summary=None, va_query=None, va_post=None, va_headers=None,
+            va_resp=ResponseDataModel, deprecated=False):
+        kwargs = locals()
+        del kwargs['self']
+        return self.interface('GET', **kwargs)
 
-        for func in self.before_bind:
-            sync_call(func, app)
+    def post(self, url=None, *, summary=None, va_query=None, va_post=None, va_headers=None,
+             va_resp=ResponseDataModel, deprecated=False):
+        kwargs = locals()
+        del kwargs['self']
+        return self.interface('POST', **kwargs)
 
-        for vi in self.views:
-            view_bind(app, vi.url, vi.view_cls)
 
-        for url, wsh in self.websockets:
-            raw_router.add_get(url, wsh._handle)
+class PathPrefix:
+    def __init__(
+            self, path: str, app, methods: typing.Sequence[str] = ()
+    ) -> None:
+        self.path = path
+        self.app = app
+        self.methods = methods
+        regex = "^" + path
+        regex = re.sub("{([a-zA-Z_][a-zA-Z0-9_]*)}", r"(?P<\1>[^/]*)", regex)
+        self.path_regex = re.compile(regex)
 
-        for url, methods, func in self.funcs:
-            for method in methods:
-                raw_router.add_route(method, url, func)
-
-        for prefix, path, kwargs in self.statics:
-            raw_router.add_static(prefix, path, **kwargs)
-
-        for func in self.after_bind:
-            sync_call(func, app)
+    def __call__(self, scope: Scope) -> ASGIInstance:
+        if self.methods and scope["method"] not in self.methods:
+            if "app" in scope:
+                raise HTTPException(status_code=405)
+            return Response(body="Method Not Allowed", status=405)
+        return self.app(scope)

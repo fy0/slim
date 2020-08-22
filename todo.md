@@ -1,4 +1,28 @@
 
+## todo v2
+
+* multipart form parse
+
+* ~~cors support~~ it works, but could be better
+
+* stream response body support
+
+* static file support
+
+* websocket support
+
+* ~~function handler support~~
+
+* middleware support
+
+* log
+
+* ~~auto docs~~
+
+* ~~route~~
+
+* ~~works again~~
+
 ## todo
 
 * 'select' for loadfk

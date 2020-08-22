@@ -1,26 +1,25 @@
+import json
 from posixpath import join as urljoin
 from typing import TYPE_CHECKING
-
-from aiohttp import web
-from aiohttp.web_request import Request
 
 from slim.ext.openapi.main import get_openapi
 
 if TYPE_CHECKING:
     from slim import Application
+    from slim.base.view import RequestView
 
 
 def doc_serve(app: 'Application'):
     spec_url = urljoin(app.mountpoint, '/openapi.json')
 
-    @app.route._aiohttp_func(spec_url, 'GET')
-    async def openapi(request):
-        role = request.query.get('role')
-        return web.json_response(get_openapi(app, role))
+    @app.route.get(spec_url)
+    async def openapi(request: 'RequestView'):
+        role = request.params.get('role')
+        request.finish_json(get_openapi(app, role))
 
-    @app.route._aiohttp_func('/redoc', 'GET')
-    async def openapi(request: Request):
-        role = request.query.get('role', None)
+    @app.route.get('/redoc')
+    async def redoc(request: 'RequestView'):
+        role = request.params.get('role')
 
         def get_role_spec_url(role):
             if role is None:
@@ -52,7 +51,7 @@ def doc_serve(app: 'Application'):
     </select>
 </div>''' % options
 
-        return web.Response(content_type='text/html',body='''
+        request.finish_raw(body='''
 <!DOCTYPE html>
 <html>
   <head>
@@ -78,4 +77,4 @@ def doc_serve(app: 'Application'):
     %s
   </body>
 </html>
-    ''' % (my_spec_url, change_role_html))
+    ''' % (my_spec_url, change_role_html), content_type='text/html')

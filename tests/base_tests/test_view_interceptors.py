@@ -60,7 +60,7 @@ class TopicView3(PeeweeView):
         info.add_condition('xxxx', SQL_OP.IN, [b'11'])
 
 
-app._prepare()
+app.prepare()
 
 
 async def test_after_read_get():

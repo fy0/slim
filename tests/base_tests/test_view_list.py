@@ -5,7 +5,7 @@ from slim.support.peewee import PeeweeView
 from peewee import *
 from slim import Application, ALL_PERMISSION
 from slim.utils import get_ioloop
-from slim.tools.test import make_mocked_view_instance
+from slim.tools.test import make_mocked_view
 
 
 pytestmark = [pytest.mark.asyncio]
@@ -35,7 +35,7 @@ async def test_view_list_bug():
     """
     当 LIST_PAGE_SIZE为-1 时，如果表中无数据，由于分页大小会自动设置为与查出的数据数量一致（为0），计算页数时会出现除以0的问题
     """
-    view: PeeweeView = await make_mocked_view_instance(app, ATestView, 'POST', '/api/list/1')
+    view: PeeweeView = await make_mocked_view(app, ATestView, 'POST', '/api/list/1')
     await view.list()  # BUG 情况会抛出一个 ZeroDivisionError
 
 
@@ -63,6 +63,6 @@ class TopicView(PeeweeView):
 
 
 async def test_list_items_exists():
-    view: PeeweeView = await make_mocked_view_instance(app, TopicView, 'POST', '/api/topic/list/1')
+    view: PeeweeView = await make_mocked_view(app, TopicView, 'POST', '/api/topic/list/1')
     await view.list()
     assert len(view.ret_val['data']['items']) == view.ret_val['data']['info']['items_count']

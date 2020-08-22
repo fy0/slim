@@ -18,11 +18,11 @@ app = Application(cookies_secret=b'123456', permission=ALL_PERMISSION)
 @app.route.view('test')
 class TestView(BaseView):
     @app.route.interface('POST')
-    async def upload(self):
-        post = await self.post_data()
+    async def upload(cls):
+        post = await cls.post_data()
         field: FileField = post.get('file')
         print(field.file.read())
-        self.finish(RETCODE.SUCCESS)
+        cls.finish(RETCODE.SUCCESS)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=6666)

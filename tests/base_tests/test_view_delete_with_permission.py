@@ -69,7 +69,7 @@ class ArticleView(PeeweeView):
     model = Article
 
 
-app._prepare()
+app.prepare()
 
 
 async def test_delete_bad():

@@ -22,19 +22,19 @@ from app import app
 @app.route.view('misc')
 class MiscView(BaseView):
     @app.route.interface('GET')
-    async def info(self):
+    async def info(cls):
         """
         提供给前端使用的后端配置信息
         """
-        self.finish(RETCODE.SUCCESS, {
+        cls.finish(RETCODE.SUCCESS, {
             'retcode': RETCODE.to_dict(),
             'retinfo': RETCODE.txt_cn,
         })
 
     @app.route.interface('POST')
-    async def hello(self):
-        data = await self.post_data()
-        self.finish(RETCODE.SUCCESS, 'Hi, %s' % data.get('name', 'visitor'))
+    async def hello(cls):
+        data = await cls.post_data()
+        cls.finish(RETCODE.SUCCESS, 'Hi, %s' % data.get('name', 'visitor'))
 
 ```
 
@@ -74,12 +74,12 @@ def interface(method, url=None, *, summary=None, va_query=None, va_post=None, de
 
 * 必须定义为某一视图的 async 方法
 
-* 必须调用一次 `self.finish` 来确定返回内容，注意参数code，原则是成功为0，失败为非零。框架提供一组常用返回代码，为 `slim.retcode.RETCODE`，其中异常基本是小于0的，因此开发者自定义异常码最好设计为大于0
+* 必须调用一次 `cls.finish` 来确定返回内容，注意参数code，原则是成功为0，失败为非零。框架提供一组常用返回代码，为 `slim.retcode.RETCODE`，其中异常基本是小于0的，因此开发者自定义异常码最好设计为大于0
 
 `BaseView.finish` 函数定义如下：
 
 ```python
-def finish(self, code: int, data=sentinel, msg=sentinel, *, headers=None):
+def finish(cls, code: int, data=sentinel, msg=sentinel, *, headers=None):
     """
     Set response as {'code': xxx, 'data': xxx}
     :param code: Result code
@@ -97,13 +97,13 @@ def finish(self, code: int, data=sentinel, msg=sentinel, *, headers=None):
 @app.route.view('misc')
 class MiscView(BaseView):
     @app.route.interface('POST')
-    async def hello(self):
-        params = self.params  # 获取 parameters
-        data = await self.post_data()  # 获取 post 内容
-        client_ip = await self.get_ip()  # 获取 IP
-        headers = self.headers  # 获取请求头
-        role = self.current_request_role  # 当前请求的权限角色
-        self.finish(RETCODE.SUCCESS, 'Hi, %s' % data.get('name', 'visitor'))
+    async def hello(cls):
+        params = cls.params  # 获取 parameters
+        data = await cls.post_data()  # 获取 post 内容
+        client_ip = await cls.get_ip()  # 获取 IP
+        headers = cls.headers  # 获取请求头
+        role = cls.current_request_role  # 当前请求的权限角色
+        cls.finish(RETCODE.SUCCESS, 'Hi, %s' % data.get('name', 'visitor'))
 ```
 
 ### 表单验证
@@ -133,24 +133,24 @@ class UserView(PeeweeView, UserMixin):
     model = User
 
     @app.route.interface('POST', summary='注册', va_post=SignupDataModel)
-    async def signup(self):
+    async def signup(cls):
         """
         用户注册接口
         User Signup Interface
         """
-        vpost: SignupDataModel = self._.validated_post
+        vpost: SignupDataModel = cls._.validated_post
 
         u = User.new(vpost.username, vpost.password, email=vpost.email, nickname=vpost.nickname)
         if not u:
-            self.finish(RETCODE.FAILED, msg='注册失败！')
+            cls.finish(RETCODE.FAILED, msg='注册失败！')
         else:
-            t: UserToken = await self.setup_user_token(u.id)
-            self.finish(RETCODE.SUCCESS, {'id': u.id, 'username': u.username, 'access_token': t.get_token()})
+            t: UserToken = await cls.setup_user_token(u.id)
+            cls.finish(RETCODE.SUCCESS, {'id': u.id, 'username': u.username, 'access_token': t.get_token()})
 ```
 
 这里我们定义了 `SignupDataModel` 并用于 /api/user/signup 接口的`va_post`参数
 
-有校验器时，能执行到函数代码即代表校验已通过，使用 `self._.validated_query` 和 `self._.validated_post` 来获取通过对应的 Model 实例。
+有校验器时，能执行到函数代码即代表校验已通过，使用 `cls._.validated_query` 和 `cls._.validated_post` 来获取通过对应的 Model 实例。
 
 我们做个请求试一下：
 
@@ -189,9 +189,9 @@ Server: Python/3.6 aiohttp/3.6.2
 }
 ```
 
-请注意这一行代码，这是比直接从 self.post_data() 取值更优的方式： 
+请注意这一行代码，这是比直接从 cls.post_data() 取值更优的方式： 
 ```python
-vpost: SignupDataModel = self._.validated_post
+vpost: SignupDataModel = cls._.validated_post
 ```
 
 举例来说
@@ -206,7 +206,7 @@ class SigninDataModel(Model):
 
 这里的 remember 参数在 post data 中的形态可能会是 '1' '0' 'true' 'false' 'True' 'False' 等等。
 
-使用 `self._.validated_post.remember` 则可以直接取得 bool 类型的值，非常方便。 
+使用 `cls._.validated_post.remember` 则可以直接取得 bool 类型的值，非常方便。 
 
 验证器建议放在 api/validate 目录下。
 
@@ -283,7 +283,7 @@ class TopicView(PeeweeView):
 因为同一类行为的操作既有单条也有多条，因此针对行为，而不是接口设定了以下拦截器：
 
 ```python
-async def before_query(self, info: SQLQueryInfo):
+async def before_query(cls, info: SQLQueryInfo):
     """
     在发生查询时触发。
     触发接口：get list set delete
@@ -292,7 +292,7 @@ async def before_query(self, info: SQLQueryInfo):
     """
     pass
 
-async def after_read(self, records: List[DataRecord]):
+async def after_read(cls, records: List[DataRecord]):
     """
     触发接口：get list new set
     :param records:
@@ -300,7 +300,7 @@ async def after_read(self, records: List[DataRecord]):
     """
     pass
 
-async def before_insert(self, values_lst: List[SQLValuesToWrite]):
+async def before_insert(cls, values_lst: List[SQLValuesToWrite]):
     """
     插入操作之前
     触发接口：new
@@ -309,7 +309,7 @@ async def before_insert(self, values_lst: List[SQLValuesToWrite]):
     """
     pass
 
-async def after_insert(self, values_lst: List[SQLValuesToWrite], records: List[DataRecord]):
+async def after_insert(cls, values_lst: List[SQLValuesToWrite], records: List[DataRecord]):
     """
     插入操作之后
     触发接口：new
@@ -319,7 +319,7 @@ async def after_insert(self, values_lst: List[SQLValuesToWrite], records: List[D
     """
     pass
 
-async def before_update(self, values: SQLValuesToWrite, records: List[DataRecord]):
+async def before_update(cls, values: SQLValuesToWrite, records: List[DataRecord]):
     """
     触发接口：set
     :param values:
@@ -328,7 +328,7 @@ async def before_update(self, values: SQLValuesToWrite, records: List[DataRecord
     """
     pass
 
-async def after_update(self, values: SQLValuesToWrite, old_records: List[DataRecord],
+async def after_update(cls, values: SQLValuesToWrite, old_records: List[DataRecord],
                        new_records: List[DataRecord]):
     """
     触发接口：set
@@ -338,7 +338,7 @@ async def after_update(self, values: SQLValuesToWrite, old_records: List[DataRec
     :return:
     """
 
-async def before_delete(self, records: List[DataRecord]):
+async def before_delete(cls, records: List[DataRecord]):
     """
     触发接口：delete
     :param records:
@@ -346,7 +346,7 @@ async def before_delete(self, records: List[DataRecord]):
     """
     pass
 
-async def after_delete(self, deleted_records: List[DataRecord]):
+async def after_delete(cls, deleted_records: List[DataRecord]):
     """
     触发接口：delete
     :param deleted_records:

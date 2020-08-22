@@ -2,10 +2,8 @@
 from copy import deepcopy
 from typing import Type, TYPE_CHECKING
 
-from aiohttp.web_request import Request
-
-from slim.base.types import InnerInterfaceName as IIN
-from slim.base.types.beacon import BeaconInfo
+from slim.base.types import BuiltinInterface
+from slim.base.types.route_meta_info import RouteInterfaceInfo
 from slim.base.types.func_meta import FuncMeta
 from slim.base.user import BaseUserViewMixin
 from slim.retcode import RETCODE
@@ -136,7 +134,7 @@ class OpenAPIGenerator:
         from slim.base.view import BaseView, AbstractSQLView
         app = self.app
 
-        for vi in app.route.views:
+        for vi in app.route._views:
             view_cls = vi.view_cls
             is_sql_view = issubclass(view_cls, AbstractSQLView)
 
@@ -175,7 +173,7 @@ class OpenAPIGenerator:
                     'sql_cant_delete': len(available_columns[A.DELETE]) == 0,
                 }
 
-    def _interface_solve(self, beacon_info: BeaconInfo, method, parameters, request_body_schema):
+    def _interface_solve(self, beacon_info: RouteInterfaceInfo, method, parameters, request_body_schema):
         if beacon_info.va_query:
             for k, v in beacon_info.va_query._fields.items():
                 parameters.append(self._schematics_field_to_parameter(k, v))
@@ -202,24 +200,19 @@ class OpenAPIGenerator:
                 ]
             }
 
-        for i in self.app.route._beacons.values():
-            i: BeaconInfo
+        for i in self.app.route._funcs_meta:
             path_item_object = {}
 
             view_cls = i.view_cls
             is_sql_view = issubclass(view_cls, AbstractSQLView)
             self._view_to_path.setdefault(view_cls, [])
 
-            for method in i['route']['method']:
-                raw = i['route']['raw']
-                relpath = i['route']['relpath']
-                need_post_body = method in Request.POST_METHODS
-
+            for method in i.methods:
                 parameters = []
                 request_body_schema = {}
                 response_schema = deepcopy(std_resp_schema)
 
-                summary = raw.get('summary') or i['name']
+                summary = i.summary or i.handler.__name__
 
                 if issubclass(view_cls, BaseUserViewMixin):
                     parameters.append({
@@ -263,15 +256,14 @@ class OpenAPIGenerator:
                         continue
 
                 if is_sql_view:
-                    is_inner_interface = raw.get('_sql')
+                    is_builtin = i.builtin_interface
                     view_info = self.view_info[view_cls]
 
-                    if is_inner_interface:
-                        sql_query = raw['_sql'].get('query')
-                        sql_post = raw['_sql'].get('post')
-                        inner_name = raw['inner_name']
+                    if is_builtin:
+                        sql_query = i.va_query
+                        sql_post = i.va_post
 
-                        if inner_name == IIN.SET:
+                        if i.builtin_interface == BuiltinInterface.SET:
                             if view_info['sql_cant_write']:
                                 continue
                             add_bulk_header()
@@ -281,7 +273,7 @@ class OpenAPIGenerator:
                                 "properties": view_info['sql_write_schema']
                             }
 
-                        if inner_name == IIN.NEW:
+                        if i.builtin_interface == BuiltinInterface.NEW:
                             if view_info['sql_cant_create']:
                                 continue
                             add_returning_header()
@@ -290,7 +282,7 @@ class OpenAPIGenerator:
                                 "properties": view_info['sql_create_schema']
                             }
 
-                        if inner_name == IIN.BULK_INSERT:
+                        if i.builtin_interface == BuiltinInterface.BULK_INSERT:
                             if view_info['sql_cant_create']:
                                 continue
                             add_returning_header()
@@ -308,7 +300,7 @@ class OpenAPIGenerator:
                                 }
                             }
 
-                        if inner_name == IIN.DELETE:
+                        if i.builtin_interface == BuiltinInterface.DELETE:
                             if view_info['sql_cant_delete']:
                                 continue
                             add_bulk_header()
@@ -317,22 +309,7 @@ class OpenAPIGenerator:
                                 "description": "影响数据个数",
                             }
 
-                        is_list = raw['inner_name'] in {IIN.LIST, IIN.LIST_WITH_SIZE}
-
-                        if raw['inner_name'] == IIN.LIST:
-                            parameters.extend([
-                                {
-                                    "name": "page",
-                                    "in": "path",
-                                    "description": "",
-                                    "required": True,
-                                    "schema": {
-                                        "type": "number"
-                                    }
-                                }
-                            ])
-
-                        if raw['inner_name'] == IIN.LIST_WITH_SIZE:
+                        if i.builtin_interface == BuiltinInterface.LIST:
                             parameters.extend([
                                 {
                                     "name": "page",
@@ -347,7 +324,7 @@ class OpenAPIGenerator:
                                     "name": "size",
                                     "in": "path",
                                     "description": "",
-                                    "required": True,
+                                    "required": False,
                                     "schema": {
                                         "type": "number"
                                     }
@@ -357,7 +334,7 @@ class OpenAPIGenerator:
                         if sql_query:
                             parameters.extend(view_info['sql_query_parameters'])
 
-                        if is_list:
+                        if i.builtin_interface == BuiltinInterface.LIST:
                             page_info = deepcopy(paginate_schema)
                             page_info["properties"]["items"] = {
                                 "type": "array",
@@ -412,7 +389,7 @@ class OpenAPIGenerator:
                 path = {
                     "tags": [i.view_cls.__name__],
                     "summary": summary,
-                    "description": get_func_doc(view_cls, i.name, i.handler),
+                    "description": get_func_doc(view_cls, i.handler.__name__, i.handler),
                     "parameters": parameters,
                     "responses": responses
                 }
@@ -420,17 +397,18 @@ class OpenAPIGenerator:
                 if i.deprecated:
                     path['deprecated'] = True
 
-                if need_post_body and request_body_schema:
+                if request_body_schema:
                     path["requestBody"] = request_body
 
                 path_item_object[method.lower()] = path
 
                 self._view_to_path[view_cls].append(path_item_object)
-                paths[i['route']['fullpath']] = path_item_object
+                paths[i.fullpath] = path_item_object
 
         self.paths = paths
 
     def _build_main(self):
+        from ...base.view import RequestView
         doc_info = self.app.doc_info
 
         self.openapi_file = {
@@ -459,25 +437,24 @@ class OpenAPIGenerator:
         if doc_info.contact:
             self.openapi_file['info']['contact'] = doc_info.contact
 
+        tags = []
+        for vi in self.app.route._views + [RequestView._route_info]:
+            tag = {
+                'name': vi.view_cls.__name__,
+                'description': (vi.view_cls.__doc__ or '').strip()
+            }
+
+            if vi.tag_display_name is not None:
+                tag['x-displayName'] = vi.tag_display_name
+
+            if self._view_to_path.get(vi.view_cls):
+                tags.append(tag)
+
         if doc_info.tags:
-            tags = []
-
-            for vi in self.app.route.views:
-                tag = {
-                    'name': vi.view_cls.__name__,
-                    'description': (vi.view_cls.__doc__ or '').strip()
-                }
-
-                if vi.tag_display_name is not None:
-                    tag['x-displayName'] = vi.tag_display_name
-
-                if self._view_to_path[vi.view_cls]:
-                    tags.append(tag)
-
             for _, v in doc_info.tags.items():
                 tags.append(v)
 
-            self.openapi_file['tags'] = tags
+        self.openapi_file['tags'] = tags
 
         if doc_info.x_tag_groups:
             tag_groups = []
