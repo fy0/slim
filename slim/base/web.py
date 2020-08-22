@@ -56,9 +56,9 @@ class CORSOptions:
     expose_headers: Optional[Sequence] = None
     allow_headers: Sequence = ()
     max_age: Optional[int] = None
-    allow_methods: Optional[Sequence] = None
+    allow_methods: Optional[Sequence] = '*'
 
-    def pack_headers(self, origin):
+    def pack_headers(self, request):
         def solve(val):
             if isinstance(val, str):
                 return val
@@ -66,17 +66,31 @@ class CORSOptions:
                 return ','.join(val)
 
         headers = {
-            const.ACCESS_CONTROL_ALLOW_ORIGIN: origin,
+            const.ACCESS_CONTROL_ALLOW_ORIGIN: request.origin,
             const.ACCESS_CONTROL_ALLOW_CREDENTIALS: b'true' if self.allow_credentials else b'false'
         }
-        if self.expose_headers:
-            headers[const.ACCESS_CONTROL_EXPOSE_HEADERS] = solve(self.expose_headers)
-        if self.allow_headers:
-            headers[const.ACCESS_CONTROL_ALLOW_HEADERS] = solve(self.allow_headers)
+
+        if request.method == 'OPTIONS':
+            if self.allow_headers:
+                if self.allow_headers == '*':
+                    headers[const.ACCESS_CONTROL_ALLOW_HEADERS] = request.access_control_request_headers or '*'
+                else:
+                    headers[const.ACCESS_CONTROL_ALLOW_HEADERS] = solve(self.allow_headers)
+
+            if self.allow_methods:
+                if self.allow_methods == '*':
+                    headers[const.ACCESS_CONTROL_ALLOW_METHODS] = request.access_control_request_method or request.method
+                else:
+                    headers[const.ACCESS_CONTROL_ALLOW_METHODS] = self.allow_methods
+
+        else:
+            if self.expose_headers:
+                # headers[const.ACCESS_CONTROL_EXPOSE_HEADERS] = solve(self.expose_headers)
+                headers[const.ACCESS_CONTROL_EXPOSE_HEADERS] = b''
+
         if self.max_age:
             headers[const.ACCESS_CONTROL_MAX_AGE] = self.max_age
-        if self.allow_methods:
-            headers[const.ACCESS_CONTROL_ALLOW_METHODS] = self.allow_methods
+
         return headers
 
 
@@ -86,13 +100,20 @@ class ASGIRequest:
     receive: FunctionType
     send: FunctionType
 
+    method: Optional[str] = None
     origin: Optional[str] = None
+    access_control_request_headers: Optional[str] = None
+    access_control_request_method: Optional[str] = None
 
     def __post_init__(self):
+        self.method = self.scope['method']
         for k, v in self.scope['headers']:
             if k == b'origin':
                 self.origin = v
-                break
+            elif k == b'access-control-request-headers':
+                self.access_control_request_headers = v
+            elif k == b'access-control-request-method':
+                self.access_control_request_method = v
 
 
 @dataclass
@@ -284,9 +305,9 @@ async def handle_request(app: 'Application', scope, receive, send):
                     # TODO: host match
                     for i in app.cors_options:
                         i: CORSOptions
-                        resp = Response(headers=i.pack_headers(request.origin))
+                        resp = Response(headers=i.pack_headers(request))
             else:
-                _route_info, call_kwargs_raw_ = app.route.statics_path(scope['method'], scope['path'])
+                _route_info, call_kwargs_raw_ = app.route.query_statics_path(scope['method'], scope['path'])
                 if isinstance(_route_info, RouteStaticsInfo):
                     resp = _route_info.handler(scope)
                     is_static = True
@@ -300,7 +321,8 @@ async def handle_request(app: 'Application', scope, receive, send):
                     call_kwargs = call_kwargs_raw.copy()
                     if route_info.names_varkw is not None:
                         for j in route_info.names_exclude:
-                            del call_kwargs[j]
+                            if j in call_kwargs:
+                                del call_kwargs[j]
 
                     for j in call_kwargs.keys() - route_info.names_include:
                         del call_kwargs[j]
@@ -341,25 +363,25 @@ async def handle_request(app: 'Application', scope, receive, send):
 
                     if view.response:
                         resp = view.response
-            if resp:
-                if is_static:
-                    await resp(receive, send)
-                else:
-                    # Configure CORS settings.
-                    if app.cors_options:
-                        # TODO: host match
-                        for i in app.cors_options:
-                            i: CORSOptions
-                            if resp.headers:
-                                resp.headers.update(i.pack_headers(request.origin))
-                            else:
-                                resp.headers = i.pack_headers(request.origin)
-
-                    # [[b'Content-Length', str(len(body)).encode('utf-8')]]
-                    await resp(receive, send)
-            else:
+            if not resp:
                 resp = Response(body="Not Found", status=404)
-                await resp(receive, send)
 
     except Exception as e:
+        traceback.print_exc()
+        resp = Response(body="Internal Server Error", status=500)
+
+    try:
+        if scope['method'] != 'OPTIONS':
+            # Configure CORS settings.
+            if app.cors_options:
+                # TODO: host match
+                for i in app.cors_options:
+                    i: CORSOptions
+                    if resp.headers:
+                        resp.headers.update(i.pack_headers(request))
+                    else:
+                        resp.headers = i.pack_headers(request)
+
+        await resp(receive, send)
+    except Exception:
         traceback.print_exc()
