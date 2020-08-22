@@ -123,6 +123,10 @@ class BaseView(metaclass=MetaClassForInit):
         assert self.request, 'no request found'
 
     @property
+    def path(self):
+        return self.request.scope['path']
+
+    @property
     def method(self) -> str:
         self._check_req()
         return self.request.scope['method']
