@@ -56,15 +56,7 @@ class AbstractSQLView(BaseView):
 
     @classmethod
     def interface_register(cls):
-        '''
-        cls._use('get', 'GET', _sql_query=True, summary='获取单项', _inner_name=InnerInterfaceName.GET)
-        cls._use_lst('list', _sql_query=True, summary='获取列表', _inner_name=InnerInterfaceName.LIST,
-                     summary_with_size='获取列表(自定义分页大小)', _inner_name_with_size=InnerInterfaceName.LIST_WITH_SIZE)
-        cls._use('set', 'POST', _sql_query=True, _sql_post=True, summary='更新', _inner_name=InnerInterfaceName.SET)
-        cls._use('new', 'POST', _sql_post=True, summary='新建', _inner_name=InnerInterfaceName.NEW)
-        cls._use('bulk_insert', 'POST', _sql_post=True, summary='新建(批量)', _inner_name=InnerInterfaceName.BULK_INSERT)
-        cls._use('delete', 'POST', _sql_query=True, summary='删除', _inner_name=InnerInterfaceName.DELETE)
-        '''
+        pass
 
     @classmethod
     def add_soft_foreign_key(cls, column, table_name, alias=None):
@@ -294,6 +286,9 @@ class AbstractSQLView(BaseView):
         if self.is_finished:
             raise FinishQuitException()
 
+    def _parse_sql_query(self):
+        return SQLQueryInfo(view=self)
+
     def _get_list_page_and_size(self, page, client_size) -> Tuple[int, int]:
         page = page.strip()
 
@@ -332,7 +327,7 @@ class AbstractSQLView(BaseView):
         获取单项记录接口，查询规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify
         """
         with ErrorCatchContext(self):
-            info = SQLQueryInfo(self.params, view=self)
+            info = await SQLQueryInfo.build(self)
             await self._call_handle(self.before_query, info)
             record = await self._sql.select_one(info)
 
@@ -351,7 +346,7 @@ class AbstractSQLView(BaseView):
         """
         with ErrorCatchContext(self):
             page, size = self._get_list_page_and_size(page, size)
-            info = SQLQueryInfo(self.params, view=self)
+            info = await SQLQueryInfo.build(self)
             await self._call_handle(self.before_query, info)
             records, count = await self._sql.select_page(info, page, size)
             # records should be list because after_read maybe change it
@@ -374,7 +369,7 @@ class AbstractSQLView(BaseView):
         赋值规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify?id=修改新建
         """
         with ErrorCatchContext(self):
-            info = SQLQueryInfo(self.params, self)
+            info = await SQLQueryInfo.build(self)
 
             await self._call_handle(self.before_query, info)
             records, count = await self._sql.select_page(info, size=self.bulk_num())
@@ -466,7 +461,7 @@ class AbstractSQLView(BaseView):
         赋值规则参考 https://fy0.github.io/slim/#/quickstart/query_and_modify?id=修改新建
         """
         with ErrorCatchContext(self):
-            info = SQLQueryInfo(self.params, self)
+            info = await SQLQueryInfo.build(self)
             await self._call_handle(self.before_query, info)
             records, count = await self._sql.select_page(info, size=self.bulk_num())
 

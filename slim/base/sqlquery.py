@@ -17,7 +17,7 @@ from ..exception import SyntaxException, ResourceException, InvalidParams, \
     InvalidPostData, TableNotFound
 
 if TYPE_CHECKING:
-    from .view import AbstractSQLView
+    from .view import BaseView, AbstractSQLView
     from .permission import Ability
     from .user import BaseUser
 
@@ -178,7 +178,7 @@ class QueryConditions(list):
 
 class SQLQueryInfo:
     """ SQL查询参数。"""
-    def __init__(self, params=None, view=None):
+    def __init__(self, params=None, view: 'AbstractSQLView' = None):
         self.select: Union[Set[str], Literal[ALL_COLUMNS]] = ALL_COLUMNS
         self.select_exclude: Set[str] = set()
         self.conditions = QueryConditions()
@@ -187,6 +187,21 @@ class SQLQueryInfo:
 
         if params: self.parse(params)
         if view: self.bind(view)
+
+    @classmethod
+    async def build(cls, view: 'AbstractSQLView'):
+        info = cls()
+        params = None
+        post = await view.post_data()
+        if post:
+            params = post.get('$query', None)
+
+        if not params:
+            params = view.params
+
+        info.parse(params)
+        info.bind(view)
+        return info
 
     def set_orders(self, orders: List[SQLQueryOrder]):
         assert isinstance(orders, list)

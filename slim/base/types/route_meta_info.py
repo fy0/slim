@@ -42,9 +42,17 @@ class RouteInterfaceInfo:
     def clone(self):
         return RouteInterfaceInfo(**self.__dict__)
 
+    def get_handler_name(self):
+        if self.view_cls:
+            return f'{self.view_cls.__name__}.{self.handler.__name__}'
+        return self.handler.__name__
+
 
 @dataclass
 class RouteStaticsInfo:
     methods: List[str]
     url: str
     handler: Optional[FunctionType]
+
+    def get_handler_name(self):
+        return self.handler.__name__

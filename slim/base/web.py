@@ -294,84 +294,76 @@ async def handle_request(app: 'Application', scope, receive, send):
                 await send({'type': 'lifespan.shutdown.complete'})
                 return
 
-    try:
-        if scope['type'] == 'http':
-            request = ASGIRequest(scope, receive, send)
-            resp = None
-            is_static = False
-            if scope['method'] == 'OPTIONS':
-                # Configure CORS settings.
-                if app.cors_options:
-                    # TODO: host match
-                    for i in app.cors_options:
-                        i: CORSOptions
-                        resp = Response(headers=i.pack_headers(request))
-            else:
-                _route_info, call_kwargs_raw_ = app.route.query_statics_path(scope['method'], scope['path'])
-                if isinstance(_route_info, RouteStaticsInfo):
-                    resp = _route_info.handler(scope)
-                    is_static = True
+    if scope['type'] == 'http':
+        t = time.perf_counter()
+        handler_name = None
 
-                route_info, call_kwargs_raw = app.route.query_path(scope['method'], scope['path'])
+        request = ASGIRequest(scope, receive, send)
+        resp = None
 
-                if route_info:
-                    t = time.perf_counter()
+        try:
+            if request.method != 'OPTIONS':
+                route_info, call_kwargs_raw_ = app.route.query_statics_path(scope['method'], scope['path'])
+                if route_info and isinstance(route_info, RouteStaticsInfo):
+                    handler_name = route_info.get_handler_name()
+                    resp = route_info.handler(scope)
 
-                    # filter call_kwargs
-                    call_kwargs = call_kwargs_raw.copy()
-                    if route_info.names_varkw is not None:
-                        for j in route_info.names_exclude:
-                            if j in call_kwargs:
-                                del call_kwargs[j]
+                if not resp:
+                    route_info, call_kwargs_raw = app.route.query_path(scope['method'], scope['path'])
 
-                    for j in call_kwargs.keys() - route_info.names_include:
-                        del call_kwargs[j]
+                    if route_info:
+                        handler_name = route_info.get_handler_name()
+                        # filter call_kwargs
+                        call_kwargs = call_kwargs_raw.copy()
+                        if route_info.names_varkw is not None:
+                            for j in route_info.names_exclude:
+                                if j in call_kwargs:
+                                    del call_kwargs[j]
 
-                    # build a view instance
-                    view = await route_info.view_cls._build(app, request)
-                    view._route_info = call_kwargs
-                    if isinstance(view, AbstractSQLView):
-                        view.current_interface = route_info.builtin_interface
+                        for j in call_kwargs.keys() - route_info.names_include:
+                            del call_kwargs[j]
 
-                    # make the method bounded
-                    handler = route_info.handler.__get__(view)
+                        # build a view instance
+                        view = await route_info.view_cls._build(app, request)
+                        view._route_info = call_kwargs
 
-                    # note: view.prepare() may case finished
-                    if not view.is_finished:
-                        # user's validator check
-                        await view_validate_check(view, route_info.va_query, route_info.va_post, route_info.va_headers)
+                        if isinstance(view, AbstractSQLView):
+                            view.current_interface = route_info.builtin_interface
 
+                        # make the method bounded
+                        handler = route_info.handler.__get__(view)
+
+                        # note: view.prepare() may case finished
                         if not view.is_finished:
-                            # call the request handler
-                            if asyncio.iscoroutinefunction(handler):
-                                await handler(**call_kwargs)
-                            else:
-                                handler(**call_kwargs)
+                            # user's validator check
+                            await view_validate_check(view, route_info.va_query, route_info.va_post, route_info.va_headers)
 
-                    took = round((time.perf_counter() - t) * 1000, 2)
-                    # GET /api/get -> TopicView.get 200 30ms
-                    name = handler.__name__
-                    logger.info("{} {:4s} -> {} {}, took {}ms".format(view.method, view.path, name, 200, took))
+                            if not view.is_finished:
+                                # call the request handler
+                                if asyncio.iscoroutinefunction(handler):
+                                    await handler(**call_kwargs)
+                                else:
+                                    handler(**call_kwargs)
 
-                    # if status_code == 500:
-                    #     warn_text = "The handler {!r} did not called `view.finish()`.".format(handler_name)
-                    #     logger.warning(warn_text)
-                    #     view_instance.finish_raw(warn_text.encode('utf-8'), status=500)
-                    #     return resp
-                    #
-                    # await view_instance._on_finish()
+                        # if status_code == 500:
+                        #     warn_text = "The handler {!r} did not called `view.finish()`.".format(handler_name)
+                        #     logger.warning(warn_text)
+                        #     view_instance.finish_raw(warn_text.encode('utf-8'), status=500)
+                        #     return resp
+                        #
+                        # await view_instance._on_finish()
 
-                    if view.response:
-                        resp = view.response
+                        if view.response:
+                            resp = view.response
+
             if not resp:
                 resp = Response(body="Not Found", status=404)
 
-    except Exception as e:
-        traceback.print_exc()
-        resp = Response(body="Internal Server Error", status=500)
+        except Exception as e:
+            traceback.print_exc()
+            resp = Response(body="Internal Server Error", status=500)
 
-    try:
-        if scope['method'] != 'OPTIONS':
+        try:
             # Configure CORS settings.
             if app.cors_options:
                 # TODO: host match
@@ -382,6 +374,14 @@ async def handle_request(app: 'Application', scope, receive, send):
                     else:
                         resp.headers = i.pack_headers(request)
 
-        await resp(receive, send)
-    except Exception:
-        traceback.print_exc()
+            await resp(receive, send)
+
+            took = round((time.perf_counter() - t) * 1000, 2)
+            # GET /api/get -> TopicView.get 200 30ms
+            if handler_name:
+                logger.info("{} - {} {:5s} -> {}, took {}ms".format(resp.status, scope['method'], scope['path'], handler_name, took))
+            else:
+                logger.info("{} - {} {:5s}, took {}ms".format(resp.status, scope['method'], scope['path'], took))
+
+        except Exception:
+            traceback.print_exc()

@@ -47,3 +47,8 @@ async def test_view_get():
 async def test_view_get_failed():
     resp = await invoke_interface(app, TopicView().get, params={'title': 'Hello_not_here'})
     assert resp.ret_val['code'] == RETCODE.NOT_FOUND
+
+
+async def test_view_get_query_by_post_body():
+    resp = await invoke_interface(app, TopicView().get, post={'$query': {'title': 'Hello'}})
+    assert resp.ret_val['data']['title'] == 'Hello'

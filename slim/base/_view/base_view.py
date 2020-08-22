@@ -267,7 +267,7 @@ class BaseView(metaclass=MetaClassForInit):
             body_buf.seek(0)
             return body_buf
 
-        if self.content_type in ('application/json', ''):
+        if self.content_type in ('application/json', '', None):
             try:
                 body_buffer = await read_body(self.request.receive)
                 body = body_buffer.read()

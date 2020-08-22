@@ -11,7 +11,7 @@
 
 * change low-level engine, from aiohttp to asgi/uvicorn
 
-* keep most api stable
+* keep most of api stable
 
 * support query by post
 
