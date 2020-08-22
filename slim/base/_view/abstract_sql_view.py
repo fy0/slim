@@ -1,8 +1,7 @@
 import json
 import logging
 from abc import abstractmethod
-from enum import Enum
-from typing import Tuple, Union, Dict, Iterable, Type, List, Set, Any, Optional, Mapping
+from typing import Tuple, Union, Dict, Iterable, Type, List, Optional, Mapping
 
 import schematics
 from multidict import istr
@@ -18,7 +17,7 @@ from slim.exception import SlimException, PermissionDenied, FinishQuitException,
 
 from slim.base.sqlquery import SQLQueryInfo, SQLForeignKey, SQLValuesToWrite, ALL_COLUMNS, PRIMARY_KEY, SQL_OP
 from slim.base.app import Application
-from slim.base.permission import Permissions, Ability, BaseUser, A, DataRecord
+from slim.base.permission import A, DataRecord
 from slim.base.sqlfuncs import AbstractSQLFunctions
 from slim.retcode import RETCODE
 from slim.utils.cls_property import classproperty
@@ -155,7 +154,7 @@ class AbstractSQLView(BaseView):
 
     async def is_returning(self) -> bool:
         key = 'returning'
-        if key in self.headers:
+        if istr(key) in self.headers:
             return True
         post = await self.post_data()
         if isinstance(post, Mapping) and key in post:
@@ -168,7 +167,7 @@ class AbstractSQLView(BaseView):
         Current role requesting by client.
         :return:
         """
-        role_val = self.headers.get('Role', None)
+        role_val = self.headers.get(istr('Role'), None)
         if role_val is not None:
             return int(role_val) if role_val.isdigit() else role_val
 
@@ -195,6 +194,10 @@ class AbstractSQLView(BaseView):
         cls.new._route_info.builtin_interface = BuiltinInterface.NEW
         cls.bulk_insert._route_info.builtin_interface = BuiltinInterface.BULK_INSERT
         cls.delete._route_info.builtin_interface = BuiltinInterface.DELETE
+
+        if cls.interface_register != AbstractSQLView.interface_register:
+            pass
+        cls.interface_register()
 
     async def _prepare(self):
         await super()._prepare()

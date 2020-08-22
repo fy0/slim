@@ -7,12 +7,14 @@ import time
 import traceback
 from dataclasses import dataclass
 from email.utils import formatdate
+from io import BytesIO
 from types import FunctionType
 from typing import Dict, Any, TYPE_CHECKING, Sequence, Optional, Iterable
 from mimetypes import guess_type
 
 import aiofiles
 from aiofiles.os import stat as aio_stat
+from multipart import multipart
 
 from slim.base import const
 from slim.utils import async_call
@@ -22,6 +24,28 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from slim import Application
+
+
+class FileField:
+    def __init__(self, field: multipart.File):
+        self._field = field
+        field.file_object.seek(0)
+
+    @property
+    def field_name(self):
+        return self._field.field_name
+
+    @property
+    def file_name(self):
+        return self._field.file_name
+
+    @property
+    def file(self):
+        return self._field.file_object
+
+    @property
+    def size(self):
+        return self._field.size
 
 
 @dataclass
@@ -260,7 +284,7 @@ async def handle_request(app: 'Application', scope, receive, send):
                     resp = Response(headers=i.pack_headers(request.origin))
         else:
             from slim.base.route import PathPrefix
-            path_prefix, call_kwargs_raw_ = app.route.statics_path(scope['method'], scope['path'])
+            path_prefix, call_kwargs_raw_ = app.route.query_statics_path(scope['method'], scope['path'])
             if isinstance(path_prefix, PathPrefix):
                 resp_ = path_prefix(scope)
                 await resp_(receive, send)
