@@ -106,4 +106,4 @@ class Application:
         import uvicorn
         logger.info(f'Running on http://{host}:{port}')
         logger.info('(Press CTRL+C to quit)')
-        uvicorn.run(self, host=host, port=port, log_level='critical')
+        uvicorn.run(self, host=host, port=port, log_level='error')
