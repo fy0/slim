@@ -56,9 +56,9 @@ class CORSOptions:
     expose_headers: Optional[Sequence] = None
     allow_headers: Sequence = ()
     max_age: Optional[int] = None
-    allow_methods: Optional[Sequence] = None
+    allow_methods: Optional[Sequence] = '*'
 
-    def pack_headers(self, origin):
+    def pack_headers(self, request):
         def solve(val):
             if isinstance(val, str):
                 return val
@@ -66,17 +66,31 @@ class CORSOptions:
                 return ','.join(val)
 
         headers = {
-            const.ACCESS_CONTROL_ALLOW_ORIGIN: origin,
+            const.ACCESS_CONTROL_ALLOW_ORIGIN: request.origin,
             const.ACCESS_CONTROL_ALLOW_CREDENTIALS: b'true' if self.allow_credentials else b'false'
         }
-        if self.expose_headers:
-            headers[const.ACCESS_CONTROL_EXPOSE_HEADERS] = solve(self.expose_headers)
-        if self.allow_headers:
-            headers[const.ACCESS_CONTROL_ALLOW_HEADERS] = solve(self.allow_headers)
+
+        if request.method == 'OPTIONS':
+            if self.allow_headers:
+                if self.allow_headers == '*':
+                    headers[const.ACCESS_CONTROL_ALLOW_HEADERS] = request.access_control_request_headers or '*'
+                else:
+                    headers[const.ACCESS_CONTROL_ALLOW_HEADERS] = solve(self.allow_headers)
+
+            if self.allow_methods:
+                if self.allow_methods == '*':
+                    headers[const.ACCESS_CONTROL_ALLOW_METHODS] = request.access_control_request_method or request.method
+                else:
+                    headers[const.ACCESS_CONTROL_ALLOW_METHODS] = self.allow_methods
+
+        else:
+            if self.expose_headers:
+                # headers[const.ACCESS_CONTROL_EXPOSE_HEADERS] = solve(self.expose_headers)
+                headers[const.ACCESS_CONTROL_EXPOSE_HEADERS] = b''
+
         if self.max_age:
             headers[const.ACCESS_CONTROL_MAX_AGE] = self.max_age
-        if self.allow_methods:
-            headers[const.ACCESS_CONTROL_ALLOW_METHODS] = self.allow_methods
+
         return headers
 
 
@@ -86,13 +100,20 @@ class ASGIRequest:
     receive: FunctionType
     send: FunctionType
 
+    method: Optional[str] = None
     origin: Optional[str] = None
+    access_control_request_headers: Optional[str] = None
+    access_control_request_method: Optional[str] = None
 
     def __post_init__(self):
+        self.method = self.scope['method']
         for k, v in self.scope['headers']:
             if k == b'origin':
                 self.origin = v
-                break
+            elif k == b'access-control-request-headers':
+                self.access_control_request_headers = v
+            elif k == b'access-control-request-method':
+                self.access_control_request_method = v
 
 
 @dataclass
@@ -282,7 +303,7 @@ async def handle_request(app: 'Application', scope, receive, send):
                     # TODO: host match
                     for i in app.cors_options:
                         i: CORSOptions
-                        resp = Response(headers=i.pack_headers(request.origin))
+                        resp = Response(headers=i.pack_headers(request))
             else:
                 _route_info, call_kwargs_raw_ = app.route.query_statics_path(scope['method'], scope['path'])
                 if isinstance(_route_info, RouteStaticsInfo):
@@ -342,15 +363,16 @@ async def handle_request(app: 'Application', scope, receive, send):
             if resp:
                 body = await resp.get_body()
 
-                # Configure CORS settings.
-                if app.cors_options:
-                    # TODO: host match
-                    for i in app.cors_options:
-                        i: CORSOptions
-                        if resp.headers:
-                            resp.headers.update(i.pack_headers(request.origin))
-                        else:
-                            resp.headers = i.pack_headers(request.origin)
+                if scope['method'] != 'OPTIONS':
+                    # Configure CORS settings.
+                    if app.cors_options:
+                        # TODO: host match
+                        for i in app.cors_options:
+                            i: CORSOptions
+                            if resp.headers:
+                                resp.headers.update(i.pack_headers(request))
+                            else:
+                                resp.headers = i.pack_headers(request)
 
                 headers = resp.build_headers()
                 # [[b'Content-Length', str(len(body)).encode('utf-8')]]

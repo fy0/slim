@@ -6,10 +6,12 @@ from slim.utils.win_ioloop_ctrlc_patch import ctlc_hotfix
 
 def get_ioloop() -> asyncio.BaseEventLoop:
     loop = asyncio.get_event_loop()
+    '''
     if sys.platform == 'win32' and not isinstance(loop, asyncio.ProactorEventLoop):
         loop = asyncio.ProactorEventLoop()
         ctlc_hotfix(loop)
         asyncio.set_event_loop(loop)
+    '''
     return loop
 
 
