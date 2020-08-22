@@ -158,14 +158,16 @@ class Response:
         return headers_new
 
     async def __call__(self, receive: Receive, send: Send) -> None:
+        headers = self.build_headers()
+        body = await self.get_body()
         await send(
             {
                 "type": "http.response.start",
                 "status": self.status,
-                "headers": self.headers,
+                "headers": headers,
             }
         )
-        await send({"type": "http.response.body", "body": self.body})
+        await send({"type": "http.response.body", "body": body})
 
 
 @dataclass
@@ -343,8 +345,6 @@ async def handle_request(app: 'Application', scope, receive, send):
                 if is_static:
                     await resp(receive, send)
                 else:
-                    body = await resp.get_body()
-
                     # Configure CORS settings.
                     if app.cors_options:
                         # TODO: host match
@@ -355,32 +355,11 @@ async def handle_request(app: 'Application', scope, receive, send):
                             else:
                                 resp.headers = i.pack_headers(request.origin)
 
-                    headers = resp.build_headers()
                     # [[b'Content-Length', str(len(body)).encode('utf-8')]]
-
-                    await send({
-                        'type': 'http.response.start',
-                        'status': resp.status,
-                        'headers': headers
-                    })
-
-                    await send({
-                        'type': 'http.response.body',
-                        'body': body,
-                    })
-                    return
+                    await resp(receive, send)
             else:
-                await send({
-                    'type': 'http.response.start',
-                    'status': 404,
-                    'headers': [
-                        [b'content-type', b'text/plain'],
-                    ]
-                })
+                resp = Response(body="Not Found", status=404)
+                await resp(receive, send)
 
-                await send({
-                    'type': 'http.response.body',
-                    'body': b'not found',
-                })
     except Exception as e:
         traceback.print_exc()
