@@ -8,7 +8,7 @@ from posixpath import join as urljoin
 import typing
 
 from slim.base.types.doc import ResponseDataModel
-from slim.base.types.route_meta_info import RouteViewInfo, RouteInterfaceInfo
+from slim.base.types.route_meta_info import RouteViewInfo, RouteInterfaceInfo, RouteStaticsInfo
 # from slim.base.ws import WSRouter
 from slim.exception import InvalidPostData, InvalidParams, InvalidRouteUrl
 from .web import Response
@@ -41,7 +41,7 @@ class Route:
 
         self._url_mappings: Dict[str, Dict[str, RouteInterfaceInfo]] = {}
         self._url_mappings_regex: Dict[str, Dict[re.Pattern, RouteInterfaceInfo]] = {}
-        self._statics_mappings_regex: Dict[str, Dict[re.Pattern, PathPrefix]] = {}
+        self._statics_mappings_regex: Dict[str, Dict[re.Pattern, RouteStaticsInfo]] = {}
 
     def interface(self, method, url=None, *, summary=None, va_query=None, va_post=None, va_headers=None,
                   va_resp=ResponseDataModel, deprecated=False):
@@ -120,7 +120,7 @@ class Route:
 
         def add_to_url_mapping(_meta, _fullpath):
             for method in _meta.methods:
-                if isinstance(_meta, PathPrefix):
+                if isinstance(_meta, RouteStaticsInfo):
                     self._statics_mappings_regex.setdefault(method, {})
                     try:
                         _re = repath.pattern(_fullpath)
@@ -180,8 +180,9 @@ class Route:
 
         for i in self.statics:
             fullpath = urljoin(self._app.mountpoint, i.path)
-            i.fullpath = fullpath
-            add_to_url_mapping(i, fullpath)
+            _meta = RouteStaticsInfo(i.methods, i.path, i)
+            _meta.fullpath = fullpath
+            add_to_url_mapping(_meta, fullpath)
 
     def query_path(self, method, path) -> Tuple[Optional[RouteInterfaceInfo], Optional[Dict]]:
         """

@@ -15,6 +15,7 @@ import aiofiles
 from aiofiles.os import stat as aio_stat
 
 from slim.base import const
+from slim.base.types.route_meta_info import RouteStaticsInfo
 from slim.utils import async_call
 from slim.utils.types import Receive, Send
 
@@ -259,12 +260,10 @@ async def handle_request(app: 'Application', scope, receive, send):
                     i: CORSOptions
                     resp = Response(headers=i.pack_headers(request.origin))
         else:
-            from slim.base.route import PathPrefix
-            path_prefix, call_kwargs_raw_ = app.route.statics_path(scope['method'], scope['path'])
-            if isinstance(path_prefix, PathPrefix):
-                resp_ = path_prefix(scope)
-                await resp_(receive, send)
-                return
+            _route_info, call_kwargs_raw_ = app.route.statics_path(scope['method'], scope['path'])
+            if isinstance(_route_info, RouteStaticsInfo):
+                file_ = _route_info.handler(scope)
+                await file_(receive, send)
 
             route_info, call_kwargs_raw = app.route.query_path(scope['method'], scope['path'])
 
