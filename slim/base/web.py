@@ -19,7 +19,7 @@ from multipart import multipart
 from slim.base import const
 from slim.base.types.route_meta_info import RouteStaticsInfo
 from slim.utils import async_call
-from slim.utils.types import Receive, Send
+from slim.utils.types import Receive, Send, Scope
 
 logger = logging.getLogger(__name__)
 
@@ -261,7 +261,7 @@ class FileResponse(Response):
                 )
 
 
-async def handle_request(app: 'Application', scope, receive, send):
+async def handle_request(app: 'Application', scope: Scope, receive: Receive, send: Send, *, raise_for_resp=False):
     """
     Handle http request
     :param app:
@@ -374,6 +374,7 @@ async def handle_request(app: 'Application', scope, receive, send):
                     else:
                         resp.headers = i.pack_headers(request)
 
+            app._last_resp = resp
             await resp(receive, send)
 
             took = round((time.perf_counter() - t) * 1000, 2)
@@ -383,5 +384,8 @@ async def handle_request(app: 'Application', scope, receive, send):
             else:
                 logger.info("{} - {} {:5s}, took {}ms".format(resp.status, scope['method'], scope['path'], took))
 
-        except Exception:
-            traceback.print_exc()
+        except Exception as e:
+            if raise_for_resp:
+                raise e
+            else:
+                traceback.print_exc()

@@ -23,12 +23,12 @@ class SlimTables(JsDict):
 
 class ApplicationOptions:
     def __init__(self):
-        self.cookies_secret = b'use a secret'
+        self.cookies_secret = b'secret code'
         self.session_cls = CookieSession
 
 
 class Application:
-    def __init__(self, *, cookies_secret: bytes, log_level=logging.INFO, session_cls=CookieSession,
+    def __init__(self, *, cookies_secret: bytes = b'secret code', log_level=logging.INFO, session_cls=CookieSession,
                  mountpoint: str = '/api', doc_enable=True, doc_info=ApplicationDocInfo(),
                  permission: Optional['Permissions'] = None, client_max_size=100 * 1024 * 1024,
                  cors_options: Optional[CORSOptions] = None):
@@ -81,6 +81,7 @@ class Application:
         self.options.cookies_secret = cookies_secret
         self.options.session_cls = session_cls
         self.client_max_size = client_max_size
+        self._last_resp = None  # use for tests
 
     def prepare(self):
         self.route._bind()
@@ -99,8 +100,8 @@ class Application:
                     except ValueError:
                         pass
 
-    async def __call__(self, scope, receive, send):
-        await handle_request(self, scope, receive, send)
+    async def __call__(self, scope, receive, send, *, raise_for_resp=False):
+        await handle_request(self, scope, receive, send, raise_for_resp=raise_for_resp)
 
     def run(self, host, port):
         import uvicorn

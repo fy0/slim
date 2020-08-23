@@ -62,6 +62,8 @@ class _StaticFilesResponder:
         self.scope = scope
         self.path = path
         self.check_directory = check_directory
+        # TODO: 临时方案，兼容日志输出
+        self.status = 200
 
     async def check_directory_configured_correctly(self) -> None:
         """
@@ -84,10 +86,12 @@ class _StaticFilesResponder:
         try:
             stat_result = await aio_stat(self.path)
         except FileNotFoundError:
+            self.status = 404
             response = Response(body="Not Found", status=404)  # type: Response
         else:
             mode = stat_result.st_mode
             if not stat.S_ISREG(mode):
+                self.status = 404
                 response = Response(body="Not Found", status=404)
             else:
                 response = FileResponse(self.path, stat_result=stat_result)

@@ -55,4 +55,6 @@ class RouteStaticsInfo:
     handler: Optional[FunctionType]
 
     def get_handler_name(self):
-        return self.handler.__name__
+        if self.handler:
+            # TODO: handler 实际上是 PathPrefix 类型
+            return self.handler.path
