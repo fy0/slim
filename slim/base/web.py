@@ -381,10 +381,11 @@ async def handle_request(app: 'Application', scope: Scope, receive: Receive, sen
 
             took = round((time.perf_counter() - t) * 1000, 2)
             # GET /api/get -> TopicView.get 200 30ms
+            # print(scope['client'][0])
             if handler_name:
-                logger.info("{} - {} {:5s} -> {}, took {}ms".format(resp.status, scope['method'], scope['path'], handler_name, took))
+                logger.info("{} - {} {:7s} {} -> {}, took {}ms".format(resp.status, scope['client'][0], scope['method'], scope['path'], handler_name, took))
             else:
-                logger.info("{} - {} {:5s}, took {}ms".format(resp.status, scope['method'], scope['path'], took))
+                logger.info("{} - {} {:7s} {}, took {}ms".format(resp.status, scope['client'][0], scope['method'], scope['path'], took))
 
         except Exception as e:
             if raise_for_resp:

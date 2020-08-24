@@ -198,9 +198,10 @@ class AbstractSQLView(BaseView):
         # 那么可以推测在并发中，cls._sql.err 会被多方共用导致出错
         self._sql = self._sql_cls(self.__class__)
         if not self._load_role(self.current_request_role):
+            user = self.current_user if self.can_get_user else None
             logger.debug("load role %r failed, please check permission settings of View %r"
-                         " (mapping to table %r)." %
-                         (self.current_request_role, type(self).__name__, type(self).table_name))
+                         " (mapping to table %r). current user id: %r" %
+                         (self.current_request_role, type(self).__name__, type(self).table_name, user.id if user else None))
             raise InvalidRole(self.current_request_role)
 
     async def load_fk(self, info: SQLQueryInfo, records: Iterable[DataRecord]) -> Union[List, Iterable]:
