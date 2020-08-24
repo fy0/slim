@@ -64,6 +64,7 @@ class _StaticFilesResponder:
         self.check_directory = check_directory
         # TODO: 临时方案，兼容日志输出
         self.status = 200
+        self.headers = {}
 
     async def check_directory_configured_correctly(self) -> None:
         """
@@ -94,6 +95,6 @@ class _StaticFilesResponder:
                 self.status = 404
                 response = Response(body="Not Found", status=404)
             else:
-                response = FileResponse(self.path, stat_result=stat_result)
+                response = FileResponse(self.path, headers=self.headers, stat_result=stat_result)
 
         await response(receive, send)
