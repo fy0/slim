@@ -73,7 +73,6 @@ class BaseView(metaclass=MetaClassForInit):
         self._ip_cache = None
         self._cookies_cache = None
         self._params_cache = None
-        self._headers_cache = None
         self._post_data_cache = sentinel
         self._current_user = None
         self._current_user_roles = None
@@ -379,14 +378,7 @@ class BaseView(metaclass=MetaClassForInit):
         Get headers
         """
         self._check_req()
-        if self._headers_cache is None:
-            headers = CIMultiDict()
-            for k, v in self.request.scope['headers']:
-                k: bytes
-                v: bytes
-                headers.add(istr(k.decode('utf-8')), v.decode('utf-8'))
-            self._headers_cache = headers
-        return self._headers_cache
+        return self.request.headers
 
     @property
     @deprecated('deprecated, use function arguments to instead')

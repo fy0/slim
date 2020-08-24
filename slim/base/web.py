@@ -14,11 +14,14 @@ from mimetypes import guess_type
 
 import aiofiles
 from aiofiles.os import stat as aio_stat
+from multidict import CIMultiDict, istr
 from multipart import multipart
 
 from slim.base import const
 from slim.base.types.route_meta_info import RouteStaticsInfo
+from slim.exception import InvalidResponse
 from slim.utils import async_call
+from slim.utils.json_ex import json_ex_dumps
 from slim.utils.types import Receive, Send, Scope
 
 logger = logging.getLogger(__name__)
@@ -68,28 +71,30 @@ class CORSOptions:
     max_age: Optional[int] = None
     allow_methods: Optional[Sequence] = '*'
 
-    def pack_headers(self, request):
+    def pack_headers(self, request: 'ASGIRequest'):
         def solve(val):
             if isinstance(val, str):
                 return val
             elif isinstance(val, Iterable):
                 return ','.join(val)
 
+        req_headers = request.headers
+
         headers = {
-            const.ACCESS_CONTROL_ALLOW_ORIGIN: request.origin,
+            const.ACCESS_CONTROL_ALLOW_ORIGIN: req_headers.get('origin'),
             const.ACCESS_CONTROL_ALLOW_CREDENTIALS: b'true' if self.allow_credentials else b'false'
         }
 
         if request.method == 'OPTIONS':
             if self.allow_headers:
                 if self.allow_headers == '*':
-                    headers[const.ACCESS_CONTROL_ALLOW_HEADERS] = request.access_control_request_headers or '*'
+                    headers[const.ACCESS_CONTROL_ALLOW_HEADERS] = req_headers.get('access-control-request-headers') or '*'
                 else:
                     headers[const.ACCESS_CONTROL_ALLOW_HEADERS] = solve(self.allow_headers)
 
             if self.allow_methods:
                 if self.allow_methods == '*':
-                    headers[const.ACCESS_CONTROL_ALLOW_METHODS] = request.access_control_request_method or request.method
+                    headers[const.ACCESS_CONTROL_ALLOW_METHODS] = req_headers.get('access-control-request-method') or request.method
                 else:
                     headers[const.ACCESS_CONTROL_ALLOW_METHODS] = self.allow_methods
 
@@ -106,24 +111,29 @@ class CORSOptions:
 
 @dataclass
 class ASGIRequest:
-    scope: Dict
-    receive: FunctionType
-    send: FunctionType
+    scope: Scope
+    receive: Receive
+    send: Send
 
-    method: Optional[str] = None
-    origin: Optional[str] = None
-    access_control_request_headers: Optional[str] = None
-    access_control_request_method: Optional[str] = None
+    _headers_cache = None
 
-    def __post_init__(self):
-        self.method = self.scope['method']
-        for k, v in self.scope['headers']:
-            if k == b'origin':
-                self.origin = v
-            elif k == b'access-control-request-headers':
-                self.access_control_request_headers = v
-            elif k == b'access-control-request-method':
-                self.access_control_request_method = v
+    @property
+    def method(self):
+        return self.scope['method']
+
+    @property
+    def headers(self) -> CIMultiDict:
+        """
+        Get headers
+        """
+        if self._headers_cache is None:
+            headers = CIMultiDict()
+            for k, v in self.scope['headers']:
+                k: bytes
+                v: bytes
+                headers.add(istr(k.decode('utf-8')), v.decode('utf-8'))
+            self._headers_cache = headers
+        return self._headers_cache
 
 
 @dataclass
@@ -134,14 +144,18 @@ class Response:
     content_type: str = 'text/plain'
     cookies: Dict[str, Dict] = None
 
+    _raw_body: bytes = None
+
     async def get_body(self) -> bytes:
-        if isinstance(self, JSONResponse):
-            body = self.json_dumps(self.body)
-        else:
-            body = self.body
-        if isinstance(body, str):
-            return body.encode('utf-8')
-        return body
+        if self._raw_body is None:
+            if isinstance(self.body, str):
+                self._raw_body = self.body.encode('utf-8')
+            elif isinstance(self.body, bytes):
+                self._raw_body = self.body
+            else:
+                raise InvalidResponse()
+
+        return self._raw_body
 
     def build_headers(self):
         headers = [
@@ -205,7 +219,12 @@ class Response:
 class JSONResponse(Response):
     body: Dict[str, Any] = None
     content_type: str = 'application/json'
-    json_dumps: FunctionType = json.dumps
+    json_dumps: FunctionType = json_ex_dumps
+
+    async def get_body(self):
+        if self._raw_body is None:
+            self._raw_body = self.json_dumps(self.body).encode('utf-8')
+        return self._raw_body
 
 
 @dataclass
@@ -215,11 +234,13 @@ class FileResponse(Response):
     def __init__(
             self,
             path: str,
-            headers: dict = {},
+            headers=None,
             content_type: str = None,
             filename: str = None,
             stat_result: os.stat_result = None,
     ) -> None:
+        if headers is None:
+            headers = {}
         assert aiofiles is not None, "'aiofiles' must be installed to use FileResponse"
         self.path = path
         self.status = 200

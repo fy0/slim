@@ -32,6 +32,10 @@ class ColumnIsNotForeignKey(InvalidParams):
     pass
 
 
+class InvalidResponse(SlimException):
+    pass
+
+
 class InvalidPostData(SlimException):
     pass
 
