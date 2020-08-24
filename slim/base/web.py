@@ -238,13 +238,12 @@ class FileResponse(Response):
         if self.stat_result is None:
             stat_result = await aio_stat(self.path)
             self.set_stat_headers(stat_result)
-        if isinstance(self.headers, dict):
-            self.headers = [[k, v] for k, v in self.headers.items()]
+        headers = self.build_headers()
         await send(
             {
                 "type": "http.response.start",
                 "status": self.status,
-                "headers": self.headers,
+                "headers": headers,
             }
         )
         async with aiofiles.open(self.path, mode="rb") as file:
