@@ -87,6 +87,7 @@ class _StaticFilesResponder:
         try:
             stat_result = await aio_stat(self.path)
         except FileNotFoundError:
+
             self.status = 404
             response = Response(body="Not Found", status=404)  # type: Response
         else:
