@@ -2,7 +2,8 @@ import base64
 import hashlib
 import hmac
 import logging
-from ..utils import msgpack, async_run
+
+import msgpack
 
 
 logger = logging.getLogger(__name__)

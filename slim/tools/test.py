@@ -186,7 +186,7 @@ async def invoke_interface(app: Application, func: FunctionType, params=None, po
     _method = method if method else meta.methods[0]
 
     view = await make_mocked_view(app, view, _method, url, params=params, post=post, headers=headers,
-                                  body=body, content_type=content_type)
+                                  body=body, content_type=content_type, user=user)
 
     # url = info.route.fullpath
     # _method = next(iter(info.route.method))

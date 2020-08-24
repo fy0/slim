@@ -340,13 +340,21 @@ async def handle_request(app: 'Application', scope: Scope, receive: Receive, sen
                         # user's validator check
                         await view_validate_check(view, route_info.va_query, route_info.va_post, route_info.va_headers)
 
+                        ret_resp = None
                         if not view.is_finished:
                             # call the request handler
                             if asyncio.iscoroutinefunction(handler):
-                                await handler(**call_kwargs)
+                                view_ret = await handler(**call_kwargs)
                             else:
-                                handler(**call_kwargs)
+                                view_ret = handler(**call_kwargs)
 
+                            if not view.response:
+                                if isinstance(view_ret, Response):
+                                    view.response = view_ret
+                                else:
+                                    view.response = JSONResponse(200, view_ret)
+
+                    resp = view.response
                     # if status_code == 500:
                     #     warn_text = "The handler {!r} did not called `view.finish()`.".format(handler_name)
                     #     logger.warning(warn_text)
@@ -354,9 +362,6 @@ async def handle_request(app: 'Application', scope: Scope, receive: Receive, sen
                     #     return resp
                     #
                     # await view_instance._on_finish()
-
-                    if view.response:
-                        resp = view.response
 
             if not resp:
                 resp = Response(body="Not Found", status=404)
@@ -383,9 +388,9 @@ async def handle_request(app: 'Application', scope: Scope, receive: Receive, sen
             # GET /api/get -> TopicView.get 200 30ms
             # print(scope['client'][0])
             if handler_name:
-                logger.info("{} - {} {:7s} {} -> {}, took {}ms".format(resp.status, scope['client'][0], scope['method'], scope['path'], handler_name, took))
+                logger.info("{} - {:15s} {:8s} {} -> {}, took {}ms".format(resp.status, scope['client'][0], scope['method'], scope['path'], handler_name, took))
             else:
-                logger.info("{} - {} {:7s} {}, took {}ms".format(resp.status, scope['client'][0], scope['method'], scope['path'], took))
+                logger.info("{} - {:15s} {:8s} {}, took {}ms".format(resp.status, scope['client'][0], scope['method'], scope['path'], took))
 
         except Exception as e:
             if raise_for_resp:

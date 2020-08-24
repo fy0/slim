@@ -1,7 +1,7 @@
 import functools
 import logging
 from asyncio import Future
-from typing import TYPE_CHECKING, Type
+from typing import TYPE_CHECKING, Type, Union, Iterable
 
 from schematics import Model
 
@@ -121,7 +121,7 @@ def _role_decorator(role, view_check_func):
     return _
 
 
-def require_role(role=None):
+def require_role(role: Union[str, Iterable[str]]):
     """
     Current user should have specified role
     :param role:

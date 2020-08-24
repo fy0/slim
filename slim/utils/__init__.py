@@ -14,13 +14,6 @@ from .state_obj import StateObject
 from .myobjectid import ObjectID
 from .customid import CustomID
 
-try:
-    import msgpack
-except ImportError:
-    # noinspection SpellCheckingInspection
-    from . import umsgpack as msgpack
-
-is_py36 = sys.version_info[0] >= 3 and sys.version_info[1] >= 6
 
 RegexPatternType = type(re.compile(''))
 sentinel = object()
@@ -51,6 +44,13 @@ def time_readable():
 
 def get_class_full_name(cls):
     return '%s.%s' % (cls.__module__, cls.__qualname__)
+
+
+def camel_case_to_underscore_case(raw_name):
+    name = re.sub(r'([A-Z]{2,})', r'_\1', re.sub(r'([A-Z][a-z]+)', r'_\1', raw_name))
+    if name.startswith('_'):
+        name = name[1:]
+    return name.lower()
 
 
 class BoolParser:
@@ -87,10 +87,3 @@ class JSONParser:
         if isinstance(val, str):
             return json.loads(val)
         return val
-
-
-def camel_case_to_underscore_case(raw_name):
-    name = re.sub(r'([A-Z]{2,})', r'_\1', re.sub(r'([A-Z][a-z]+)', r'_\1', raw_name))
-    if name.startswith('_'):
-        name = name[1:]
-    return name.lower()

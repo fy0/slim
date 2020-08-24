@@ -67,7 +67,7 @@ setup(
     include_package_data=True,
     platforms='any',
 
-    install_requires=['schematics', 'typing_extensions', 'dataclasses', 'multidict', 'yarl', 'uvicorn', 'click', 'aiofiles', 'python-multipart'],
+    install_requires=['schematics', 'typing_extensions', 'dataclasses', 'multidict', 'yarl', 'uvicorn', 'click', 'aiofiles', 'python-multipart', 'msgpack'],
 
     python_requires='>=3.6.9',
 

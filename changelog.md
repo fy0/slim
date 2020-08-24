@@ -7,6 +7,8 @@
 
 * Changed: slim build on asgi now.
 
+* Removed: utils.umsgpack
+
 
 #### 0.5.10 update 2020.07.30
 

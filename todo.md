@@ -1,11 +1,11 @@
 
 ## todo v2
 
-* multipart form parse
+* ~~multipart form parse~~
 
 * ~~cors support~~ it works, but could be better
 
-* stream response body support
+* ~~stream response body support~~
 
 * static file support
 
@@ -15,7 +15,7 @@
 
 * middleware support
 
-* log
+* ~~log~~
 
 * ~~auto docs~~
 
