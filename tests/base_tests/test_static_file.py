@@ -7,12 +7,24 @@ pytestmark = [pytest.mark.asyncio]
 
 
 app = Application(cookies_secret=b'123456', permission=None)
-app.route.add_static('/assets/:file', os.path.abspath(os.path.join(os.path.dirname(__file__), '_static')))
+static_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '_static'))
+app.route.add_static('/assets/:file', static_path)
+app.route.add_static('/assets2', static_path)
 app.prepare()
 
 
 async def test_static_file():
     req = make_mocked_request('GET', '/assets/1.txt')
+
+    async def send(message):
+        if message['type'] == 'http.response.body':
+            assert message['body'] == b'111222333'
+
+    await app(req.scope, req.receive, send, raise_for_resp=True)
+
+
+async def test_static2_file():
+    req = make_mocked_request('GET', '/assets2/1.txt')
 
     async def send(message):
         if message['type'] == 'http.response.body':

@@ -233,7 +233,7 @@ class Route:
 
         return wrapper
 
-    def add_static(self, url_prefix, path):
+    def add_static(self, url_prefix: str, path):
         """
         :param url_prefix: URL prefix
         :param path: file directory
@@ -241,6 +241,11 @@ class Route:
         :return:
         """
         from slim.base.staticfiles import StaticFiles
+        if not ':file' in url_prefix:
+            if url_prefix.endswith('/'):
+                url_prefix += ':file'
+            else:
+                url_prefix += '/:file'
         url_prefix = PathPrefix(url_prefix, app=StaticFiles(directory=path), methods=['GET'])
         self.statics.append(url_prefix)
 
