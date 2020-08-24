@@ -5,11 +5,12 @@ import logging
 import os
 import time
 import traceback
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from email.utils import formatdate
 from io import BytesIO
 from types import FunctionType
-from typing import Dict, Any, TYPE_CHECKING, Sequence, Optional, Iterable
+from typing import Dict, Any, TYPE_CHECKING, Sequence, Optional, Iterable, Union, Tuple, Callable, Awaitable, \
+    AsyncIterator
 from mimetypes import guess_type
 
 import aiofiles
@@ -136,26 +137,37 @@ class ASGIRequest:
         return self._headers_cache
 
 
+# StreamReadFunc = Callable[[], Awaitable[AsyncIterator[Tuple[bytes, bool]]]]  # data, has_more
+StreamReadFunc = Callable[[], AsyncIterator[Tuple[bytes, bool]]]  # data, has_more
+
+
 @dataclass
 class Response:
     status: int = 200
-    body: str = None
+    data: Union[str, bytes, StreamReadFunc] = None
     headers: Dict[str, Any] = None
     content_type: str = 'text/plain'
     cookies: Dict[str, Dict] = None
 
-    _raw_body: bytes = None
+    async def get_reader(self, data) -> StreamReadFunc:
+        """
+        Get reader function
+        :return:
+        """
+        if asyncio.iscoroutinefunction(data):
+            return data
 
-    async def get_body(self) -> bytes:
-        if self._raw_body is None:
-            if isinstance(self.body, str):
-                self._raw_body = self.body.encode('utf-8')
-            elif isinstance(self.body, bytes):
-                self._raw_body = self.body
-            else:
-                raise InvalidResponse()
+        if isinstance(data, str):
+            body = data.encode('utf-8')
+        elif isinstance(data, bytes):
+            body = data
+        else:
+            raise InvalidResponse()
 
-        return self._raw_body
+        async def stream_read() -> AsyncIterator[Tuple[bytes, bool]]:
+            yield body, False
+
+        return stream_read
 
     def build_headers(self):
         headers = [
@@ -202,59 +214,59 @@ class Response:
 
         return headers_new
 
-    async def __call__(self, receive: Receive, send: Send) -> None:
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         headers = self.build_headers()
-        body = await self.get_body()
-        await send(
-            {
-                "type": "http.response.start",
-                "status": self.status,
-                "headers": headers,
+        reader = await self.get_reader(self.data)
+        await send({
+            "type": "http.response.start",
+            "status": self.status,
+            "headers": headers,
+        })
+
+        async for chunk, more_body in reader():
+            ret = {
+                "type": "http.response.body",
+                "body": chunk
             }
-        )
-        await send({"type": "http.response.body", "body": body})
+            if more_body:
+                ret["more_body"] = more_body
+            await send(ret)
 
 
 @dataclass
 class JSONResponse(Response):
-    body: Dict[str, Any] = None
+    data: Any = None
     content_type: str = 'application/json'
     json_dumps: FunctionType = json_ex_dumps
 
-    async def get_body(self):
-        if self._raw_body is None:
-            self._raw_body = self.json_dumps(self.body).encode('utf-8')
-        return self._raw_body
+    async def get_reader(self, data) -> StreamReadFunc:
+        data = self.json_dumps(data)
+        return await super().get_reader(data)
 
 
 @dataclass
 class FileResponse(Response):
-    chunk_size = 4096
+    static_file_path: str = None
+    stat_result: os.stat_result = None
 
-    def __init__(
-            self,
-            path: str,
-            headers=None,
-            content_type: str = None,
-            filename: str = None,
-            stat_result: os.stat_result = None,
-    ) -> None:
-        if headers is None:
-            headers = {}
-        assert aiofiles is not None, "'aiofiles' must be installed to use FileResponse"
-        self.path = path
-        self.status = 200
-        self.filename = filename
-        if content_type is None:
-            content_type = guess_type(filename or path)[0] or "text/plain"
-        self.content_type = content_type
-        self.headers = headers
+    content_type = None
+    filename: str = None
+    chunk_size = 4096
+    headers: Dict[str, Any] = field(default_factory=lambda: {})
+
+    def __post_init__(self):
+        if self.content_type is None:
+            self.content_type = guess_type(self.static_file_path)[0] or "text/plain"
+
+        if not self.filename:
+            self.filename = os.path.basename(self.static_file_path)
+
         if self.filename is not None:
             content_disposition = 'attachment; filename="{}"'.format(self.filename)
             self.headers.setdefault("content-disposition", content_disposition)
-        self.stat_result = stat_result
-        if stat_result is not None:
-            self.set_stat_headers(stat_result)
+
+        if self.stat_result is not None:
+            self.set_stat_headers(self.stat_result)
 
     def set_stat_headers(self, stat_result):
         content_length = str(stat_result.st_size)
@@ -265,30 +277,16 @@ class FileResponse(Response):
         self.headers.setdefault("last-modified", last_modified)
         self.headers.setdefault("etag", etag)
 
-    async def __call__(self, receive: Receive, send: Send) -> None:
-        if self.stat_result is None:
-            stat_result = await aio_stat(self.path)
-            self.set_stat_headers(stat_result)
-        headers = self.build_headers()
-        await send(
-            {
-                "type": "http.response.start",
-                "status": self.status,
-                "headers": headers,
-            }
-        )
-        async with aiofiles.open(self.path, mode="rb") as file:
-            more_body = True
-            while more_body:
-                chunk = await file.read(self.chunk_size)
-                more_body = len(chunk) == self.chunk_size
-                await send(
-                    {
-                        "type": "http.response.body",
-                        "body": chunk,
-                        "more_body": more_body,
-                    }
-                )
+    async def get_reader(self, data) -> StreamReadFunc:
+        async def stream_read() -> AsyncIterator[Tuple[bytes, bool]]:
+            async with aiofiles.open(self.static_file_path, mode="rb") as file:
+                more_body = True
+                while more_body:
+                    chunk = await file.read(self.chunk_size)
+                    more_body = len(chunk) == self.chunk_size
+                    yield chunk, more_body
+
+        return stream_read
 
 
 async def handle_request(app: 'Application', scope: Scope, receive: Receive, send: Send, *, raise_for_resp=False):
@@ -333,72 +331,63 @@ async def handle_request(app: 'Application', scope: Scope, receive: Receive, sen
 
         try:
             if request.method != 'OPTIONS':
-                route_info, call_kwargs_raw_ = app.route.query_statics_path(scope['method'], scope['path'])
-                if route_info and isinstance(route_info, RouteStaticsInfo):
-                    handler_name = route_info.get_handler_name()
-                    resp = route_info.handler(scope)
-            else:
-                resp = Response()
-
-            if not resp:
                 route_info, call_kwargs_raw = app.route.query_path(scope['method'], scope['path'])
 
                 if route_info:
                     handler_name = route_info.get_handler_name()
-                    # filter call_kwargs
-                    call_kwargs = call_kwargs_raw.copy()
-                    if route_info.names_varkw is not None:
-                        for j in route_info.names_exclude:
-                            if j in call_kwargs:
-                                del call_kwargs[j]
 
-                    for j in call_kwargs.keys() - route_info.names_include:
-                        del call_kwargs[j]
+                    if isinstance(route_info, RouteStaticsInfo):
+                        resp = await route_info.responder.solve(request, call_kwargs_raw.get('file'))
 
-                    # build a view instance
-                    view = await route_info.view_cls._build(app, request)
-                    view._route_info = call_kwargs
+                    else:
+                        # filter call_kwargs
+                        call_kwargs = call_kwargs_raw.copy()
+                        if route_info.names_varkw is not None:
+                            for j in route_info.names_exclude:
+                                if j in call_kwargs:
+                                    del call_kwargs[j]
 
-                    if isinstance(view, AbstractSQLView):
-                        view.current_interface = route_info.builtin_interface
+                        for j in call_kwargs.keys() - route_info.names_include:
+                            del call_kwargs[j]
 
-                    # make the method bounded
-                    handler = route_info.handler.__get__(view)
+                        # build a view instance
+                        view = await route_info.view_cls._build(app, request)
+                        view._route_info = call_kwargs
 
-                    # note: view.prepare() may case finished
-                    if not view.is_finished:
-                        # user's validator check
-                        await view_validate_check(view, route_info.va_query, route_info.va_post, route_info.va_headers)
+                        if isinstance(view, AbstractSQLView):
+                            view.current_interface = route_info.builtin_interface
 
-                        ret_resp = None
+                        # make the method bounded
+                        handler = route_info.handler.__get__(view)
+
+                        # note: view.prepare() may case finished
                         if not view.is_finished:
-                            # call the request handler
-                            if asyncio.iscoroutinefunction(handler):
-                                view_ret = await handler(**call_kwargs)
-                            else:
-                                view_ret = handler(**call_kwargs)
+                            # user's validator check
+                            await view_validate_check(view, route_info.va_query, route_info.va_post, route_info.va_headers)
 
-                            if not view.response:
-                                if isinstance(view_ret, Response):
-                                    view.response = view_ret
+                            ret_resp = None
+                            if not view.is_finished:
+                                # call the request handler
+                                if asyncio.iscoroutinefunction(handler):
+                                    view_ret = await handler(**call_kwargs)
                                 else:
-                                    view.response = JSONResponse(200, view_ret)
+                                    view_ret = handler(**call_kwargs)
 
-                    resp = view.response
-                    # if status_code == 500:
-                    #     warn_text = "The handler {!r} did not called `view.finish()`.".format(handler_name)
-                    #     logger.warning(warn_text)
-                    #     view_instance.finish_raw(warn_text.encode('utf-8'), status=500)
-                    #     return resp
-                    #
-                    # await view_instance._on_finish()
+                                if not view.response:
+                                    if isinstance(view_ret, Response):
+                                        view.response = view_ret
+                                    else:
+                                        view.response = JSONResponse(200, view_ret)
+
+                        resp = view.response
+                        # await view_instance._on_finish()
 
             if not resp:
-                resp = Response(body="Not Found", status=404)
+                resp = Response(404, b"Not Found")
 
         except Exception as e:
             traceback.print_exc()
-            resp = Response(body="Internal Server Error", status=500)
+            resp = Response(500, b"Internal Server Error")
 
         try:
             # Configure CORS settings.
@@ -412,7 +401,7 @@ async def handle_request(app: 'Application', scope: Scope, receive: Receive, sen
                         resp.headers = i.pack_headers(request)
 
             app._last_resp = resp
-            await resp(receive, send)
+            await resp(scope, receive, send)
 
             took = round((time.perf_counter() - t) * 1000, 2)
             # GET /api/get -> TopicView.get 200 30ms

@@ -4,8 +4,10 @@ from typing import Type, TYPE_CHECKING, Set, Optional, List
 
 from schematics import Model
 
+
 if TYPE_CHECKING:
     from slim.base.view import BaseView
+    from slim.base.staticfile import StaticFileResponder
 
 
 @dataclass
@@ -52,9 +54,10 @@ class RouteInterfaceInfo:
 class RouteStaticsInfo:
     methods: List[str]
     url: str
-    handler: Optional[FunctionType]
+    static_path: str
+
+    fullpath: str = None
+    responder: 'StaticFileResponder' = None
 
     def get_handler_name(self):
-        if self.handler:
-            # TODO: handler 实际上是 PathPrefix 类型
-            return self.handler.path
+        return self.url

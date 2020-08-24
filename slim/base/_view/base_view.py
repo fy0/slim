@@ -13,7 +13,7 @@ from yarl import URL
 
 from ..app import Application
 from ..types.route_meta_info import RouteViewInfo
-from ..web import ASGIRequest, Response, JSONResponse, FileField
+from ..web import ASGIRequest, Response, JSONResponse, FileField, StreamReadFunc
 from ...base import const
 from ...base._view.err_catch_context import ErrorCatchContext
 from ...base.const import CONTENT_TYPE
@@ -207,25 +207,25 @@ class BaseView(metaclass=MetaClassForInit):
             body['msg'] = msg
 
         self.ret_val = body
-        self.response = JSONResponse(body=body, json_dumps=json_ex_dumps, headers=headers, cookies=self._cookie_set)
+        self.response = JSONResponse(data=body, json_dumps=json_ex_dumps, headers=headers, cookies=self._cookie_set)
 
     def finish_json(self, data: Any, *, status: int = 200, headers=None):
         self.ret_val = data
-        self.response = JSONResponse(body=data, json_dumps=json_ex_dumps, headers=headers, status=status,
+        self.response = JSONResponse(data=data, json_dumps=json_ex_dumps, headers=headers, status=status,
                                      cookies=self._cookie_set)
 
-    def finish_raw(self, body: Union[bytes, str] = b'', status: int = 200, content_type: str = 'text/plain', *,
-                   headers=None, body_writer=None):
+    def finish_raw(self, data: Union[bytes, str, StreamReadFunc] = b'', status: int = 200, content_type: str = 'text/plain', *,
+                   headers=None):
         """
         Set raw response
         :param headers:
-        :param body:
+        :param data:
         :param status:
         :param content_type:
         :return:
         """
-        self.ret_val = body
-        self.response = Response(body=body, status=status, content_type=content_type, headers=headers, cookies=self._cookie_set)
+        self.ret_val = data
+        self.response = Response(data=data, status=status, content_type=content_type, headers=headers, cookies=self._cookie_set)
 
     @property
     def params(self) -> "MultiDict[str]":

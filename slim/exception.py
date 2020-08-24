@@ -7,6 +7,10 @@ class InvalidRouteUrl(SlimException):
     pass
 
 
+class StaticDirectoryNotExists(SlimException):
+    pass
+
+
 class NoUserViewMixinException(SlimException):
     pass
 
