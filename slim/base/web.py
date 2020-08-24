@@ -307,54 +307,56 @@ async def handle_request(app: 'Application', scope: Scope, receive: Receive, sen
                 if route_info and isinstance(route_info, RouteStaticsInfo):
                     handler_name = route_info.get_handler_name()
                     resp = route_info.handler(scope)
+            else:
+                resp = Response()
 
-                if not resp:
-                    route_info, call_kwargs_raw = app.route.query_path(scope['method'], scope['path'])
+            if not resp:
+                route_info, call_kwargs_raw = app.route.query_path(scope['method'], scope['path'])
 
-                    if route_info:
-                        handler_name = route_info.get_handler_name()
-                        # filter call_kwargs
-                        call_kwargs = call_kwargs_raw.copy()
-                        if route_info.names_varkw is not None:
-                            for j in route_info.names_exclude:
-                                if j in call_kwargs:
-                                    del call_kwargs[j]
+                if route_info:
+                    handler_name = route_info.get_handler_name()
+                    # filter call_kwargs
+                    call_kwargs = call_kwargs_raw.copy()
+                    if route_info.names_varkw is not None:
+                        for j in route_info.names_exclude:
+                            if j in call_kwargs:
+                                del call_kwargs[j]
 
-                        for j in call_kwargs.keys() - route_info.names_include:
-                            del call_kwargs[j]
+                    for j in call_kwargs.keys() - route_info.names_include:
+                        del call_kwargs[j]
 
-                        # build a view instance
-                        view = await route_info.view_cls._build(app, request)
-                        view._route_info = call_kwargs
+                    # build a view instance
+                    view = await route_info.view_cls._build(app, request)
+                    view._route_info = call_kwargs
 
-                        if isinstance(view, AbstractSQLView):
-                            view.current_interface = route_info.builtin_interface
+                    if isinstance(view, AbstractSQLView):
+                        view.current_interface = route_info.builtin_interface
 
-                        # make the method bounded
-                        handler = route_info.handler.__get__(view)
+                    # make the method bounded
+                    handler = route_info.handler.__get__(view)
 
-                        # note: view.prepare() may case finished
+                    # note: view.prepare() may case finished
+                    if not view.is_finished:
+                        # user's validator check
+                        await view_validate_check(view, route_info.va_query, route_info.va_post, route_info.va_headers)
+
                         if not view.is_finished:
-                            # user's validator check
-                            await view_validate_check(view, route_info.va_query, route_info.va_post, route_info.va_headers)
+                            # call the request handler
+                            if asyncio.iscoroutinefunction(handler):
+                                await handler(**call_kwargs)
+                            else:
+                                handler(**call_kwargs)
 
-                            if not view.is_finished:
-                                # call the request handler
-                                if asyncio.iscoroutinefunction(handler):
-                                    await handler(**call_kwargs)
-                                else:
-                                    handler(**call_kwargs)
+                    # if status_code == 500:
+                    #     warn_text = "The handler {!r} did not called `view.finish()`.".format(handler_name)
+                    #     logger.warning(warn_text)
+                    #     view_instance.finish_raw(warn_text.encode('utf-8'), status=500)
+                    #     return resp
+                    #
+                    # await view_instance._on_finish()
 
-                        # if status_code == 500:
-                        #     warn_text = "The handler {!r} did not called `view.finish()`.".format(handler_name)
-                        #     logger.warning(warn_text)
-                        #     view_instance.finish_raw(warn_text.encode('utf-8'), status=500)
-                        #     return resp
-                        #
-                        # await view_instance._on_finish()
-
-                        if view.response:
-                            resp = view.response
+                    if view.response:
+                        resp = view.response
 
             if not resp:
                 resp = Response(body="Not Found", status=404)
