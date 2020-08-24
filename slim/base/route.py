@@ -240,7 +240,7 @@ class Route:
         :param kwargs:
         :return:
         """
-        from slim.base.staticfiles import StaticFiles
+        from slim.base.static_files import StaticFiles
         if not ':file' in url_prefix:
             if url_prefix.endswith('/'):
                 url_prefix += ':file'

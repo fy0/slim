@@ -27,6 +27,12 @@ if TYPE_CHECKING:
     from slim import Application
 
 
+def _to_str(s):
+    if isinstance(s, bytes):
+        return s.decode('utf-8')
+    return s
+
+
 class FileField:
     def __init__(self, field: multipart.File):
         self._field = field
@@ -34,11 +40,15 @@ class FileField:
 
     @property
     def field_name(self):
-        return self._field.field_name
+        return _to_str(self._field.field_name)
 
     @property
     def file_name(self):
-        return self._field.file_name
+        return _to_str(self._field.file_name)
+
+    @property
+    def actual_file_name(self):
+        return _to_str(self._field.actual_file_name)
 
     @property
     def file(self):

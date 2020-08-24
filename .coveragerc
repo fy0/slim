@@ -1,6 +1,5 @@
 [run]
-omit = slim/utils/umsgpack.py
-    slim/support/asyncpg/*.py
+omit = slim/support/asyncpg/*.py
     slim/utils/debug/*
     slim_cli/*
     setup.py

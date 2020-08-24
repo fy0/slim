@@ -154,14 +154,12 @@ class AbstractSQLView(BaseView):
         return key in self.params
 
     @property
-    def current_request_role(self) -> Optional[Union[int, str]]:
+    def current_request_role(self) -> Optional[str]:
         """
         Current role requesting by client.
         :return:
         """
-        role_val = self.headers.get(istr('Role'), None)
-        if role_val is not None:
-            return int(role_val) if role_val.isdigit() else role_val
+        return self.headers.get(istr('Role'), None)
 
     def __init__(self, app: Application = None, req: ASGIRequest = None):
         super().__init__(app, req)
@@ -188,6 +186,7 @@ class AbstractSQLView(BaseView):
         cls.delete._route_info.builtin_interface = BuiltinInterface.DELETE
 
         if cls.interface_register != AbstractSQLView.interface_register:
+            # TODO: deprecated?
             pass
         cls.interface_register()
 

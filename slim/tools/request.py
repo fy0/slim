@@ -56,9 +56,11 @@ class SlimViewRequest:
         self.config = config
         self.path = path
         self.urlPrefix = "%s/api/%s" % (self.config['remote']['API_SERVER'], path)
+        self.access_token = None
 
-    def do_request(self, method, rel_path, params=None, post_data=None, role=None):
-        return do_request(self.config, method, self.urlPrefix + rel_path, params=params, post_data=post_data, role=role)
+    def do_request(self, method, rel_path, params=None, post_data=None, role=None, access_token=None):
+        access_token = access_token or self.access_token
+        return do_request(self.config, method, self.urlPrefix + rel_path, params=params, post_data=post_data, role=role, access_token=access_token)
 
     def get(self, params=None, role=None):
         if params and 'loadfk' in params:

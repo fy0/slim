@@ -23,6 +23,16 @@ async def test_static_file():
     await app(req.scope, req.receive, send, raise_for_resp=True)
 
 
+async def test_static_file_in_dir():
+    req = make_mocked_request('GET', '/assets/bucket/2.txt')
+
+    async def send(message):
+        if message['type'] == 'http.response.body':
+            assert message['body'] == b'445566'
+
+    await app(req.scope, req.receive, send, raise_for_resp=True)
+
+
 async def test_static2_file():
     req = make_mocked_request('GET', '/assets2/1.txt')
 

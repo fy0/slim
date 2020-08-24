@@ -20,7 +20,7 @@ def long_desc():
 
 setup(
     name='slim',
-    version='0.6.0a7',
+    version='0.6.0a8',
 
     description=description(),
     long_description=long_desc(),
@@ -67,7 +67,17 @@ setup(
     include_package_data=True,
     platforms='any',
 
-    install_requires=['schematics', 'typing_extensions', 'dataclasses', 'multidict', 'yarl', 'uvicorn', 'click', 'aiofiles', 'python-multipart', 'msgpack'],
+    install_requires=[
+        'schematics>=2.1.0,<2.2.0',
+        'typing_extensions>=3.6.5',
+        'dataclasses',
+        'multidict>=4.5,<5.0',
+        'yarl>=1.0,<1.5',
+        'uvicorn>0.11.0,<0.12.0',
+        'click>=7.0,<8.0',
+        'aiofiles>=0.4.0,<0.6',
+        'python-multipart=0.0.4',
+        'msgpack>=0.5.6,<2.0'],
 
     python_requires='>=3.6.9',
 

@@ -1,3 +1,4 @@
+import json
 import time
 
 import pytest
@@ -6,6 +7,7 @@ from peewee import *
 from slim import Application, ALL_PERMISSION
 from slim.utils import get_ioloop
 from slim.tools.test import make_mocked_view
+from slim.tools.test import invoke_interface, make_mocked_request
 
 
 pytestmark = [pytest.mark.asyncio]
@@ -48,13 +50,17 @@ class Topic(Model):
         database = db
 
 
-db.create_tables([Topic], safe=True)
+class Topic2(Topic):
+    pass
 
 
-Topic.create(time=time.time(), title='Hello', content='World')
-Topic.create(time=time.time(), title='Hello2', content='World')
-Topic.create(time=time.time(), title='Hello3', content='World')
-Topic.create(time=time.time(), title='Hello4', content='World')
+db.create_tables([Topic, Topic2], safe=True)
+
+for i in range(1, 5):
+    Topic.create(time=time.time(), title='Hello%d' % i, content='World')
+
+for i in range(1, 101):
+    Topic2.create(time=time.time(), title='Hello%d' % i, content='World')
 
 
 @app.route.view('topic')
@@ -62,7 +68,33 @@ class TopicView(PeeweeView):
     model = Topic
 
 
+@app.route.view('topic2')
+class TopicView2(PeeweeView):
+    model = Topic2
+    LIST_ACCEPT_SIZE_FROM_CLIENT = True
+
+
+app.prepare()
+
+
 async def test_list_items_exists():
     view: PeeweeView = await make_mocked_view(app, TopicView, 'POST', '/api/topic/list/1')
     await view.list()
     assert len(view.ret_val['data']['items']) == view.ret_val['data']['info']['items_count']
+
+
+async def test_list_client_size():
+    view: PeeweeView = await make_mocked_view(app, TopicView2, 'POST', '/api/topic2/list/1/-1')
+    await view.list('1', '-1')
+    assert len(view.ret_val['data']['items']) == view.ret_val['data']['info']['items_count']
+
+
+async def test_list_client_size2():
+    req = make_mocked_request('GET', '/api/topic2/list/1/-1')
+
+    async def send(message):
+        if message['type'] == 'http.response.body':
+            data = json.loads(message['body'])['data']
+            assert data['info']['page_size'] == data['info']['items_count']
+
+    await app(req.scope, req.receive, send, raise_for_resp=True)
