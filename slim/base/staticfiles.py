@@ -26,10 +26,12 @@ class StaticFiles:
         assert scope["type"] == "http"
         if scope["method"] not in ("GET", "HEAD"):
             return Response(body="Method Not Allowed", status=405)
-        path = os.path.normpath(os.path.join(scope["path"].split("/")[-1]))
-        if path.startswith(".."):
-            return Response(body="Not Found", status=404)
-        path = os.path.join(self.directory, path)
+        for i in scope["path"].split("/"):
+            p = os.path.normpath(i)
+            if p == '..':
+                return Response(body="Not Found", status=404)
+            if os.path.exists(os.path.join(self.directory, p)):
+                path = os.path.join(self.directory, p)
         if self.config_checked:
             check_directory = None
         else:
@@ -87,6 +89,7 @@ class _StaticFilesResponder:
         try:
             stat_result = await aio_stat(self.path)
         except FileNotFoundError:
+
             self.status = 404
             response = Response(body="Not Found", status=404)  # type: Response
         else:
