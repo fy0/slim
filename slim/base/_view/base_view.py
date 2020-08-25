@@ -305,7 +305,7 @@ class BaseView(metaclass=MetaClassForInit):
             post = MultiDict()
 
             def on_field(field: multipart.Field):
-                post.add(field.field_name.decode('utf-8'), field.value)
+                post.add(field.field_name.decode('utf-8'), field.value.decode('utf-8'))
 
             def on_file(field: multipart.File):
                 post.add(field.field_name.decode('utf-8'), FileField(field))
