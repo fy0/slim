@@ -1,9 +1,10 @@
 import logging
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Type
 
 from slim.base.types.doc import ApplicationDocInfo
 from slim.ext.openapi.serve import doc_serve
 from .session import CookieSession
+from .user import BaseUserViewMixin
 from .web import handle_request, CORSOptions
 from ..utils.jsdict import JsDict
 from . import log
@@ -48,6 +49,7 @@ class Application:
         self.on_startup = []
         self.on_shutdown = []
 
+        self.user_mixin_class = None
         self.mountpoint = mountpoint
         self.route = Route(self)
         self.doc_enable = doc_enable
@@ -102,6 +104,9 @@ class Application:
 
     async def __call__(self, scope, receive, send, *, raise_for_resp=False):
         await handle_request(self, scope, receive, send, raise_for_resp=raise_for_resp)
+
+    def set_user_mixin_class(self, cls: Type[BaseUserViewMixin]):
+        self.user_mixin_class = cls
 
     def run(self, host, port):
         import uvicorn

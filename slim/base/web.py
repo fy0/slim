@@ -144,7 +144,7 @@ StreamReadFunc = Callable[[], AsyncIterator[Tuple[bytes, bool]]]  # data, has_mo
 @dataclass
 class Response:
     status: int = 200
-    data: Union[str, bytes, StreamReadFunc] = None
+    data: Union[str, bytes, StreamReadFunc] = b''
     headers: Dict[str, Any] = None
     content_type: str = 'text/plain'
     cookies: Dict[str, Dict] = None
@@ -330,7 +330,9 @@ async def handle_request(app: 'Application', scope: Scope, receive: Receive, sen
         resp = None
 
         try:
-            if request.method != 'OPTIONS':
+            if request.method == 'OPTIONS':
+                resp = Response(200)
+            else:
                 route_info, call_kwargs_raw = app.route.query_path(scope['method'], scope['path'])
 
                 if route_info:
@@ -338,7 +340,6 @@ async def handle_request(app: 'Application', scope: Scope, receive: Receive, sen
 
                     if isinstance(route_info, RouteStaticsInfo):
                         resp = await route_info.responder.solve(request, call_kwargs_raw.get('file'))
-
                     else:
                         # filter call_kwargs
                         call_kwargs = call_kwargs_raw.copy()
@@ -405,11 +406,14 @@ async def handle_request(app: 'Application', scope: Scope, receive: Receive, sen
 
             took = round((time.perf_counter() - t) * 1000, 2)
             # GET /api/get -> TopicView.get 200 30ms
-            # print(scope['client'][0])
+            path = scope['path']
+            if scope['query_string']:
+                path += '?' + scope['query_string'].decode('ascii')
+
             if handler_name:
-                logger.info("{} - {:15s} {:8s} {} -> {}, took {}ms".format(resp.status, scope['client'][0], scope['method'], scope['path'], handler_name, took))
+                logger.info("{} - {:15s} {:8s} {} -> {}, took {}ms".format(resp.status, scope['client'][0], scope['method'], path, handler_name, took))
             else:
-                logger.info("{} - {:15s} {:8s} {}, took {}ms".format(resp.status, scope['client'][0], scope['method'], scope['path'], took))
+                logger.info("{} - {:15s} {:8s} {}, took {}ms".format(resp.status, scope['client'][0], scope['method'], path, took))
 
         except Exception as e:
             if raise_for_resp:
