@@ -229,9 +229,8 @@ class Route:
         """
         if not ':file' in url_prefix:
             if url_prefix.endswith('/'):
-                url_prefix += ':file'
-            else:
-                url_prefix += '/:file'
+                url_prefix += '/'
+            url_prefix += ':file(.+)'
 
         if not os.path.exists(static_path):
             # 要转 abs 吗？我不确定

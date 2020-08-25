@@ -1,5 +1,7 @@
 import os
 import stat
+from urllib.parse import urljoin
+
 from aiofiles.os import stat as aio_stat
 
 from slim.base.web import FileResponse, Response, ASGIRequest
@@ -11,7 +13,11 @@ class StaticFileResponder:
         self.static_path = static_path
 
     async def solve(self, request: ASGIRequest, path):
-        static_file_path = os.path.join(self.static_path, path)
+        ext_path = urljoin('.', path)
+        if ext_path.startswith('/'):
+            ext_path = ext_path[1:]
+        static_file_path = os.path.join(self.static_path, ext_path)
+
         try:
             stat_result = await aio_stat(static_file_path)
         except FileNotFoundError:
