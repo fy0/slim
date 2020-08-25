@@ -76,7 +76,7 @@ setup(
         'uvicorn>0.11.0,<0.12.0',
         'click>=7.0,<8.0',
         'aiofiles>=0.4.0,<0.6',
-        'python-multipart=0.0.4',
+        'python-multipart==0.0.5',
         'msgpack>=0.5.6,<2.0'],
 
     python_requires='>=3.6.9',
