@@ -9,7 +9,7 @@ from posixpath import join as urljoin
 import typing
 
 from slim.base.types.doc import ResponseDataModel
-from slim.base.types.route_meta_info import RouteViewInfo, RouteInterfaceInfo, RouteStaticsInfo
+from slim.base.types.route_meta_info import RouteViewInfo, RouteInterfaceInfo, RouteStaticsInfo, RouteWebsocketInfo
 # from slim.base.ws import WSRouter
 from slim.exception import InvalidPostData, InvalidParams, InvalidRouteUrl, StaticDirectoryNotExists
 from .staticfile import StaticFileResponder
@@ -17,6 +17,7 @@ from .web import Response
 from slim.utils.exceptions import HTTPException
 from .types.asgi import Scope
 from slim.utils import get_class_full_name, camel_case_to_underscore_case, repath, sentinel
+from .ws import WebSocket
 
 if TYPE_CHECKING:
     from .view import BaseView
@@ -36,6 +37,7 @@ class Route:
         self._views = []
         self._funcs_meta = []
         self._statics = []
+        self._websockets = []
 
         self._app = app
         self.before_bind = []
@@ -43,6 +45,8 @@ class Route:
 
         self._url_mappings: Dict[str, Dict[str, RouteInterfaceInfo]] = {}
         self._url_mappings_regex: Dict[str, Dict[re.Pattern, RouteInterfaceInfo]] = {}
+        self._url_ws_mappings: Dict[str, RouteWebsocketInfo] = {}
+        self._url_ws_mappings_regex: Dict[re.Pattern, RouteWebsocketInfo] = {}
         self._statics_mappings_regex: Dict[str, Dict[re.Pattern, RouteStaticsInfo]] = {}
 
     def interface(self, method, url=None, *, summary=None, va_query=None, va_post=None, va_headers=None,
@@ -112,6 +116,8 @@ class Route:
                 route_info = RouteViewInfo(view_url, view_cls, tag_name)
                 view_cls._route_info = route_info
                 self._views.append(route_info)
+            else:
+                raise Exception('%r is not a View class compatible with slim' % view_cls.__name__)
             return view_cls
 
         return wrapper
@@ -121,17 +127,30 @@ class Route:
         from ._view.abstract_sql_view import AbstractSQLView
 
         def add_to_url_mapping(_meta, _fullpath):
+            um = self._url_mappings
+            um_re = self._url_mappings_regex
+
             for method in _meta.methods:
                 if ':' not in _fullpath and '(' not in _fullpath:
-                    self._url_mappings.setdefault(method, {})
-                    self._url_mappings[method][_fullpath] = _meta
+                    um.setdefault(method, {})
+                    um[method][_fullpath] = _meta
                 else:
-                    self._url_mappings_regex.setdefault(method, {})
+                    um_re.setdefault(method, {})
                     try:
                         _re = repath.pattern(_fullpath)
-                        self._url_mappings_regex[method][re.compile(_re)] = _meta
+                        um_re[method][re.compile(_re)] = _meta
                     except Exception as e:
                         raise InvalidRouteUrl(_fullpath, e)
+
+        def add_to_url_ws_mapping(_meta, _fullpath):
+            if ':' not in _fullpath and '(' not in _fullpath:
+                self._url_ws_mappings[_fullpath] = _meta
+            else:
+                try:
+                    _re = repath.pattern(_fullpath)
+                    self._url_ws_mappings_regex[re.compile(_re)] = _meta
+                except Exception as e:
+                    raise InvalidRouteUrl(_fullpath, e)
 
         # bind views
         for view_info in self._views:
@@ -172,6 +191,7 @@ class Route:
                 add_to_url_mapping(meta, fullpath)
                 self._funcs_meta.append(meta)
 
+        # bind statics
         for meta in self._statics:
             meta: RouteStaticsInfo
             fullpath = urljoin(self._app.mountpoint, meta.url)
@@ -179,7 +199,28 @@ class Route:
             meta.responder = StaticFileResponder(fullpath, meta.static_path)
             add_to_url_mapping(meta, fullpath)
 
-    def query_path(self, method, path) -> Tuple[Union[RouteInterfaceInfo, RouteStaticsInfo], Optional[Dict]]:
+        # bind websockets
+        for meta in self._websockets:
+            meta: RouteWebsocketInfo
+
+            fullpath = urljoin(self._app.mountpoint, meta.url)
+            meta.fullpath = fullpath
+            add_to_url_ws_mapping(meta, fullpath)
+
+    def query_ws_path(self, path) -> Tuple[Union[RouteWebsocketInfo, None], Optional[Dict]]:
+        ret = self._url_ws_mappings.get(path)
+        if ret:
+            return ret, {}
+
+        for i, route_info in self._url_ws_mappings_regex.items():
+            m = i.fullmatch(path)
+            if m:
+                if isinstance(route_info, RouteWebsocketInfo):
+                    return route_info, m.groupdict()
+
+        return None, None
+
+    def query_path(self, method, path) -> Tuple[Union[RouteInterfaceInfo, RouteStaticsInfo, None], Optional[Dict]]:
         """
         Get route info for specified method and path.
         :param method:
@@ -205,17 +246,19 @@ class Route:
 
         return None, None
 
-    def websocket(self, url, obj):
+    def websocket(self, url=None):
         """
         Register Websocket
         :param url:
-        :param obj:
         :return:
         """
-
         def wrapper(cls):
-            if issubclass(cls, WSRouter):
-                self.websockets.append((url, obj()))
+            if issubclass(cls, WebSocket):
+                if url is None:
+                    url2 = camel_case_to_underscore_case(cls.__name__)
+                else:
+                    url2 = url
+                self._websockets.append(RouteWebsocketInfo(url2, cls))
             return cls
 
         return wrapper
@@ -233,7 +276,6 @@ class Route:
             url_prefix += ':file(.+)'
 
         if not os.path.exists(static_path):
-            # 要转 abs 吗？我不确定
             raise StaticDirectoryNotExists(static_path)
 
         self._statics.append(RouteStaticsInfo(['GET'], url_prefix, static_path))

@@ -205,3 +205,35 @@ async def invoke_interface(app: Application, func: FunctionType, params=None, po
                 handler()
 
             return view
+
+
+async def make_mocked_ws_request(url):
+    scope = {
+        'type': 'websocket',
+        'asgi': {'version': '3.0', 'spec_version': '2.1'},
+        'scheme': 'ws',
+        'server': ('127.0.0.1', 8007),
+        'client': ('127.0.0.1', 52194),
+        'root_path': '',
+        'path': url,
+        'raw_path': url,
+        'query_string': b'',
+        'headers': [
+            (b'host', b'127.0.0.1:8007'),
+            (b'connection', b'Upgrade'),
+            (b'pragma', b'no-cache'),
+            (b'cache-control', b'no-cache'),
+            (b'upgrade', b'websocket'),
+            (b'sec-websocket-version', b'13'),
+            (b'accept-encoding', b'gzip, deflate, br'),
+            (b'accept-language', b'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7'),
+            (b'sec-websocket-key', b'C8SUrcM0+ev3kR8TE7P62w=='),
+            (b'sec-websocket-extensions', b'permessage-deflate; client_max_window_bits')
+        ],
+        'subprotocols': []
+    }
+
+    async def receive():
+        return {'type': 'websocket.connect'}
+
+    return ASGIRequest(scope, receive, mock.Mock())

@@ -4,10 +4,10 @@ from typing import Type, TYPE_CHECKING, Set, Optional, List
 
 from schematics import Model
 
-
 if TYPE_CHECKING:
     from slim.base.view import BaseView
     from slim.base.staticfile import StaticFileResponder
+    from slim.base.ws import WebSocket
 
 
 @dataclass
@@ -61,3 +61,10 @@ class RouteStaticsInfo:
 
     def get_handler_name(self):
         return self.url
+
+
+@dataclass
+class RouteWebsocketInfo:
+    url: str
+    ws_cls: Type['WebSocket']
+    fullpath: str = None

@@ -428,3 +428,18 @@ async def handle_request(app: 'Application', scope: Scope, receive: Receive, sen
                 raise e
             else:
                 traceback.print_exc()
+
+    elif scope['type'] == 'websocket':
+        request = ASGIRequest(scope, receive, send)
+        route_info, call_kwargs_raw = app.route.query_ws_path(scope['path'])
+
+        if route_info:
+            # handler_name = route_info.get_handler_name()
+            ws = route_info.ws_cls(app, request, call_kwargs_raw)
+            await ws(scope, receive, send)
+        else:
+            # refuse connect
+            await send({'type': 'websocket.close'})
+
+    else:
+        raise NotImplementedError(f"Unknown scope type {scope['type']}")

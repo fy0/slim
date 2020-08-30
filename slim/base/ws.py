@@ -2,14 +2,80 @@ import json
 import logging
 from abc import abstractmethod
 import asyncio
-from aiohttp import web
-from aiohttp.web_request import BaseRequest
+
+import typing
+from collections import Counter
+
+from multidict import CIMultiDict
+
+from .types.asgi import Scope, Receive, Send, WSRespond
 from .user import BaseUserViewMixin, BaseUser
 from ..retcode import RETCODE
-from ..utils.count_dict import CountDict
 from ..utils import MetaClassForInit, async_call
 
+if typing.TYPE_CHECKING:
+    from .web import ASGIRequest, Application
+
 logger = logging.getLogger(__name__)
+
+
+class WebSocket:
+    """
+    Websocket handler based on asgi document:
+    https://asgi.readthedocs.io/en/latest/specs/www.html#websocket
+    """
+    def __init__(self, app: 'Application', request: 'ASGIRequest', url_info: typing.Dict):
+        self.app = app
+        self.request = request
+        self.url_info = url_info
+
+    @property
+    def headers(self) -> CIMultiDict:
+        """
+        Get headers
+        """
+        return self.request.headers
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send):
+        while True:
+            message = await receive()
+            if message['type'] == 'websocket.connect':
+                # {'type': 'websocket.connect'}
+                # throw abort exception to stop connect
+                await async_call(self.on_connect)
+                await send({'type': 'websocket.accept'})
+
+            elif message['type'] == 'websocket.receive':
+                # {'type': 'websocket.receive', 'text': '111'}
+                async def respond(text: str = None, bytes_: bytes = None):
+                    assert not (text is None and bytes_ is None), 'One of `bytes` or `text` must be non-None'
+                    data = {
+                        'type': 'websocket.send',
+                    }
+                    if text is not None:
+                        data['text'] = text
+                    if bytes_ is not None:
+                        data['bytes'] = bytes_
+                    await send(data)
+
+                await self.on_receive(message.get('text', None), message.get('bytes', None), respond)
+
+            elif message['type'] == 'websocket.disconnect':
+                # {'type': 'websocket.disconnect', 'code': 1005}  # 1001
+                await async_call(self.on_connect)
+                break
+
+    @abstractmethod
+    async def on_connect(self):
+        return True
+
+    @abstractmethod
+    async def on_receive(self, text: str, bytes_: bytes, respond: WSRespond):
+        pass
+
+    @abstractmethod
+    def on_disconnect(self):
+        pass
 
 
 class WSRouter(metaclass=MetaClassForInit):
@@ -20,8 +86,8 @@ class WSRouter(metaclass=MetaClassForInit):
     _on_message = {}
 
     connections = set()
-    users = CountDict()
-    count = CountDict()
+    # users = CountDict()
+    # count = CountDict()
 
     @abstractmethod
     def get_user_by_key(self, key):
@@ -30,8 +96,8 @@ class WSRouter(metaclass=MetaClassForInit):
     @classmethod
     def cls_init(cls):
         cls.connections = set()
-        cls.users = CountDict()
-        cls.count = CountDict()
+        # cls.users = CountDict()
+        # cls.count = CountDict()
 
         if len(cls._on_message) > 0:
             cls._on_message = cls._on_message.copy()
@@ -48,7 +114,7 @@ class WSRouter(metaclass=MetaClassForInit):
     async def on_close(self, ws):
         pass
 
-    async def _handle(self, request: BaseRequest):
+    async def _handle(self, request: 'BaseRequest'):
         ws = web.WebSocketResponse(receive_timeout=self.heartbeat_timeout)
         await ws.prepare(request)
         ws.request = request
