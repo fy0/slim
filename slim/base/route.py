@@ -15,7 +15,7 @@ from slim.exception import InvalidPostData, InvalidParams, InvalidRouteUrl, Stat
 from .staticfile import StaticFileResponder
 from .web import Response
 from slim.utils.exceptions import HTTPException
-from slim.utils.types import Scope
+from .types.asgi import Scope
 from slim.utils import get_class_full_name, camel_case_to_underscore_case, repath, sentinel
 
 if TYPE_CHECKING:

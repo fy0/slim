@@ -1,20 +1,17 @@
 import asyncio
 import hashlib
-import json
 import logging
 import os
 import time
 import traceback
 from dataclasses import dataclass, field
 from email.utils import formatdate
-from io import BytesIO
 from types import FunctionType
 from typing import Dict, Any, TYPE_CHECKING, Sequence, Optional, Iterable, Union, Tuple, Callable, Awaitable, \
     AsyncIterator
 from mimetypes import guess_type
 
 import aiofiles
-from aiofiles.os import stat as aio_stat
 from multidict import CIMultiDict, istr
 from multipart import multipart
 
@@ -23,12 +20,13 @@ from slim.base.types.route_meta_info import RouteStaticsInfo
 from slim.exception import InvalidResponse
 from slim.utils import async_call
 from slim.utils.json_ex import json_ex_dumps
-from slim.utils.types import Receive, Send, Scope
+from slim.base.types.asgi import Scope, Receive, Send
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from slim import Application
+    from slim.base._view.base_view import BaseView
 
 
 def _to_str(s):
@@ -149,6 +147,8 @@ class Response:
     content_type: str = 'text/plain'
     cookies: Dict[str, Dict] = None
 
+    written: int = 0
+
     async def get_reader(self, data) -> StreamReadFunc:
         """
         Get reader function
@@ -224,6 +224,7 @@ class Response:
         })
 
         async for chunk, more_body in reader():
+            self.written += len(chunk)
             ret = {
                 "type": "http.response.body",
                 "body": chunk
@@ -325,6 +326,7 @@ async def handle_request(app: 'Application', scope: Scope, receive: Receive, sen
     if scope['type'] == 'http':
         t = time.perf_counter()
         handler_name = None
+        view = None
 
         request = ASGIRequest(scope, receive, send)
         resp = None
@@ -381,7 +383,6 @@ async def handle_request(app: 'Application', scope: Scope, receive: Receive, sen
                                         view.response = JSONResponse(200, view_ret)
 
                         resp = view.response
-                        # await view_instance._on_finish()
 
             if not resp:
                 resp = Response(404, b"Not Found")
@@ -410,10 +411,17 @@ async def handle_request(app: 'Application', scope: Scope, receive: Receive, sen
             if scope['query_string']:
                 path += '?' + scope['query_string'].decode('ascii')
 
+            if view:
+                view: BaseView
+                await view._on_finish()
+
             if handler_name:
                 logger.info("{} - {:15s} {:8s} {} -> {}, took {}ms".format(resp.status, scope['client'][0], scope['method'], path, handler_name, took))
             else:
                 logger.info("{} - {:15s} {:8s} {}, took {}ms".format(resp.status, scope['client'][0], scope['method'], path, took))
+
+            if view:  # for debug
+                return view
 
         except Exception as e:
             if raise_for_resp:

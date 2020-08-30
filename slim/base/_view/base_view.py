@@ -13,7 +13,7 @@ from yarl import URL
 
 from ..app import Application
 from ..types.route_meta_info import RouteViewInfo
-from ..web import ASGIRequest, Response, JSONResponse, FileField, StreamReadFunc
+from ..web import ASGIRequest, Response, JSONResponse, FileField, StreamReadFunc, FileResponse
 from ...base import const
 from ...base._view.err_catch_context import ErrorCatchContext
 from ...base.const import CONTENT_TYPE
@@ -116,10 +116,16 @@ class BaseView(metaclass=MetaClassForInit):
 
         await async_call(self.on_finish)
 
-        if isinstance(self.ret_val, bytes):
-            logger.debug('finish: raw body(%d bytes)' % len(self.ret_val))
-        else:
-            logger.debug('finish: %s' % self.ret_val)
+        if self.response:
+            if isinstance(self.response, JSONResponse):
+                if self.response.written > 200:
+                    logger.debug('finish: json (%d bytes)' % self.response.written)
+                else:
+                    logger.debug('finish: json, %s' % json.dumps(self.ret_val))
+            elif isinstance(self.response, FileResponse):
+                logger.debug('finish: file (%d bytes)' % self.response.written)
+            else:
+                logger.debug('finish: (%d bytes)' % self.response.written)
 
     async def on_finish(self):
         pass

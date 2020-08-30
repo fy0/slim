@@ -103,7 +103,7 @@ class Application:
                         pass
 
     async def __call__(self, scope, receive, send, *, raise_for_resp=False):
-        await handle_request(self, scope, receive, send, raise_for_resp=raise_for_resp)
+        return await handle_request(self, scope, receive, send, raise_for_resp=raise_for_resp)
 
     def set_user_mixin_class(self, cls: Type[BaseUserViewMixin]):
         self.user_mixin_class = cls
