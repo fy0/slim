@@ -32,103 +32,18 @@ from ...utils.json_ex import json_ex_dumps
 logger = logging.getLogger(__name__)
 
 
-class BaseView(metaclass=MetaClassForInit):
-    """
-    Basic http view object.
-    """
-    _no_route = False
-
-    _route_info: Optional['RouteViewInfo']
-    _interface_disable: Set[str]
-    ret_val: Optional[Dict]
-
-    @classmethod
-    def cls_init(cls):
-        cls._interface_disable = set()
-
-    @classmethod
-    def unregister(cls, name):
-        """ interface unregister"""
-        cls._interface_disable.add(name)
-
-    @property
-    def permission(self) -> Permissions:
-        return self.app.permission
-
-    @classmethod
-    def _on_bind(cls, route):
-        pass
-
+class HTTPMixin:
     def __init__(self, app: Application = None, req: ASGIRequest = None):
         self.app = app
-
         self.request: Optional[ASGIRequest] = req
-        self.ret_val = None
-        self.response: Optional[Response] = None
-        self.session = None
-
-        self._cookie_set = OrderedDict()
-        self._legacy_route_info_cache = {}
 
         self._ip_cache = None
         self._cookies_cache = None
         self._params_cache = None
-        self._post_data_cache = sentinel
         self._current_user = None
         self._current_user_roles = None
-        self._ = self.temp_storage = TempStorage()
 
-    @classmethod
-    async def _build(cls, app, request: ASGIRequest) -> 'BaseView':
-        """
-        Create a view, and bind request data
-        :return:
-        """
-        view = cls(app, request)
-
-        with ErrorCatchContext(view):
-            await view._prepare()
-
-        return view
-
-    @property
-    def is_finished(self):
-        return self.response is not None
-
-    async def _prepare(self):
-        # 如果获取用户是一个异步函数，那么提前将其加载
-        if self.can_get_user:
-            func = getattr(self, 'get_current_user', None)
-            if func:
-                if asyncio.iscoroutinefunction(func):
-                    self._current_user = await func()
-
-        session_cls = self.app.options.session_cls
-        self.session = await session_cls.get_session(self)
-        await async_call(self.prepare)
-
-    async def prepare(self):
-        pass
-
-    async def _on_finish(self):
-        if self.session:
-            await self.session.save()
-
-        await async_call(self.on_finish)
-
-        if self.response:
-            if isinstance(self.response, JSONResponse):
-                if self.response.written > 200:
-                    logger.debug('finish: json (%d bytes)' % self.response.written)
-                else:
-                    logger.debug('finish: json, %s' % json.dumps(self.ret_val))
-            elif isinstance(self.response, FileResponse):
-                logger.debug('finish: file (%d bytes)' % self.response.written)
-            else:
-                logger.debug('finish: (%d bytes)' % self.response.written)
-
-    async def on_finish(self):
-        pass
+        self._cookie_set = OrderedDict()
 
     def _check_req(self):
         assert self.request, 'no request found'
@@ -175,6 +90,8 @@ class BaseView(metaclass=MetaClassForInit):
                 # 只加载非异步函数
                 if not asyncio.iscoroutinefunction(func):
                     self._current_user = func()
+                # async function:
+                # RuntimeError: This event loop is already running
             else:
                 self._current_user = None
         return self._current_user
@@ -189,6 +106,140 @@ class BaseView(metaclass=MetaClassForInit):
             u = self.current_user
             self._current_user_roles = {None} if u is None else set(u.roles)
             return self._current_user_roles
+
+    @property
+    def params(self) -> "MultiDict[str]":
+        """
+        get query parameters
+        :return:
+        """
+        self._check_req()
+        if self._params_cache is None:
+            self._params_cache = URL('?' + self.request.scope['query_string'].decode('utf-8')).query
+        return self._params_cache
+
+    @property
+    def content_type(self) -> str:
+        return self.headers.get(CONTENT_TYPE)
+
+    @property
+    def cookies(self) -> Mapping[str, str]:
+        if self._cookies_cache is not None:
+            return self._cookies_cache
+        self._cookies_cache = cookie_parser(self.headers.get('cookie', ''))
+        return self._cookies_cache
+
+    def get_cookie(self, name, default=None) -> Optional[str]:
+        """
+        Get cookie from request.
+        """
+        if name in self._cookie_set:
+            cookie = self._cookie_set.get(name)
+            if cookie['max_age'] != 0:
+                return cookie
+        return self.cookies.get(name, default)
+
+    @property
+    def headers(self) -> CIMultiDict:
+        """
+        Get headers
+        """
+        self._check_req()
+        return self.request.headers
+
+    async def _prepare(self):
+        # 如果获取用户是一个异步函数，那么提前将其加载
+        if self.can_get_user:
+            func = getattr(self, 'get_current_user', None)
+            if func:
+                if asyncio.iscoroutinefunction(func):
+                    self._current_user = await func()
+
+
+class BaseView(HTTPMixin, metaclass=MetaClassForInit):
+    """
+    Basic http view object.
+    """
+    _no_route = False
+
+    _route_info: Optional['RouteViewInfo']
+    _interface_disable: Set[str]
+    ret_val: Optional[Dict]
+
+    @classmethod
+    def cls_init(cls):
+        cls._interface_disable = set()
+
+    @classmethod
+    def unregister(cls, name):
+        """ interface unregister"""
+        cls._interface_disable.add(name)
+
+    @property
+    def permission(self) -> Permissions:
+        return self.app.permission
+
+    @classmethod
+    def _on_bind(cls, route):
+        pass
+
+    def __init__(self, app: Application = None, req: ASGIRequest = None):
+        super().__init__(app, req)
+
+        self.ret_val = None
+        self.response: Optional[Response] = None
+        self.session = None
+
+        self._legacy_route_info_cache = {}
+
+        self._post_data_cache = sentinel
+        self._ = self.temp_storage = TempStorage()
+
+    @classmethod
+    async def _build(cls, app, request: ASGIRequest) -> 'BaseView':
+        """
+        Create a view, and bind request data
+        :return:
+        """
+        view = cls(app, request)
+
+        with ErrorCatchContext(view):
+            await view._prepare()
+
+        return view
+
+    @property
+    def is_finished(self):
+        return self.response is not None
+
+    async def _prepare(self):
+        await super()._prepare()
+        session_cls = self.app.options.session_cls
+        self.session = await session_cls.get_session(self)
+        await async_call(self.prepare)
+
+    async def prepare(self):
+        pass
+
+    async def _on_finish(self):
+        if self.session:
+            await self.session.save()
+
+        await async_call(self.on_finish)
+
+        if self.response:
+            if isinstance(self.response, JSONResponse):
+                if self.response.written > 200:
+                    logger.debug('finish: json (%d bytes)' % self.response.written)
+                else:
+                    logger.debug('finish: json, %s' % json.dumps(self.ret_val))
+            elif isinstance(self.response, FileResponse):
+                logger.debug('finish: file (%d bytes)' % self.response.written)
+            else:
+                logger.debug('finish: (%d bytes)' % self.response.written)
+
+    async def on_finish(self):
+        pass
 
     @property
     def retcode(self):
@@ -232,21 +283,6 @@ class BaseView(metaclass=MetaClassForInit):
         """
         self.ret_val = data
         self.response = Response(data=data, status=status, content_type=content_type, headers=headers, cookies=self._cookie_set)
-
-    @property
-    def params(self) -> "MultiDict[str]":
-        """
-        get query parameters
-        :return:
-        """
-        self._check_req()
-        if self._params_cache is None:
-            self._params_cache = URL('?' + self.request.scope['query_string'].decode('utf-8')).query
-        return self._params_cache
-
-    @property
-    def content_type(self) -> str:
-        return self.headers.get(CONTENT_TYPE)
 
     async def post_data(self) -> "Optional[Mapping[str, Union[str, bytes, 'FileField']]]":
         """
@@ -322,23 +358,6 @@ class BaseView(metaclass=MetaClassForInit):
 
         return self._post_data_cache
 
-    @property
-    def cookies(self) -> Mapping[str, str]:
-        if self._cookies_cache is not None:
-            return self._cookies_cache
-        self._cookies_cache = cookie_parser(self.headers.get('cookie', ''))
-        return self._cookies_cache
-
-    def get_cookie(self, name, default=None) -> Optional[str]:
-        """
-        Get cookie from request.
-        """
-        if name in self._cookie_set:
-            cookie = self._cookie_set.get(name)
-            if cookie['max_age'] != 0:
-                return cookie
-        return self.cookies.get(name, default)
-
     def set_cookie(self, name, value, *, path=None, expires=None, domain=None, max_age=None, secure=None,
                    httponly=None, version=None):
         """
@@ -377,14 +396,6 @@ class BaseView(metaclass=MetaClassForInit):
             if data and data[2] == name:
                 return data[3]
         return default
-
-    @property
-    def headers(self) -> CIMultiDict:
-        """
-        Get headers
-        """
-        self._check_req()
-        return self.request.headers
 
     @property
     @deprecated('deprecated, use function arguments to instead')

@@ -87,20 +87,6 @@ class Application:
 
     def prepare(self):
         self.route._bind()
-        return
-
-        # Configure CORS on all routes.
-        ws_set = set()
-        for url, wsh in self.route.websockets:
-            ws_set.add(wsh._handle)
-
-        if cors:
-            for r in list(self._raw_app.router.routes()):
-                if type(r.resource) != StaticResource and r.handler not in ws_set:
-                    try:
-                        cors.add(r)
-                    except ValueError:
-                        pass
 
     async def __call__(self, scope, receive, send, *, raise_for_resp=False):
         return await handle_request(self, scope, receive, send, raise_for_resp=raise_for_resp)

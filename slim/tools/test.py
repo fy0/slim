@@ -233,7 +233,16 @@ async def make_mocked_ws_request(url):
         'subprotocols': []
     }
 
-    async def receive():
-        return {'type': 'websocket.connect'}
+    recv_lst = [
+        {'type': 'websocket.connect'},
+        {'type': 'websocket.disconnect', 'code': 1001}
+    ]
 
-    return ASGIRequest(scope, receive, mock.Mock())
+    async def receive():
+        if recv_lst:
+            return recv_lst.pop(0)
+
+    async def send(message):
+        pass
+
+    return ASGIRequest(scope, receive, send)

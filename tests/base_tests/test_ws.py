@@ -26,7 +26,7 @@ class WS(WebSocket):
     async def on_receive(self, text: str, bytes_: bytes, respond: WSRespond):
         pass
 
-    def on_disconnect(self):
+    def on_disconnect(self, code):
         pass
 
 
