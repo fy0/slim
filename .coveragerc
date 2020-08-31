@@ -6,3 +6,8 @@ omit = slim/support/asyncpg/*.py
 
 source =
     slim/
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if TYPE_CHECKING:
