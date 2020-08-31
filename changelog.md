@@ -3,11 +3,15 @@
 
 * Added: `app.route.get` `app.route.post`
 
+* Added: Websocket support.
+
 * Changed: Increase post data limit to 100mb.
 
 * Changed: slim build on asgi now.
 
 * Removed: utils.umsgpack
+
+* Removed: utils.count_dict
 
 
 #### 0.5.10 update 2020.07.30

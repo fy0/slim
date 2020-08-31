@@ -20,9 +20,11 @@ class UnexpectedMethod(Exception):
     pass
 
 
-def do_request(config, method, url, params=None, post_data=None, role=None, access_token=None):
+def do_request(config, method, url, params=None, post_data=None, role=None, access_token=None, *,
+               request_func=requests.request):
     headers = {}
-    if params is None: params = {}
+    if params is None:
+        params = {}
     request_info = config.get('request', {})
 
     if access_token is None:
@@ -33,12 +35,7 @@ def do_request(config, method, url, params=None, post_data=None, role=None, acce
     if role:
         headers['Role'] = role
 
-    if method == 'GET':
-        resp = requests.get(url, params=params, headers=headers)
-    elif method == 'POST':
-        resp = requests.post(url, params=params, data=post_data, headers=headers)
-    else:
-        resp = None
+    resp = request_func(url, params=params, data=post_data, headers=headers)
 
     if resp is not None:
         if resp.status_code != 200:
@@ -57,10 +54,12 @@ class SlimViewRequest:
         self.path = path
         self.urlPrefix = "%s/api/%s" % (self.config['remote']['API_SERVER'], path)
         self.access_token = None
+        self.request_func = requests.request
 
     def do_request(self, method, rel_path, params=None, post_data=None, role=None, access_token=None):
         access_token = access_token or self.access_token
-        return do_request(self.config, method, self.urlPrefix + rel_path, params=params, post_data=post_data, role=role, access_token=access_token)
+        return do_request(self.config, method, self.urlPrefix + rel_path, params=params, post_data=post_data, role=role,
+                          access_token=access_token, request_func=self.request_func)
 
     def get(self, params=None, role=None):
         if params and 'loadfk' in params:

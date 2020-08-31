@@ -14,7 +14,7 @@ class RequestView(BaseView):
         cls._route_info = RouteViewInfo('', cls, 'Free APIs')
 
     @classmethod
-    async def _build(cls, app: 'Application', request: ASGIRequest) -> 'BaseView':
+    async def _build(cls, app: 'Application', request: ASGIRequest, *, _hack_func=None) -> 'BaseView':
         """
         Create a view, and bind request data
         :return:

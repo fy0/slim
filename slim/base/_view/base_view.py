@@ -196,12 +196,15 @@ class BaseView(HTTPMixin, metaclass=MetaClassForInit):
         self._ = self.temp_storage = TempStorage()
 
     @classmethod
-    async def _build(cls, app, request: ASGIRequest) -> 'BaseView':
+    async def _build(cls, app, request: ASGIRequest, *, _hack_func=None) -> 'BaseView':
         """
         Create a view, and bind request data
         :return:
         """
         view = cls(app, request)
+
+        if _hack_func:
+            await _hack_func(view)
 
         with ErrorCatchContext(view):
             await view._prepare()
@@ -419,5 +422,4 @@ class BaseView(HTTPMixin, metaclass=MetaClassForInit):
         :return:
         """
         pass
-
 

@@ -106,38 +106,42 @@ def make_mocked_request(method, path: str, *, headers: Dict[str, str] = None, bo
 async def make_mocked_view(app, view_cls, method, url, params=None, post=sentinel, *, headers=None, user=None,
                            content_type='application/json', body: Optional[bytes] = None)\
         -> Union[BaseView, AbstractSQLView, PeeweeView]:
-    if isinstance(view_cls, BaseView):
-        view = view_cls
-    else:
-        view = view_cls()
-
     headers = headers or {}
+    req = make_mocked_request(method, url, headers=headers, body=body)
 
     if content_type:
         headers['Content-Type'] = content_type
 
-    view.request = make_mocked_request(method, url, headers=headers, body=body)
-    view.app = app
+    async def hack_func(view):
+        view._params_cache = params
+        headers_cache = MultiDict()
+        if not body:
+            view._post_data_cache = post
+        view._ip_cache = ip_address('127.0.0.1')
+        view._current_user = user
 
-    view._params_cache = params
-    view._headers_cache = MultiDict()
-    if not body:
-        view._post_data_cache = post
-    view._ip_cache = ip_address('127.0.0.1')
-    view._current_user = user
+        for k, v in headers.items():
+            headers_cache[istr(k)] = v
 
-    for k, v in headers.items():
-        view._headers_cache[istr(k)] = v
+        view.request._headers_cache = headers_cache
 
-    with ErrorCatchContext(view):
-        await view._prepare()
+    if not isinstance(view_cls, BaseView):
+        view = await view_cls._build(app, req, _hack_func=hack_func)
+    else:
+        view = view_cls
+        view.request = req
+        view.app = app
+        await hack_func(view)
+
+        with ErrorCatchContext(view):
+            await view._prepare()
 
     return view
 
 
 async def invoke_interface(app: Application, func: FunctionType, params=None, post=sentinel, *, headers=None,
                            method=None, user=None, bulk=False, returning=None, role=None, body: Optional[bytes] = None,
-                           content_type='application/json', view_cls=None) -> Optional[BaseView]:
+                           content_type='application/json') -> Optional[BaseView]:
     """
     Invoke a interface programmatically
     :param app: Application object
@@ -164,7 +168,9 @@ async def invoke_interface(app: Application, func: FunctionType, params=None, po
     meta: RouteInterfaceInfo = getattr(func, '_route_info')
     assert meta.view_cls, 'invoke only work after app.prepare()'
 
-    if inspect.ismethod(func):
+    func_is_method = inspect.ismethod(func)
+
+    if func_is_method:
         handler = func
         view = func.__self__
     else:
@@ -172,8 +178,8 @@ async def invoke_interface(app: Application, func: FunctionType, params=None, po
             # TODO: multi view classes exists for this interface, please specified the view class you want
             pass
 
-        view = meta.view_cls(app)
-        handler = func.__get__(view)
+        view = meta.view_cls
+        handler = func
 
     headers = headers or {}
     if bulk:
@@ -187,6 +193,9 @@ async def invoke_interface(app: Application, func: FunctionType, params=None, po
 
     view = await make_mocked_view(app, view, _method, url, params=params, post=post, headers=headers,
                                   body=body, content_type=content_type, user=user)
+
+    if not func_is_method:
+        handler = handler.__get__(view)
 
     # url = info.route.fullpath
     # _method = next(iter(info.route.method))

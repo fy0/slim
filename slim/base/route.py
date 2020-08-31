@@ -10,18 +10,13 @@ import typing
 
 from slim.base.types.doc import ResponseDataModel
 from slim.base.types.route_meta_info import RouteViewInfo, RouteInterfaceInfo, RouteStaticsInfo, RouteWebsocketInfo
-# from slim.base.ws import WSRouter
-from slim.exception import InvalidPostData, InvalidParams, InvalidRouteUrl, StaticDirectoryNotExists
+from slim.exception import InvalidRouteUrl, StaticDirectoryNotExists
 from .staticfile import StaticFileResponder
-from .web import Response
-from slim.utils.exceptions import HTTPException
-from .types.asgi import Scope
 from slim.utils import get_class_full_name, camel_case_to_underscore_case, repath, sentinel
 from .ws import WebSocket
 
 if TYPE_CHECKING:
     from .view import BaseView
-    from .app import Application
 
 logger = logging.getLogger(__name__)
 
