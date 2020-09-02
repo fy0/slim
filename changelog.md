@@ -1,5 +1,5 @@
 
-#### 0.6.0 update
+#### 0.6.0 update 2020.09.02
 
 * Added: `app.route.get` `app.route.post`
 
