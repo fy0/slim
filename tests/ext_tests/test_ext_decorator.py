@@ -5,7 +5,7 @@ import pytest
 from peewee import SqliteDatabase
 
 from slim import Application, ALL_PERMISSION, D
-from slim.base._view.base_view import BaseView
+from slim.base.view.base_view import BaseView
 from slim.base.user import BaseUser, BaseUserViewMixin
 from slim.retcode import RETCODE
 from slim.tools.test import invoke_interface

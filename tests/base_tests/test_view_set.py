@@ -5,9 +5,9 @@ import pytest
 import schematics
 from schematics.types import StringType
 
-from slim.base.sqlquery import SQLValuesToWrite, DataRecord
+from slim.ext.sqlview.sqlquery import SQLValuesToWrite, DataRecord
 from slim.retcode import RETCODE
-from slim.support.peewee import PeeweeView
+from slim.view import PeeweeView
 from peewee import *
 from slim import Application, ALL_PERMISSION, D
 from slim.tools.test import invoke_interface

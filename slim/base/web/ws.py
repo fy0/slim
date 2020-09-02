@@ -6,12 +6,13 @@ import asyncio
 import typing
 from typing import Set
 
-from ._view.base_view import HTTPMixin
-from .types.asgi import Scope, Receive, Send
-from ..utils import async_call
+from .http_mixin import HTTPMixin
+from slim.base.types.asgi import Scope, Receive, Send
+from slim.utils import async_call
 
 if typing.TYPE_CHECKING:
-    from .web import ASGIRequest, Application
+    from .handle_request import Application
+    from .request import ASGIRequest
 
 logger = logging.getLogger(__name__)
 

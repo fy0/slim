@@ -3,7 +3,7 @@ from peewee import SqliteDatabase, Model, BlobField, IntegerField, FloatField, T
 from playhouse.sqlite_ext import JSONField as SQLITE_JSONField
 from schematics.exceptions import DataError
 
-from slim.support.peewee.validate import get_pv_model_info
+from slim.ext.sqlview.support.peewee.validate import get_pv_model_info
 
 pytestmark = [pytest.mark.asyncio]
 

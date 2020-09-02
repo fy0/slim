@@ -1,6 +1,6 @@
 import time
 
-from slim.utils import async_run, CustomID
+from slim.utils import CustomID, async_call
 import config
 
 # peewee 配置
@@ -74,7 +74,7 @@ def asyncpg_init(db_uri):
         global asyncpg_conn
         asyncpg_conn = await asyncpg.connect(db_uri)
 
-    async_run(create_conn)
+    async_call(create_conn)
 
 
 # asyncpg_init(config.DATABASE_URI)

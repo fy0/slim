@@ -4,9 +4,9 @@ import pytest
 
 from slim.base.permission import Ability, A
 from slim.retcode import RETCODE
-from slim.support.peewee import PeeweeView
+from slim.view import PeeweeView
 from peewee import *
-from slim import Application, ALL_PERMISSION, EMPTY_PERMISSION
+from slim import Application, EMPTY_PERMISSION
 from slim.tools.test import invoke_interface
 
 pytestmark = [pytest.mark.asyncio]

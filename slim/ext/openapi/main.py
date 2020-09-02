@@ -131,7 +131,7 @@ class OpenAPIGenerator:
 
     def _sql_views_check(self):
         from slim.base.permission import Ability, A
-        from slim.base.view import BaseView, AbstractSQLView
+        from slim.view import BaseView, AbstractSQLView
         app = self.app
 
         for vi in app.route._views:
@@ -186,7 +186,7 @@ class OpenAPIGenerator:
                 return request_body_schema
 
     def _build_paths(self):
-        from slim.base.view import BaseView, AbstractSQLView
+        from slim.view import BaseView, AbstractSQLView
         paths = {}
 
         def returning_wrap(items_schema):
@@ -408,7 +408,7 @@ class OpenAPIGenerator:
         self.paths = paths
 
     def _build_main(self):
-        from ...base.view import RequestView
+        from slim.base.view.request_view import RequestView
         doc_info = self.app.doc_info
 
         self.openapi_file = {

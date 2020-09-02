@@ -6,7 +6,7 @@
 
 ```python
 from peewee import *
-from slim.support.peewee import PeeweeView
+from slim.ext.view.support import PeeweeView
 
 class Topic(Model):
     title = CharField(index=True, max_length=255)

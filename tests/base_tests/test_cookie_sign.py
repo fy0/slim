@@ -6,8 +6,8 @@ from requests.cookies import morsel_to_cookie
 from requests.utils import dict_from_cookiejar
 
 from slim import Application, ALL_PERMISSION
-from slim.base.helper import create_signed_value, decode_signed_value, _value_decode, _value_encode
-from slim.base.view import BaseView
+from slim.utils.data_sign import create_signed_value, decode_signed_value, _value_decode, _value_encode
+from slim.view import BaseView
 from slim.retcode import RETCODE
 
 secret = b'asdasd' * 5

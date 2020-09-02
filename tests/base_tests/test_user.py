@@ -3,8 +3,7 @@ from typing import Union, Type
 import pytest
 from slim.base.user import BaseUserViewMixin, BaseUser
 from slim.exception import NoUserViewMixinException
-from slim.retcode import RETCODE
-from slim.support.peewee import PeeweeView
+from slim.view import PeeweeView
 from peewee import *
 from slim import Application, ALL_PERMISSION
 from slim.tools.test import make_mocked_view
@@ -107,8 +106,8 @@ class InvalidTokenUserViewMixin(PeeweeView, InvalidTokenUserViewMixin):
 
 async def test_invalid_token():
     # TODO: still not work
-    # view = await make_mocked_view(app, InvalidTokenUserViewMixin, 'POST', '/api/test')
-    # assert view.current_user == {'name': 'icarus'}
+    # sqlview = await make_mocked_view(app, InvalidTokenUserViewMixin, 'POST', '/api/test')
+    # assert sqlview.current_user == {'name': 'icarus'}
     pass
 
 

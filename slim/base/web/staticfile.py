@@ -3,8 +3,10 @@ import stat
 from urllib.parse import urljoin
 
 from aiofiles.os import stat as aio_stat
+from multipart import multipart
 
-from slim.base.web import FileResponse, Response, ASGIRequest
+from .response import Response, FileResponse
+from .request import ASGIRequest
 
 
 class StaticFileResponder:
@@ -28,3 +30,35 @@ class StaticFileResponder:
             return Response(404, b"Not Found")
 
         return FileResponse(static_file_path=static_file_path, stat_result=stat_result)
+
+
+class FileField:
+    def __init__(self, field: multipart.File):
+        self._field = field
+        field.file_object.seek(0)
+
+    @property
+    def field_name(self):
+        return _to_str(self._field.field_name)
+
+    @property
+    def file_name(self):
+        return _to_str(self._field.file_name)
+
+    @property
+    def actual_file_name(self):
+        return _to_str(self._field.actual_file_name)
+
+    @property
+    def file(self):
+        return self._field.file_object
+
+    @property
+    def size(self):
+        return self._field.size
+
+
+def _to_str(s):
+    if isinstance(s, bytes):
+        return s.decode('utf-8')
+    return s

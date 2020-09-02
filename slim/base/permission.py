@@ -1,16 +1,13 @@
 import copy
 import logging
-from typing import Dict, Tuple, Any, TYPE_CHECKING, Optional, List, Set, Iterable, Union, Sequence
+from typing import Dict, Tuple, TYPE_CHECKING, Optional, List, Set, Iterable, Union, Sequence
 
-from schematics import Model
-from schematics.types import DictType
-
-from .sqlquery import SQLQueryInfo, SQL_OP
-from .sqlfuncs import DataRecord
+from slim.ext.sqlview.sqlquery import SQLQueryInfo
+from slim.ext.sqlview.sqlfuncs import DataRecord
 from .user import BaseUser
 
 if TYPE_CHECKING:
-    from .sqlquery import SQLQueryInfo, SQL_OP
+    from slim.ext.sqlview.sqlquery import SQLQueryInfo
     from slim.base.view import AbstractSQLView
 
 logger = logging.getLogger(__name__)
@@ -156,7 +153,7 @@ class Ability:
             self.query_condition_params_funcs.setdefault(table, [])
             self.query_condition_params_funcs[table].append(func)
 
-            """def func(ability: Ability, user, query: 'SQLQueryInfo', view: "AbstractSQLView"):
+            """def func(ability: Ability, user, query: 'SQLQueryInfo', sqlview: "AbstractSQLView"):
                  pass
             """
 

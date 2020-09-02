@@ -1,6 +1,4 @@
 from model.user import POST_STATE
-from slim.base.sqlquery import SQLQueryInfo, SQL_OP
-from slim.base.permission import Ability
 from permissions.roles import *
 
 

@@ -5,7 +5,7 @@ from unittest import mock
 import pytest
 
 from slim import Application
-from slim.base.view import BaseView
+from slim.view import BaseView
 from slim.tools.test import make_mocked_request, make_mocked_view
 
 pytestmark = [pytest.mark.asyncio]

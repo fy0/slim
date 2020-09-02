@@ -11,15 +11,15 @@ from schematics.types import BaseType, ListType
 from slim.base.const import ERR_TEXT_ROGUE_FIELD, ERR_TEXT_COLUMN_IS_NOT_FOREIGN_KEY
 from slim.base.types.func_meta import get_meta
 from slim.utils.schematics_ext import schematics_model_merge
-from ..utils import BlobParser, JSONParser, dict_filter, dict_filter_inplace, BoolParser
-from ..exception import SyntaxException, ResourceException, InvalidParams, \
+from slim.utils import BlobParser, JSONParser, dict_filter, dict_filter_inplace, BoolParser
+from slim.exception import SyntaxException, ResourceException, InvalidParams, \
     PermissionDenied, ColumnNotFound, ColumnIsNotForeignKey, SQLOperatorInvalid, InvalidRole, SlimException, \
     InvalidPostData, TableNotFound
 
 if TYPE_CHECKING:
-    from .view import BaseView, AbstractSQLView
-    from .permission import Ability
-    from .user import BaseUser
+    from slim.view import BaseView, AbstractSQLView
+    from slim.base.permission import Ability
+    from slim.base.user import BaseUser
 
 
 logger = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ class DataRecord:
         raise NotImplementedError()
 
     def set_info(self, info: "SQLQueryInfo", ability: "Ability", user: "BaseUser"):
-        from .permission import A
+        from ...base.permission import A
         if info:
             self.selected = info.select
         # 注意，这里实际上读了 self.keys()，所以cache已经生成了，因此直接调用reserve
@@ -341,7 +341,7 @@ class SQLQueryInfo:
         """
         Add a query condition and validate it.
         raise ParamsException if failed.
-        self.view required
+        self.sqlview required
         :param field_name:
         :param op:
         :param value:
@@ -399,7 +399,7 @@ class SQLQueryInfo:
         self.check_query_permission_full(user, view.table_name, view.ability, view)
 
     def check_query_permission_full(self, user: "BaseUser", table: str, ability: "Ability", view: "AbstractSQLView", ignore_error=True):
-        from .permission import A
+        from ...base.permission import A
 
         # QUERY 权限检查
         # QUERY 的特殊之处在于即使没有查询条件也会查出数据
@@ -650,7 +650,7 @@ class SQLValuesToWrite(dict):
             self[k] = v
 
     def check_insert_permission(self, user: "BaseUser", table: str, ability: "Ability"):
-        from .permission import A
+        from ...base.permission import A
         columns = self.keys()
         logger.debug('request permission as %r: [%s] of table %r, columns: %s' % (ability.role, A.CREATE, table, columns))
         is_empty_input = not columns
@@ -678,7 +678,7 @@ class SQLValuesToWrite(dict):
         logger.debug("request permission successed as %r: %r" % (ability.role, list(self.keys())))
 
     def check_update_permission(self, user: "BaseUser", table: str, ability: "Ability", records):
-        from .permission import A
+        from ...base.permission import A
         columns = self.keys()
         logger.debug('request permission as %r: [%s] of table %r, columns: %s' % (ability.role, A.WRITE, table, columns))
         available = ability.can_with_columns(user, A.WRITE, table, columns)
@@ -697,7 +697,7 @@ class SQLValuesToWrite(dict):
         logger.debug("request permission successed as %r: %r" % (ability.role, list(self.keys())))
 
     def check_write_permission(self, view: "AbstractSQLView", action, records=None):
-        from .permission import A
+        from ...base.permission import A
         user = view.current_user if view.can_get_user else None
         if action == A.WRITE:
             self.check_update_permission(user, view.table_name, view.ability, records)
@@ -708,14 +708,14 @@ class SQLValuesToWrite(dict):
 
     def bind(self, view: "AbstractSQLView", action=None, records=None):
         """
-        建立写入值与 view 的联系。
+        建立写入值与 sqlview 的联系。
         由于这之后还有一个 before_insert / before_update 的过程，所以这里不尽量抛出异常，只是在装入 values 前把不合规的过滤
         :param view:
         :param action:
         :param records:
         :return:
         """
-        from .permission import Ability, A
+        from ...base.permission import A
 
         # 1. 融合before_update / before_insert 的校验器，走一次过滤
         if action == A.WRITE:
@@ -749,7 +749,7 @@ class SQLValuesToWrite(dict):
 
         # 过滤后空 post 不代表无意义，因为插入值可能在 before_insert 中修改
         # if len(self) == 0:
-        #     raise InvalidPostData('Invalid post values for table: %s' % view.table_name)
+        #     raise InvalidPostData('Invalid post values for table: %s' % sqlview.table_name)
 
         # 同样，空值不做检查，因为会抛出无权访问
         if action and len(self):

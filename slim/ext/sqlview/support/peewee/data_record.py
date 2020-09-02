@@ -1,7 +1,7 @@
 import peewee
 from playhouse.shortcuts import model_to_dict
 
-from slim.base.sqlquery import DataRecord, ALL_COLUMNS
+from slim.ext.sqlview.sqlquery import DataRecord, ALL_COLUMNS
 from slim.utils import get_bytes_from_blob, dict_filter
 
 
@@ -11,7 +11,7 @@ class PeeweeDataRecord(DataRecord):
         super().__init__(table_name, val)
         self.view = view
         if view:
-            # if view exists, get information from View class
+            # if sqlview exists, get information from View class
             self.table = view.table_name
             self._fields = view.fields
         else:

@@ -1,5 +1,5 @@
 import json
-from ..base.sqlquery import DataRecord
+from slim.ext.sqlview.sqlquery import DataRecord
 from .binhex import to_hex
 
 

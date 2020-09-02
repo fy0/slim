@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Type, Union, Iterable
 
 from schematics import Model
 
-from slim.base._view.validate import view_validate_check
+from slim.base.view.validate import view_validate_check
 from slim.base.types.func_meta import FuncMeta
 from slim.utils import async_call, get_ioloop, asyncio
 from ..retcode import RETCODE

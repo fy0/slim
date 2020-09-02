@@ -38,8 +38,8 @@ db.create_tables([Topic], safe=True)
 app.py 加载 model 并绑定到 9999 端口
 ```python
 from slim import app_init
-from slim.support.peewee import PeeweeView
-from slim.base.helper import Route
+from slim.ext.view.support import PeeweeView
+from slim.utils.data_sign import Route
 from aiohttp import web
 
 route = Route()

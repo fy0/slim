@@ -3,9 +3,9 @@ from typing import List
 
 import pytest
 
-from slim.base.sqlquery import DataRecord, SQLQueryInfo, SQL_OP
+from slim.ext.sqlview.sqlquery import DataRecord, SQLQueryInfo, SQL_OP
 from slim.retcode import RETCODE
-from slim.support.peewee import PeeweeView
+from slim.view import PeeweeView
 from peewee import *
 from slim import Application, ALL_PERMISSION
 from slim.tools.test import invoke_interface

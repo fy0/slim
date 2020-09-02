@@ -8,21 +8,21 @@ from multidict import istr
 from schematics.types import BaseType
 
 from slim.base.types import BuiltinInterface
-from .base_view import BaseView
-from ..web import ASGIRequest
-from .err_catch_context import ErrorCatchContext
+from slim.base.view.base_view import BaseView
+from slim.base.web.request import ASGIRequest
+from slim.base.view.err_catch_context import ErrorCatchContext
 from .view_options import SQLViewOptions
 from slim.exception import SlimException, PermissionDenied, FinishQuitException, InvalidParams, RecordNotFound, \
     InvalidRole, InvalidPostData
 
-from slim.base.sqlquery import SQLQueryInfo, SQLForeignKey, SQLValuesToWrite, ALL_COLUMNS, PRIMARY_KEY, SQL_OP
+from slim.ext.sqlview.sqlquery import SQLQueryInfo, SQLForeignKey, SQLValuesToWrite, ALL_COLUMNS, PRIMARY_KEY, SQL_OP
 from slim.base.app import Application
 from slim.base.permission import A, DataRecord
-from slim.base.sqlfuncs import AbstractSQLFunctions
+from slim.ext.sqlview.sqlfuncs import AbstractSQLFunctions
 from slim.retcode import RETCODE
 from slim.utils.cls_property import classproperty
 from slim.utils import pagination_calc, async_call, get_ioloop, get_class_full_name
-from ..route import Route
+from slim.base.route import Route
 
 logger = logging.getLogger(__name__)
 
@@ -242,7 +242,7 @@ class AbstractSQLView(BaseView):
 
                     # 3. query foreign keys
                     vcls = self.app.tables[fkvalues['table']]
-                    v = vcls(self.app, self.request)  # fake view
+                    v = vcls(self.app, self.request)  # fake sqlview
                     await v._prepare()
                     info2 = SQLQueryInfo()
                     info2.set_select(ALL_COLUMNS)

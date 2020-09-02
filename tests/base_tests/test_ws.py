@@ -1,10 +1,8 @@
 import json
-from typing import Dict
 
 import pytest
 from slim import Application
-from slim.base.ws import WebSocket
-from slim.exception import InvalidRouteUrl
+from slim.base.web.ws import WebSocket
 from slim.tools.test import make_mocked_ws_request
 from slim.utils import async_call
 

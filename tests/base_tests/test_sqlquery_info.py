@@ -2,11 +2,11 @@ import pytest
 from peewee import SqliteDatabase, Model, TextField
 
 from slim import Application, ALL_PERMISSION
-from slim.support.peewee import PeeweeView
+from slim.view import PeeweeView
 
-from slim.base.sqlquery import SQLQueryInfo, SQLQueryOrder, ALL_COLUMNS, SQL_OP
-from slim.exception import SyntaxException, InvalidParams, ColumnNotFound
-from slim.tools.test import make_mocked_view, make_mocked_request
+from slim.ext.sqlview.sqlquery import SQLQueryInfo, SQLQueryOrder, ALL_COLUMNS, SQL_OP
+from slim.exception import InvalidParams, ColumnNotFound
+from slim.tools.test import make_mocked_view
 
 pytestmark = [pytest.mark.asyncio]
 app = Application(cookies_secret=b'123456', permission=ALL_PERMISSION)

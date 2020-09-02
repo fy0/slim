@@ -8,7 +8,7 @@ from slim.exception import InvalidParams, InvalidPostData, InvalidHeaders
 from .err_catch_context import ErrorCatchContext
 
 if TYPE_CHECKING:
-    from slim.base._view.base_view import BaseView
+    from slim.base.view.base_view import BaseView
 
 
 async def view_validate_check(view: "BaseView", va_query: Optional[Type[Model]], va_post: Optional[Type[Model]],
@@ -26,7 +26,7 @@ async def view_validate_check(view: "BaseView", va_query: Optional[Type[Model]],
             view._.validated_query = do_validate(va_query, view.params, InvalidParams)
 
         if va_write_value:
-            from slim.base._view.abstract_sql_view import AbstractSQLView
+            from slim.view import AbstractSQLView
             post_data = await view.post_data()
 
             if isinstance(view, AbstractSQLView):

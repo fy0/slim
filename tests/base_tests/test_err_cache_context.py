@@ -1,7 +1,7 @@
 import pytest
 
-from slim.base._view.base_view import BaseView
-from slim.base._view.err_catch_context import ErrorCatchContext
+from slim.base.view.base_view import BaseView
+from slim.base.view.err_catch_context import ErrorCatchContext
 from slim.exception import FinishQuitException, SyntaxException, SQLOperatorInvalid, ColumnIsNotForeignKey, \
     InvalidParams, InvalidPostData, InvalidHeaders, TableNotFound, ColumnNotFound, RecordNotFound, \
     NotNullConstraintFailed, AlreadyExists, ResourceException, InvalidToken, InvalidRole, PermissionDenied, \

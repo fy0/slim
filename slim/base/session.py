@@ -22,7 +22,7 @@ class BaseSession:
         self._data[key] = value
 
     def __setattr__(self, key, value):
-        if key not in ('_view', '_data', 'key'):
+        if key not in ('view', '_data', 'key'):
             raise AttributeError("use session[%r] = ... to set value" % key)
         super().__setattr__(key, value)
 

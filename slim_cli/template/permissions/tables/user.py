@@ -3,7 +3,7 @@ import os
 from permissions.roles import *
 from permissions.tables._vars import add_post_visible_limit
 from slim.base.permission import Ability, A, DataRecord
-from slim.base.sqlquery import SQLQueryInfo, SQL_OP
+from slim.ext.sqlview.sqlquery import SQLQueryInfo, SQL_OP
 from slim.utils import get_bytes_from_blob
 
 TABLE_NAME = os.path.basename(__file__).split('.', 1)[0]

@@ -28,7 +28,7 @@ pip3 install slim peewee
 from peewee import *
 from playhouse.db_url import connect
 from slim import Application, CORSOptions, ALL_PERMISSION, EMPTY_PERMISSION
-from slim.support.peewee import PeeweeView
+from slim.ext.view.support import PeeweeView
 
 
 db = connect("sqlite:///database.db")

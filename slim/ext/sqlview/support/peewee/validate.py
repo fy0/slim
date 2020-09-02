@@ -1,11 +1,11 @@
 from typing import Type, Union
 
 import peewee
-from schematics.models import Model, ValidationError, ConversionError
-from schematics.types import StringType, NumberType, DateTimeType, ModelType, BaseType, DictType, BooleanType, \
-    ListType, IntType, FloatType, DateType
-from slim.base.sqlquery import SQLForeignKey
-from slim.utils.schematics_ext import BlobType, JSONListType, JSONDictType, JSONType
+from schematics.models import Model
+from schematics.types import StringType, DateTimeType, BaseType, BooleanType, \
+    IntType, FloatType, DateType
+from slim.ext.sqlview.sqlquery import SQLForeignKey
+from slim.utils.schematics_ext import BlobType, JSONListType, JSONType
 
 try:
     from playhouse.postgres_ext import JSONField as PG_JSONField, BinaryJSONField as PG_BinaryJSONField, ArrayField as PG_ArrayField

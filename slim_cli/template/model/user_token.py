@@ -53,7 +53,7 @@ class UserToken(StdBaseModel):
         :param view:
         :return:
         """
-        # req = view._request
+        # req = sqlview._request
         self.first_meet_time = int(time.time())
         self.ip_first_meet = await view.get_ip()
         self.ua_first_meet = view.headers.get('User-Agent', None)

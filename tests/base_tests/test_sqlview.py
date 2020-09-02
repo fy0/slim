@@ -1,9 +1,8 @@
 import json
 
 import pytest
-from unittest import mock
 from slim.retcode import RETCODE
-from slim.support.peewee import PeeweeView
+from slim.view import PeeweeView
 from peewee import *
 from slim import Application, ALL_PERMISSION
 from playhouse.sqlite_ext import JSONField as SQLITE_JSONField

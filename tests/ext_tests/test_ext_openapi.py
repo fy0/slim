@@ -4,7 +4,7 @@ from peewee import SqliteDatabase
 
 from slim import Application, ALL_PERMISSION
 from slim.ext.openapi.main import get_openapi
-from slim.support.peewee import PeeweeView
+from slim.view import PeeweeView
 
 pytestmark = [pytest.mark.asyncio]
 app = Application(cookies_secret=b'123456', permission=ALL_PERMISSION)

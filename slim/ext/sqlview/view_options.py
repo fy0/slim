@@ -1,7 +1,7 @@
 from typing import Type, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from slim.base._view.abstract_sql_view import AbstractSQLView
+    from .abstract_sql_view import AbstractSQLView
 
 
 class SQLViewOptions:

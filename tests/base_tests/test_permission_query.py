@@ -1,5 +1,5 @@
-from slim.base.permission import A, Ability, DataRecord, Permissions
-from slim.base.sqlquery import SQLQueryInfo, SQL_OP
+from slim.base.permission import A, Ability
+from slim.ext.sqlview.sqlquery import SQLQueryInfo, SQL_OP
 
 ab = Ability({
     'user': {

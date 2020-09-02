@@ -1,14 +1,13 @@
 import logging
 import peewee
-from typing import Type, Tuple, List, Iterable, Union
+from typing import Type
 
-from slim.support.peewee.sqlfuncs import PeeweeSQLFunctions
-from slim.support.peewee.validate import get_pv_model_info
+from .sqlfuncs import PeeweeSQLFunctions
+from .validate import get_pv_model_info
 
-from ...base.sqlquery import SQLForeignKey
-from ...base.permission import DataRecord, Permissions
-from ...utils import get_class_full_name
-from ...base.view import AbstractSQLView, SQLViewOptions
+from slim.utils import get_class_full_name
+from slim.view import AbstractSQLView
+from ...view_options import SQLViewOptions
 
 logger = logging.getLogger(__name__)
 

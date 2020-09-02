@@ -1,26 +1,22 @@
 import asyncio
 import inspect
-import io
 import json
 import logging
 from ipaddress import ip_address
 from types import FunctionType
-from typing import Optional, Callable, Union, Dict
+from typing import Optional, Union, Dict
 from unittest import mock
 
 from multidict import MultiDict, istr
 from peewee import SqliteDatabase
 
 from slim import Application, ALL_PERMISSION
-from slim.base import const
-from slim.base._view.abstract_sql_view import AbstractSQLView
-from slim.base.web import ASGIRequest
-from slim.base._view.err_catch_context import ErrorCatchContext
+from slim.base.web.request import ASGIRequest
+from slim.base.view.err_catch_context import ErrorCatchContext
 from slim.base.types.route_meta_info import RouteInterfaceInfo
 from slim.base.user import BaseUser
-from slim.base.view import BaseView
+from slim.view import BaseView, AbstractSQLView, PeeweeView
 from slim.exception import SlimException
-from slim.support.peewee import PeeweeView
 from slim.utils import sentinel
 
 
@@ -175,7 +171,7 @@ async def invoke_interface(app: Application, func: FunctionType, params=None, po
         view = func.__self__
     else:
         if len(meta.view_cls_set) > 1:
-            # TODO: multi view classes exists for this interface, please specified the view class you want
+            # TODO: multi sqlview classes exists for this interface, please specified the sqlview class you want
             pass
 
         view = meta.view_cls
@@ -200,10 +196,10 @@ async def invoke_interface(app: Application, func: FunctionType, params=None, po
     # url = info.route.fullpath
     # _method = next(iter(info.route.method))
 
-    # note: view.prepare() may case finished
+    # note: sqlview.prepare() may case finished
     if not view.is_finished:
         # user's validator check
-        from slim.base._view.validate import view_validate_check
+        from slim.base.view.validate import view_validate_check
         await view_validate_check(view, meta.va_query, meta.va_post, meta.va_headers)
 
         if not view.is_finished:

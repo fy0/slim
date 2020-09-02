@@ -1,13 +1,12 @@
 import binascii
-from typing import Dict, List, Union, Type
+from typing import Union, Type
 
 from slim.base.view import BaseView
 from slim.ext.decorator import require_role
 from slim.utils import sentinel, to_bin
 from slim.base.user import BaseAccessTokenUserViewMixin, BaseUserViewMixin, BaseUser
-from slim.base.sqlquery import SQLValuesToWrite, DataRecord
 from slim.retcode import RETCODE
-from slim.support.peewee import PeeweeView
+from slim.ext.view.support import PeeweeView
 
 from app import app
 from api.validate.user import SigninDataModel, SignupDirectDataModel

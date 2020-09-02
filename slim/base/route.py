@@ -3,17 +3,15 @@ import logging
 import os
 import re
 from types import FunctionType
-from typing import Iterable, Type, TYPE_CHECKING, Dict, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple, Union
 from posixpath import join as urljoin
-
-import typing
 
 from slim.base.types.doc import ResponseDataModel
 from slim.base.types.route_meta_info import RouteViewInfo, RouteInterfaceInfo, RouteStaticsInfo, RouteWebsocketInfo
 from slim.exception import InvalidRouteUrl, StaticDirectoryNotExists
-from .staticfile import StaticFileResponder
+from slim.base.web.staticfile import StaticFileResponder
 from slim.utils import get_class_full_name, camel_case_to_underscore_case, repath, sentinel
-from .ws import WebSocket
+from slim.base.web.ws import WebSocket
 
 if TYPE_CHECKING:
     from .view import BaseView
@@ -68,7 +66,7 @@ class Route:
             names_varkw = arg_spec.varkw
 
             if len(arg_spec.args) >= 1:
-                # skip the first argument, the view instance
+                # skip the first argument, the sqlview instance
                 names_exclude.add(arg_spec.args[0])
                 for i in arg_spec.args[1:]:
                     names_include.add(i)
@@ -102,7 +100,7 @@ class Route:
         :param tag_name:
         :return:
         """
-        from .view import BaseView
+        from .view.base_view import BaseView
 
         def wrapper(view_cls):
             assert inspect.isclass(view_cls), '%r is not a class' % view_cls.__name__
@@ -118,8 +116,8 @@ class Route:
         return wrapper
 
     def _bind(self):
-        from ._view.request_view import RequestView
-        from ._view.abstract_sql_view import AbstractSQLView
+        from .view.request_view import RequestView
+        from slim.view import AbstractSQLView
 
         def add_to_url_mapping(_meta, _fullpath):
             um = self._url_mappings

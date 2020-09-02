@@ -5,7 +5,7 @@ from slim.base.types.doc import ApplicationDocInfo
 from slim.ext.openapi.serve import doc_serve
 from .session import CookieSession
 from .user import BaseUserViewMixin
-from .web import handle_request, CORSOptions
+from .web import CORSOptions, handle_request
 from ..utils.jsdict import JsDict
 from . import log
 

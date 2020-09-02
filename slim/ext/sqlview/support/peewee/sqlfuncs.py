@@ -4,12 +4,11 @@ import peewee
 from typing import List, Tuple, Iterable, Union
 from playhouse.postgres_ext import ArrayField, SQL
 
-from slim.support.peewee.data_record import PeeweeDataRecord
-from slim.utils import sentinel
-from ...base.sqlquery import SQL_OP, SQLQueryOrder, SQLQueryInfo, DataRecord, SQLValuesToWrite
-from ...base.sqlfuncs import AbstractSQLFunctions
+from .data_record import PeeweeDataRecord
+from slim.ext.sqlview.sqlquery import SQL_OP, SQLQueryOrder, SQLQueryInfo, DataRecord, SQLValuesToWrite
+from slim.ext.sqlview.sqlfuncs import AbstractSQLFunctions
 
-from ...exception import RecordNotFound, AlreadyExists, ResourceException, NotNullConstraintFailed
+from slim.exception import RecordNotFound, AlreadyExists, ResourceException, NotNullConstraintFailed
 
 logger = logging.getLogger(__name__)
 

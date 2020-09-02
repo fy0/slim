@@ -6,11 +6,10 @@ from schematics import Model
 from schematics.types import StringType
 
 from slim import Application, ALL_PERMISSION
-from slim.base._view.base_view import BaseView
-from slim.base._view.validate import view_validate_check
+from slim.base.view.validate import view_validate_check
 from slim.base.types import BuiltinInterface
 from slim.retcode import RETCODE
-from slim.support.peewee import PeeweeView
+from slim.view import PeeweeView
 from slim.tools.test import make_mocked_view
 
 pytestmark = [pytest.mark.asyncio]

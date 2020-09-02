@@ -2,11 +2,11 @@ import pytest
 from peewee import Model, BlobField
 from playhouse.postgres_ext import ArrayField
 
-from slim import Application, ALL_PERMISSION
+from slim import Application
 from slim.base.permission import Ability
-from slim.base.sqlquery import SQLQueryInfo, SQL_OP
+from slim.ext.sqlview.sqlquery import SQLQueryInfo, SQL_OP
 from slim.exception import InvalidParams
-from slim.support.peewee import PeeweeView
+from slim.view import PeeweeView
 
 pytestmark = [pytest.mark.asyncio]
 app = Application(cookies_secret=b'123456')

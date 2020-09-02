@@ -2,12 +2,11 @@ import json
 import time
 
 import pytest
-from slim.support.peewee import PeeweeView
+from slim.view import PeeweeView
 from peewee import *
 from slim import Application, ALL_PERMISSION
-from slim.utils import get_ioloop
 from slim.tools.test import make_mocked_view
-from slim.tools.test import invoke_interface, make_mocked_request
+from slim.tools.test import make_mocked_request
 
 
 pytestmark = [pytest.mark.asyncio]

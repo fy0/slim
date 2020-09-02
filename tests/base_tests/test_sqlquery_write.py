@@ -1,11 +1,10 @@
 import pytest
-from peewee import SqliteDatabase, Model, IntegerField, TextField, BlobField
-from slim.base.permission import A
+from peewee import SqliteDatabase, Model, IntegerField, TextField
 
 from slim import Application, ALL_PERMISSION
-from slim.base.sqlquery import SQLValuesToWrite
+from slim.ext.sqlview.sqlquery import SQLValuesToWrite
 from slim.exception import InvalidPostData
-from slim.support.peewee import PeeweeView
+from slim.view import PeeweeView
 from slim.tools.test import make_mocked_view
 
 pytestmark = [pytest.mark.asyncio]

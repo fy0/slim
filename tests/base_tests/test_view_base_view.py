@@ -1,10 +1,10 @@
 import json
 import pytest
 
-from slim.base._view.base_view import BaseView
-from slim.base.web import FileField
+from slim.base.view.base_view import BaseView
+from slim.base.web.staticfile import FileField
 from slim import Application, ALL_PERMISSION
-from slim.exception import PermissionDenied, InvalidPostData
+from slim.exception import InvalidPostData
 from slim.retcode import RETCODE
 from slim.tools.test import invoke_interface, make_mocked_request
 

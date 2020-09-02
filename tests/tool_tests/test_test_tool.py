@@ -1,8 +1,8 @@
 import pytest
-from peewee import Model, BlobField, TextField
+from peewee import Model, TextField
 
 from slim.retcode import RETCODE
-from slim.support.peewee import PeeweeView
+from slim.view import PeeweeView
 from slim.tools.test import invoke_interface, app_create, get_peewee_db
 
 pytestmark = [pytest.mark.asyncio]

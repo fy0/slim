@@ -6,8 +6,8 @@ from schematics import Model
 
 if TYPE_CHECKING:
     from slim.base.view import BaseView
-    from slim.base.staticfile import StaticFileResponder
-    from slim.base.ws import WebSocket
+    from slim.base.web.staticfile import StaticFileResponder
+    from slim.base.web.ws import WebSocket
 
 
 @dataclass
