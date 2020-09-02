@@ -52,7 +52,8 @@ async def test_on_finish():
     async def send(message):
         pass
 
-    view = await app(req.scope, req.receive, send, raise_for_resp=True)
+    await app(req.scope, req.receive, send, raise_for_resp=True)
+    view = app._last_view
     assert view.aaa == 2
 
 

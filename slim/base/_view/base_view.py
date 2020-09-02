@@ -235,7 +235,7 @@ class BaseView(HTTPMixin, metaclass=MetaClassForInit):
                 if self.response.written > 200:
                     logger.debug('finish: json (%d bytes)' % self.response.written)
                 else:
-                    logger.debug('finish: json, %s' % json.dumps(self.ret_val))
+                    logger.debug('finish: json, %s' % json_ex_dumps(self.ret_val))
             elif isinstance(self.response, FileResponse):
                 logger.debug('finish: file (%d bytes)' % self.response.written)
             else:

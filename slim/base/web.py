@@ -356,6 +356,7 @@ async def handle_request(app: 'Application', scope: Scope, receive: Receive, sen
                         # build a view instance
                         view = await route_info.view_cls._build(app, request)
                         view._route_info = call_kwargs
+                        app._last_view = view
 
                         if isinstance(view, AbstractSQLView):
                             view.current_interface = route_info.builtin_interface

@@ -83,13 +83,14 @@ class Application:
         self.options.cookies_secret = cookies_secret
         self.options.session_cls = session_cls
         self.client_max_size = client_max_size
+        self._last_view = None  # use for tests
         self._last_resp = None  # use for tests
 
     def prepare(self):
         self.route._bind()
 
     async def __call__(self, scope, receive, send, *, raise_for_resp=False):
-        return await handle_request(self, scope, receive, send, raise_for_resp=raise_for_resp)
+        await handle_request(self, scope, receive, send, raise_for_resp=raise_for_resp)
 
     def set_user_mixin_class(self, cls: Type[BaseUserViewMixin]):
         self.user_mixin_class = cls
