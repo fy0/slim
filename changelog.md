@@ -1,4 +1,13 @@
 
+#### 0.6.1 update 2020.09.04
+
+* Changed: `app` is required for `timer`.
+
+* Fixed: `timer` not works.
+
+* Fixed: `doc_serve` cause exception.
+
+
 #### 0.6.0 update 2020.09.02
 
 * Added: `app.route.get` `app.route.post`

@@ -310,6 +310,13 @@ async def handle_request(app: 'Application', scope: Scope, receive: Receive, sen
                     app.prepare()
                     for func in app.on_startup:
                         await async_call(func)
+                    app.running = True
+
+                    # start timer
+                    for interval_seconds, runner in app._timers_before_running:
+                        loop = asyncio.get_event_loop()
+                        loop.call_later(interval_seconds, runner)
+
                     await send({'type': 'lifespan.startup.complete'})
                 except Exception:
                     traceback.print_exc()

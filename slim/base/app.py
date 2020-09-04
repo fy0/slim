@@ -46,6 +46,7 @@ class Application:
         from .route import Route
         from .permission import Permissions, Ability, ALL_PERMISSION, EMPTY_PERMISSION
 
+        self.running = False
         self.on_startup = []
         self.on_shutdown = []
 
@@ -83,6 +84,8 @@ class Application:
         self.options.cookies_secret = cookies_secret
         self.options.session_cls = session_cls
         self.client_max_size = client_max_size
+
+        self._timers_before_running = []
         self._last_view = None  # use for tests
         self._last_resp = None  # use for tests
 
