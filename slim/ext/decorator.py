@@ -1,5 +1,6 @@
 import functools
 import logging
+import time
 from asyncio import Future
 from typing import TYPE_CHECKING, Type, Union, Iterable
 
@@ -12,6 +13,7 @@ from ..retcode import RETCODE
 
 if TYPE_CHECKING:
     from ..base.view import BaseView, AbstractSQLView
+    from .. import Application
 
 
 logger = logging.getLogger(__name__)
@@ -157,20 +159,30 @@ def must_be_role(role=None):
     return _role_decorator(role, role_check_func)
 
 
-def timer(interval_seconds, *, exit_when):
+def timer(interval_seconds, app: 'Application', *, exit_when, loop=None):
     """
     Set up a timer
+    :param app:
     :param interval_seconds:
     :param exit_when:
+    :param loop:
     :return:
     """
-    loop = get_ioloop()
+    from ..base.app import Application
+    assert isinstance(app, Application), 'app must be `Application`'
+
+    if app.running:
+        loop = loop or asyncio.get_event_loop()
 
     def wrapper(func):
         @functools.wraps(func)
         def runner():
+            nonlocal loop
             if exit_when and exit_when():
                 return
+
+            if not loop:
+                loop = loop or asyncio.get_event_loop()
 
             loop.call_later(interval_seconds, runner)
 
@@ -179,8 +191,11 @@ def timer(interval_seconds, *, exit_when):
             else:
                 func()
 
-        loop.call_later(interval_seconds, runner)
         _decorator_fix(runner, func)
+        if loop:
+            loop.call_later(interval_seconds, runner)
+        else:
+            app._timers_before_running.append([interval_seconds, runner])
         return func
 
     return wrapper

@@ -51,7 +51,7 @@ def doc_serve(app: 'Application'):
     </select>
 </div>''' % options
 
-        request.finish_raw(body='''
+        request.finish_raw(data='''
 <!DOCTYPE html>
 <html>
   <head>
