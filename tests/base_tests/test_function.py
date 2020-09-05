@@ -2,7 +2,7 @@ from typing import Type
 
 import pytest
 from slim import Application
-from slim.base._view.request_view import RequestView
+from slim.base.view import RequestView
 from slim.base.user import BaseUser, BaseUserViewMixin
 from slim.retcode import RETCODE
 from slim.tools.test import invoke_interface
