@@ -4,6 +4,7 @@ import re
 import string
 import sys
 import time
+from datetime import date
 from typing import Optional
 
 from .async_run import *
@@ -86,4 +87,11 @@ class JSONParser:
     def __new__(cls, val):
         if isinstance(val, str):
             return json.loads(val)
+        return val
+
+
+class DateParser:
+    def __new__(cls, val):
+        if isinstance(val, date):
+            return str(val)
         return val

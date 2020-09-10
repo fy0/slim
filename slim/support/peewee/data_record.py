@@ -37,6 +37,8 @@ class PeeweeDataRecord(DataRecord):
                 name = name + '_id'
             elif isinstance(fields[name], peewee.BlobField):
                 v = get_bytes_from_blob(v)
+            elif isinstance(fields[name], peewee.DateField):
+                v = str(v)
             if self.selected != ALL_COLUMNS and (self.selected and (name not in self.selected)):
                 continue
             data[name] = v
