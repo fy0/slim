@@ -88,10 +88,3 @@ class JSONParser:
         if isinstance(val, str):
             return json.loads(val)
         return val
-
-
-class DateParser:
-    def __new__(cls, val):
-        if isinstance(val, date):
-            return str(val)
-        return val
