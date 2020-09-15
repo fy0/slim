@@ -39,6 +39,10 @@ class PeeweeDataRecord(DataRecord):
                 v = get_bytes_from_blob(v)
             elif isinstance(fields[name], peewee.DateField):
                 v = str(v)
+            elif isinstance(fields[name], peewee.DecimalField):
+                v = float(v)
+            elif isinstance(fields[name], peewee.DateTimeField):
+                v = str(v)
             if self.selected != ALL_COLUMNS and (self.selected and (name not in self.selected)):
                 continue
             data[name] = v
