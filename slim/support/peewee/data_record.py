@@ -51,3 +51,4 @@ class PeeweeDataRecord(DataRecord):
             return dict_filter(data, self.available_columns)
 
         return data
+
