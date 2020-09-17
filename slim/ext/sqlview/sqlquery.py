@@ -1,6 +1,5 @@
 import json
 import logging
-import traceback
 from enum import Enum
 from typing import Union, Iterable, List, TYPE_CHECKING, Dict, Set, Mapping
 from typing_extensions import Literal
@@ -11,14 +10,14 @@ from schematics.types import BaseType, ListType
 from slim.base.const import ERR_TEXT_ROGUE_FIELD, ERR_TEXT_COLUMN_IS_NOT_FOREIGN_KEY
 from slim.base.types.func_meta import get_meta
 from slim.utils.schematics_ext import schematics_model_merge
-from slim.utils import BlobParser, JSONParser, dict_filter, dict_filter_inplace, BoolParser
-from slim.exception import SyntaxException, ResourceException, InvalidParams, \
+from slim.utils import dict_filter, dict_filter_inplace
+from slim.exception import ResourceException, InvalidParams, \
     PermissionDenied, ColumnNotFound, ColumnIsNotForeignKey, SQLOperatorInvalid, InvalidRole, SlimException, \
     InvalidPostData, TableNotFound
 
 if TYPE_CHECKING:
-    from slim.view import BaseView, AbstractSQLView
-    from slim.base.permission import Ability
+    from slim.view import AbstractSQLView
+    from slim.ext.permission import Ability
     from slim.base.user import BaseUser
 
 
@@ -49,7 +48,7 @@ class DataRecord:
         raise NotImplementedError()
 
     def set_info(self, info: "SQLQueryInfo", ability: "Ability", user: "BaseUser"):
-        from ...base.permission import A
+        from slim.ext.permission import A
         if info:
             self.selected = info.select
         # 注意，这里实际上读了 self.keys()，所以cache已经生成了，因此直接调用reserve
@@ -399,7 +398,7 @@ class SQLQueryInfo:
         self.check_query_permission_full(user, view.table_name, view.ability, view)
 
     def check_query_permission_full(self, user: "BaseUser", table: str, ability: "Ability", view: "AbstractSQLView", ignore_error=True):
-        from ...base.permission import A
+        from slim.ext.permission import A
 
         # QUERY 权限检查
         # QUERY 的特殊之处在于即使没有查询条件也会查出数据
@@ -650,7 +649,7 @@ class SQLValuesToWrite(dict):
             self[k] = v
 
     def check_insert_permission(self, user: "BaseUser", table: str, ability: "Ability"):
-        from ...base.permission import A
+        from slim.ext.permission import A
         columns = self.keys()
         logger.debug('request permission as %r: [%s] of table %r, columns: %s' % (ability.role, A.CREATE, table, columns))
         is_empty_input = not columns
@@ -678,7 +677,7 @@ class SQLValuesToWrite(dict):
         logger.debug("request permission successed as %r: %r" % (ability.role, list(self.keys())))
 
     def check_update_permission(self, user: "BaseUser", table: str, ability: "Ability", records):
-        from ...base.permission import A
+        from slim.ext.permission import A
         columns = self.keys()
         logger.debug('request permission as %r: [%s] of table %r, columns: %s' % (ability.role, A.WRITE, table, columns))
         available = ability.can_with_columns(user, A.WRITE, table, columns)
@@ -697,7 +696,7 @@ class SQLValuesToWrite(dict):
         logger.debug("request permission successed as %r: %r" % (ability.role, list(self.keys())))
 
     def check_write_permission(self, view: "AbstractSQLView", action, records=None):
-        from ...base.permission import A
+        from slim.ext.permission import A
         user = view.current_user if view.can_get_user else None
         if action == A.WRITE:
             self.check_update_permission(user, view.table_name, view.ability, records)
@@ -715,7 +714,7 @@ class SQLValuesToWrite(dict):
         :param records:
         :return:
         """
-        from ...base.permission import A
+        from slim.ext.permission import A
 
         # 1. 融合before_update / before_insert 的校验器，走一次过滤
         if action == A.WRITE:

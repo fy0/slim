@@ -169,7 +169,6 @@ class Route:
 
             if issubclass(view_cls, AbstractSQLView):
                 self._app.tables[view_cls.table_name] = view_cls
-            view_cls._ready()
 
         # bind functions
         for i in self._funcs:

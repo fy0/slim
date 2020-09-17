@@ -9,6 +9,7 @@ from typing import Callable, AsyncIterator, Tuple, Union, Dict, Any
 
 import aiofiles
 
+from ...utils import sentinel
 from ...utils.json_ex import json_ex_dumps
 from .. import const
 from ..types.asgi import Scope, Receive, Send
@@ -39,6 +40,8 @@ class Response:
             body = data.encode('utf-8')
         elif isinstance(data, bytes):
             body = data
+        elif data is sentinel:
+            body = b''
         else:
             raise InvalidResponse()
 
@@ -119,7 +122,8 @@ class JSONResponse(Response):
     json_dumps: FunctionType = json_ex_dumps
 
     async def get_reader(self, data) -> StreamReadFunc:
-        data = self.json_dumps(data)
+        if data is not sentinel:
+            data = self.json_dumps(data)
         return await super().get_reader(data)
 
 

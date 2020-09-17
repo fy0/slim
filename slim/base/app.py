@@ -1,42 +1,23 @@
 import logging
-from typing import Optional, TYPE_CHECKING, Type
+from typing import Optional, Type
 
 from slim.base.types.doc import ApplicationDocInfo
 from slim.ext.openapi.serve import doc_serve
 from .session import CookieSession
 from .user import BaseUserViewMixin
 from .web import CORSOptions, handle_request
-from ..utils.jsdict import JsDict
 from . import log
 
-if TYPE_CHECKING:
-    from .permission import Permissions
-
 logger = logging.getLogger(__name__)
-
-
-class SlimTables(JsDict):
-    # key: table_name
-    # value: SQLView
-    def __repr__(self):
-        return '<SlimTables ' + dict.__repr__(self) + '>'
-
-
-class ApplicationOptions:
-    def __init__(self):
-        self.cookies_secret = b'secret code'
-        self.session_cls = CookieSession
 
 
 class Application:
     def __init__(self, *, cookies_secret: bytes = b'secret code', log_level=logging.INFO, session_cls=CookieSession,
                  mountpoint: str = '/api', doc_enable=True, doc_info=ApplicationDocInfo(),
-                 permission: Optional['Permissions'] = None, client_max_size=100 * 1024 * 1024,
-                 cors_options: Optional[CORSOptions] = None):
+                 client_max_size=100 * 1024 * 1024, cors_options: Optional[CORSOptions] = None):
         """
         :param cookies_secret:
         :param log_level:
-        :param permission: `ALL_PERMISSION`, `EMPTY_PERMISSION` or a `Permissions` object
         :param session_cls:
         :param mountpoint:
         :param doc_enable:
@@ -44,7 +25,6 @@ class Application:
         :param client_max_size: 100MB
         """
         from .route import Route
-        from .permission import Permissions, Ability, ALL_PERMISSION, EMPTY_PERMISSION
 
         self.running = False
         self.on_startup = []
@@ -59,19 +39,6 @@ class Application:
         if self.doc_enable:
             doc_serve(self)
 
-        if permission is ALL_PERMISSION:
-            logger.warning('app.permission is ALL_PERMISSION, it means everyone has all permissions for any table')
-            logger.warning("This option should only be used in development environment")
-            self.permission = Permissions(self)
-            self.permission.add(None, Ability({'*': '*'}))  # everyone has all permission for all table
-        elif permission is None or permission is EMPTY_PERMISSION:
-            self.permission = Permissions(self)  # empty
-        else:
-            self.permission = permission
-            permission.app = self
-
-        self.tables = SlimTables()
-
         if log_level:
             log.enable(log_level)
 
@@ -80,9 +47,8 @@ class Application:
         else:
             self.cors_options = cors_options
 
-        self.options = ApplicationOptions()
-        self.options.cookies_secret = cookies_secret
-        self.options.session_cls = session_cls
+        self.cookies_secret = cookies_secret
+        self.session_cls = session_cls
         self.client_max_size = client_max_size
 
         self._timers_before_running = []

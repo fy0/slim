@@ -1,4 +1,4 @@
-from slim.base.permission import A, Ability, DataRecord, Permissions
+from slim.ext.permission import A, Ability
 
 ab1 = Ability({
     'user': {

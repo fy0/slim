@@ -1,6 +1,5 @@
 from permissions.roles.visitor import visitor
-from slim.base.permission import Ability, A, DataRecord
-
+from slim.ext.permission import Ability, A
 
 user = Ability({
     'user': {

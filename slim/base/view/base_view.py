@@ -15,11 +15,9 @@ from ..web.request import ASGIRequest
 from ..web.staticfile import FileField
 from ...base.view.err_catch_context import ErrorCatchContext
 from slim.utils.data_sign import create_signed_value, decode_signed_value
-from ...base.permission import Permissions
 from ...base.types.temp_storage import TempStorage
 from ...exception import InvalidPostData
 from ...ext.decorator import deprecated
-from ...retcode import RETCODE
 
 from ...utils import MetaClassForInit, async_call, sentinel, sync_call
 from ...utils.json_ex import json_ex_dumps
@@ -29,13 +27,12 @@ logger = logging.getLogger(__name__)
 
 class BaseView(HTTPMixin, metaclass=MetaClassForInit):
     """
-    Basic http sqlview object.
+    Basic http view object.
     """
     _no_route = False
 
     _route_info: Optional['RouteViewInfo']
     _interface_disable: Set[str]
-    ret_val: Optional[Dict]
 
     @classmethod
     def cls_init(cls):
@@ -46,10 +43,6 @@ class BaseView(HTTPMixin, metaclass=MetaClassForInit):
         """ interface unregister"""
         cls._interface_disable.add(name)
 
-    @property
-    def permission(self) -> Permissions:
-        return self.app.permission
-
     @classmethod
     def _on_bind(cls, route):
         pass
@@ -57,7 +50,6 @@ class BaseView(HTTPMixin, metaclass=MetaClassForInit):
     def __init__(self, app: Application = None, req: ASGIRequest = None):
         super().__init__(app, req)
 
-        self.ret_val = None
         self.response: Optional[Response] = None
         self.session = None
 
@@ -69,7 +61,7 @@ class BaseView(HTTPMixin, metaclass=MetaClassForInit):
     @classmethod
     async def _build(cls, app, request: ASGIRequest, *, _hack_func=None) -> 'BaseView':
         """
-        Create a sqlview, and bind request data
+        Create a view, and bind request data
         :return:
         """
         view = cls(app, request)
@@ -114,49 +106,6 @@ class BaseView(HTTPMixin, metaclass=MetaClassForInit):
 
     async def on_finish(self):
         pass
-
-    @property
-    def retcode(self):
-        if self.is_finished:
-            return self.ret_val['code']
-
-    def finish(self, code: int, data=sentinel, msg=sentinel, *, headers=None):
-        """
-        Set response as {'code': xxx, 'data': xxx}
-        :param code: Result code
-        :param data: Response data
-        :param msg: Message, optional
-        :param headers: Response header
-        :return:
-        """
-        if data is sentinel:
-            data = RETCODE.txt_cn.get(code, None)
-        if msg is sentinel and code != RETCODE.SUCCESS:
-            msg = RETCODE.txt_cn.get(code, None)
-        body = {'code': code, 'data': data}  # for access in inhreads method
-        if msg is not sentinel:
-            body['msg'] = msg
-
-        self.ret_val = body
-        self.response = JSONResponse(data=body, json_dumps=json_ex_dumps, headers=headers, cookies=self._cookie_set)
-
-    def finish_json(self, data: Any, *, status: int = 200, headers=None):
-        self.ret_val = data
-        self.response = JSONResponse(data=data, json_dumps=json_ex_dumps, headers=headers, status=status,
-                                     cookies=self._cookie_set)
-
-    def finish_raw(self, data: Union[bytes, str, StreamReadFunc] = b'', status: int = 200, content_type: str = 'text/plain', *,
-                   headers=None):
-        """
-        Set raw response
-        :param headers:
-        :param data:
-        :param status:
-        :param content_type:
-        :return:
-        """
-        self.ret_val = data
-        self.response = Response(data=data, status=status, content_type=content_type, headers=headers, cookies=self._cookie_set)
 
     async def post_data(self) -> "Optional[Mapping[str, Union[str, bytes, 'FileField']]]":
         """
@@ -258,11 +207,11 @@ class BaseView(HTTPMixin, metaclass=MetaClassForInit):
         # version, utctime, name, value
         # assert isinatance(value, (str, list, tuple, bytes, int))
         to_sign = [1, timestamp, name, value]
-        secret = self.app.options.cookies_secret
+        secret = self.app.cookies_secret
         self.set_cookie(name, create_signed_value(secret, to_sign), max_age=max_age, httponly=httponly)
 
     def get_secure_cookie(self, name, default=None, max_age_days=31):
-        secret = self.app.options.cookies_secret
+        secret = self.app.cookies_secret
         value = self.get_cookie(name)
         if value:
             data = decode_signed_value(secret, value)
@@ -270,30 +219,3 @@ class BaseView(HTTPMixin, metaclass=MetaClassForInit):
             if data and data[2] == name:
                 return data[3]
         return default
-
-    def set_header(self):
-        pass
-
-    @property
-    @deprecated('deprecated, use function arguments to instead')
-    def route_info(self):
-        """
-        info matched by router
-        :return:
-        """
-        return self._legacy_route_info_cache
-
-    @classmethod
-    def _ready(cls):
-        """ private version of cls.ready() """
-        sync_call(cls.ready)
-
-    @classmethod
-    def ready(cls):
-        """
-        All modules loaded, and ready to serve.
-        Emitted after register routes and before loop start
-        :return:
-        """
-        pass
-

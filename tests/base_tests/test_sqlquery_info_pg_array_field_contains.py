@@ -3,7 +3,7 @@ from peewee import Model, BlobField
 from playhouse.postgres_ext import ArrayField
 
 from slim import Application
-from slim.base.permission import Ability
+from slim.ext.permission import Ability
 from slim.ext.sqlview.sqlquery import SQLQueryInfo, SQL_OP
 from slim.exception import InvalidParams
 from slim.view import PeeweeView

@@ -2,7 +2,7 @@ import os
 
 from permissions.roles import *
 from permissions.tables._vars import add_post_visible_limit
-from slim.base.permission import Ability, A, DataRecord
+from slim.ext.permission import Ability, A, DataRecord
 from slim.ext.sqlview.sqlquery import SQLQueryInfo, SQL_OP
 from slim.utils import get_bytes_from_blob
 

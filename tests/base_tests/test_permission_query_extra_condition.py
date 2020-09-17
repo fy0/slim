@@ -1,6 +1,6 @@
 import pytest
 
-from slim.base.permission import A, Ability
+from slim.ext.permission import A, Ability
 from slim.ext.sqlview.sqlquery import SQLQueryInfo, SQL_OP
 from slim.exception import PermissionDenied
 

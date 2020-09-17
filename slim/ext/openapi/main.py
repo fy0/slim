@@ -6,13 +6,10 @@ from slim.base.types import BuiltinInterface
 from slim.base.types.route_meta_info import RouteInterfaceInfo
 from slim.base.types.func_meta import FuncMeta
 from slim.base.user import BaseUserViewMixin
-from slim.retcode import RETCODE
 from slim.utils.schematics_ext import schematics_field_to_schema, schematics_model_to_json_schema, field_metadata_assign
 
 if TYPE_CHECKING:
     from slim import Application
-    from slim.base.view import BaseView, AbstractSQLView
-
 
 paginate_schema = {
     "type": "object",
@@ -130,8 +127,8 @@ class OpenAPIGenerator:
         return val
 
     def _sql_views_check(self):
-        from slim.base.permission import Ability, A
-        from slim.view import BaseView, AbstractSQLView
+        from slim.ext.permission import Ability, A
+        from slim.view import AbstractSQLView
         app = self.app
 
         for vi in app.route._views:
@@ -186,7 +183,7 @@ class OpenAPIGenerator:
                 return request_body_schema
 
     def _build_paths(self):
-        from slim.view import BaseView, AbstractSQLView
+        from slim.view import AbstractSQLView
         paths = {}
 
         def returning_wrap(items_schema):

@@ -17,7 +17,7 @@ from slim.exception import SlimException, PermissionDenied, FinishQuitException,
 
 from slim.ext.sqlview.sqlquery import SQLQueryInfo, SQLForeignKey, SQLValuesToWrite, ALL_COLUMNS, PRIMARY_KEY, SQL_OP
 from slim.base.app import Application
-from slim.base.permission import A, DataRecord
+from slim.ext.permission import A, DataRecord
 from slim.ext.sqlview.sqlfuncs import AbstractSQLFunctions
 from slim.retcode import RETCODE
 from slim.utils.cls_property import classproperty

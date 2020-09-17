@@ -1,6 +1,6 @@
 # coding: utf-8
 from typing import Set
-from slim.base.permission import A, Ability, DataRecord, Permissions
+from slim.ext.permission import A, Ability, DataRecord, Permissions
 
 ab = Ability({
     # 测试不带通配的权限

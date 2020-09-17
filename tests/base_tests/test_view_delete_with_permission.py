@@ -2,7 +2,7 @@ import time
 
 import pytest
 
-from slim.base.permission import Ability, A
+from slim.ext.permission import Ability, A
 from slim.retcode import RETCODE
 from slim.view import PeeweeView
 from peewee import *

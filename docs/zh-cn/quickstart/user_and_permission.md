@@ -109,7 +109,7 @@ class A:
 下面是一个示例：
 
 ```python
-from slim.base.permission import Ability, A, DataRecord
+from slim.ext.permission import Ability, A, DataRecord
 
 visitor = Ability({
     'test': {

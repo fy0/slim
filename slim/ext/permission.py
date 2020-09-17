@@ -4,7 +4,7 @@ from typing import Dict, Tuple, TYPE_CHECKING, Optional, List, Set, Iterable, Un
 
 from slim.ext.sqlview.sqlquery import SQLQueryInfo
 from slim.ext.sqlview.sqlfuncs import DataRecord
-from .user import BaseUser
+from slim.base.user import BaseUser
 
 if TYPE_CHECKING:
     from slim.ext.sqlview.sqlquery import SQLQueryInfo
