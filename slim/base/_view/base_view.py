@@ -400,6 +400,9 @@ class BaseView(HTTPMixin, metaclass=MetaClassForInit):
                 return data[3]
         return default
 
+    def set_header(self):
+        pass
+
     @property
     @deprecated('deprecated, use function arguments to instead')
     def route_info(self):

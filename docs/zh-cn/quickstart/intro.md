@@ -15,9 +15,9 @@
 pip3 install slim
 ```
 
-## 极简示例 - HTTP服务
+## 示例 - HTTP服务
 
-> slim 可以当做一个常规的web框架来使用，他拥有主流而简单的API设计。
+> slim 拥有主流而简单的API设计。
 
 其一：函数形式的请求处理器
 
@@ -81,7 +81,7 @@ if __name__ == '__main__':
 ```
 
 
-## 极简示例 - SQLView
+## 示例 - SQLView
 
 > 你可以将一个SQL数据表立即映射出数个CURD API。
 
@@ -96,7 +96,7 @@ from playhouse.db_url import connect
 from slim import Application, CORSOptions, ALL_PERMISSION, EMPTY_PERMISSION
 from slim.support.peewee import PeeweeView
 
-
+# 创建数据库
 db = connect("sqlite:///database.db")
 
 
@@ -111,15 +111,13 @@ class Topic(Model):
 db.connect()
 db.create_tables([Topic], safe=True)
 
-
+# 创建APP对象
 app = Application(
-    cookies_secret=b'cookies secret',
     permission=ALL_PERMISSION,
-    cors_options=CORSOptions('*', allow_credentials=True, expose_headers="*", allow_headers="*"),
-    client_max_size=1000*1024*1024
+    cors_options=CORSOptions('*', allow_credentials=True, expose_headers="*", allow_headers="*")
 )
 
-
+# 映射SQL表，其model为Topic
 @app.route.view('topic')
 class TopicView(PeeweeView):
     model = Topic
