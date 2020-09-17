@@ -4,8 +4,6 @@
 
 这份文档会展示 slim 在开发中用到的大多数功能。
 
-我本来写了一些东西来阐述 slim 的设计思路，不过还是觉得没有必要特意去讲，因为实际的代码会更加直观。
-
 我们将会创建一个简单的 Web 后端程序，包含若干个API，用于对一个数据表进行增删改查操作。
 
 
@@ -17,7 +15,75 @@
 pip3 install slim
 ```
 
-## 极简示例
+## 示例 - HTTP服务
+
+> slim 拥有主流而简单的API设计。
+
+其一：函数形式的请求处理器
+
+```python
+from slim import Application
+from slim.base.view import RequestView
+from slim.retcode import RETCODE
+
+
+app = Application(mountpoint='/api')
+
+@app.route.get()
+def test(request: RequestView):
+    return {'code': RETCODE.SUCCESS, 'data': 'ok'}
+
+@app.route.get('test/2')
+def test2(request: RequestView):
+    request.finish(RETCODE.SUCCESS, 'another ok')
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=9999)
+```
+
+访问接口：
+
+```bash
+> curl http://127.0.0.1:9999/api/test
+{"code": 0, "data": "ok"}
+
+> curl http://127.0.0.1:9999/api/test/2
+{"code": 0, "data": "another ok"}
+```
+
+其二：View 形式的请求处理器
+
+```python
+from slim import Application
+from slim.base.view import BaseView
+from slim.retcode import RETCODE
+
+
+app = Application(mountpoint='/api')
+
+
+@app.route.view('index')
+class IndexView(BaseView):
+    @app.route.interface('GET')
+    def hello(self):
+        self.finish(RETCODE.SUCCESS, 'ok')
+
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=9999)
+```
+
+访问接口：
+
+```bash
+> curl http://127.0.0.1:9999/api/index/hello
+{"code": 0, "data": "ok"}
+```
+
+
+## 示例 - SQLView
+
+> 你可以将一个SQL数据表立即映射出数个CURD API。
 
 ```bash
 pip3 install slim peewee
@@ -30,7 +96,7 @@ from playhouse.db_url import connect
 from slim import Application, CORSOptions, ALL_PERMISSION, EMPTY_PERMISSION
 from slim.ext.view.support import PeeweeView
 
-
+# 创建数据库
 db = connect("sqlite:///database.db")
 
 
@@ -45,15 +111,13 @@ class Topic(Model):
 db.connect()
 db.create_tables([Topic], safe=True)
 
-
+# 创建APP对象
 app = Application(
-    cookies_secret=b'cookies secret',
     permission=ALL_PERMISSION,
-    cors_options=CORSOptions('*', allow_credentials=True, expose_headers="*", allow_headers="*"),
-    client_max_size=1000*1024*1024
+    cors_options=CORSOptions('*', allow_credentials=True, expose_headers="*", allow_headers="*")
 )
 
-
+# 映射SQL表，其model为Topic
 @app.route.view('topic')
 class TopicView(PeeweeView):
     model = Topic

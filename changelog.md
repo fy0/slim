@@ -1,4 +1,9 @@
 
+#### 0.6.2 update 2020.09.17
+
+* Added: peewee date & datetime field support
+
+
 #### 0.6.1 update 2020.09.04
 
 * Changed: `app` is required for `timer`.
