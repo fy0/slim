@@ -1,0 +1,69 @@
+[tool.poetry]
+name = "slim"
+version = "0.7.0a1"
+description = "A Simple ASGI Web framework"
+authors = ["fy <fy0748@gmail.com>"]
+license = "Zlib"
+
+readme = 'README.md'
+homepage = 'https://github.com/fy0/slim'
+
+keywords = [
+    'slim',
+    'asyncio',
+    'web framework',
+    'asgi'
+]
+
+classifiers = [
+    'Topic :: Internet :: WWW/HTTP',
+    'Topic :: Internet :: WWW/HTTP :: HTTP Servers',
+    'Topic :: Software Development :: Libraries :: Python Modules',
+
+    'Framework :: AsyncIO',
+    'License :: OSI Approved :: zlib/libpng License',
+    'Operating System :: OS Independent',
+
+    'Programming Language :: Python',
+    'Programming Language :: Python :: 3 :: Only',
+    'Programming Language :: Python :: 3.6',
+    'Programming Language :: Python :: 3.7',
+    'Programming Language :: Python :: 3.8'
+]
+
+packages = [
+    { include = "slim" },
+    { include = "slim_cli" }
+]
+
+include = [
+    'README.md',
+    'LICENSE'
+]
+
+[tool.poetry.urls]
+"Bug Tracker" = "https://github.com/fy0/slim/issues"
+
+[tool.poetry.scripts]
+slim = 'slim_cli.main:cli'
+
+[tool.poetry.dependencies]
+python = ">=3.6.9"
+typing_extensions = ">=3.6.5"
+multidict = ">=4.5,<6.0"
+yarl = ">=1.0,<1.5"
+uvicorn = ">0.11.0,<0.13.0"
+click = ">=7.0,<8.0"
+aiofiles = ">=0.4.0,<0.6"
+python-multipart = "^0.0.5"
+msgpack = "^1.0.0"
+pycurd = "^0.1.0"
+
+[tool.poetry.dev-dependencies]
+pytest = ">=5.2"
+pytest-cov = "^2.10.1"
+pytest-asyncio = "^0.14.0"
+
+[build-system]
+requires = ["poetry>=0.12"]
+build-backend = "poetry.masonry.api"
