@@ -117,7 +117,6 @@ class Route:
 
     def _bind(self):
         from .view.request_view import RequestView
-        from slim.view import AbstractSQLView
 
         def add_to_url_mapping(_meta, _fullpath):
             um = self._url_mappings
@@ -167,8 +166,8 @@ class Route:
                         add_to_url_mapping(meta, fullpath)
                         self._funcs_meta.append(meta)
 
-            if issubclass(view_cls, AbstractSQLView):
-                self._app.tables[view_cls.table_name] = view_cls
+            # if issubclass(view_cls, AbstractSQLView):
+            #     self._app.tables[view_cls.table_name] = view_cls
 
         # bind functions
         for i in self._funcs:

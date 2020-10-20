@@ -1,7 +1,7 @@
 from typing import Type, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .abstract_sql_view import AbstractSQLView
+    from .abstract_sql_view1 import AbstractSQLView
 
 
 class SQLViewOptions:

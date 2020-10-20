@@ -26,7 +26,6 @@ async def handle_request(app: 'Application', scope: Scope, receive: Receive, sen
     :param send:
     :return:
     """
-    from ...view import AbstractSQLView
     from ..view.validate import view_validate_check
 
     if scope['type'] == 'lifespan':
@@ -93,8 +92,8 @@ async def handle_request(app: 'Application', scope: Scope, receive: Receive, sen
                         view._route_info = call_kwargs
                         app._last_view = view
 
-                        if isinstance(view, AbstractSQLView):
-                            view.current_interface = route_info.builtin_interface
+                        # if isinstance(view, AbstractSQLView):
+                        #     view.current_interface = route_info.builtin_interface
 
                         # make the method bounded
                         handler = route_info.handler.__get__(view)

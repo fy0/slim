@@ -1,4 +1,1 @@
 slim==SLIM_VERSION
-aiohttp>=3
-peewee==3.13.1
-msgpack==1.0.0
