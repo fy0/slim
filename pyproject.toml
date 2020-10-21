@@ -5,7 +5,7 @@ description = "A Simple ASGI Web framework"
 authors = ["fy <fy0748@gmail.com>"]
 license = "Zlib"
 
-readme = '../README.md'
+# readme = 'README.md'
 homepage = 'https://github.com/fy0/slim'
 
 keywords = [
