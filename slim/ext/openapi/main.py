@@ -2,10 +2,10 @@
 from copy import deepcopy
 from typing import Type, TYPE_CHECKING
 
-from slim.base.types import BuiltinInterface
 from slim.base.types.route_meta_info import RouteInterfaceInfo
 from slim.base.types.func_meta import FuncMeta
 from slim.base.user import BaseUserViewMixin
+from slim.ext.crud_view.inner_interface_name import BuiltinInterface
 from slim.utils.schematics_ext import schematics_field_to_schema, schematics_model_to_json_schema, field_metadata_assign
 
 if TYPE_CHECKING:

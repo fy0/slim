@@ -1,5 +1,6 @@
 import json
-from slim.ext.sqlview.sqlquery import DataRecord
+
+from pycurd.crud.query_result_row import QueryResultRow
 from .binhex import to_hex
 
 
@@ -10,7 +11,7 @@ def json_ex_default(o):
         return to_hex(o)
     elif isinstance(o, set):
         return list(o)
-    elif isinstance(o, DataRecord):
+    elif isinstance(o, QueryResultRow):
         return o.to_dict()
 
 

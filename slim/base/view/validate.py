@@ -3,13 +3,12 @@ from typing import Optional, Type, TYPE_CHECKING, List, Tuple
 from schematics import Model
 from schematics.exceptions import DataError
 
-from slim.base.types import BuiltinInterface
 from slim.exception import InvalidParams, InvalidPostData, InvalidHeaders
 from .err_catch_context import ErrorCatchContext
+from ...ext.crud_view.inner_interface_name import BuiltinInterface
 
 if TYPE_CHECKING:
     from slim.base.view.base_view import BaseView
-
 
 async def view_validate_check(view: "BaseView", va_query: Optional[Type[Model]], va_post: Optional[Type[Model]],
                               va_headers: Optional[Type[Model]] = None, va_write_value: Type[Model] = None):

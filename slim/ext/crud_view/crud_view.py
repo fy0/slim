@@ -1,10 +1,12 @@
-from typing import Tuple, Type
+from typing import Tuple, Type, Optional
 
 from multidict import istr
-from pycurd.crud.base_crud import BaseCrud
+from pycurd.crud.base_crud import BaseCrud, PermInfo
+from pycurd.permission import RoleDefine
 from pycurd.query import QueryInfo
 from pycurd.types import RecordMapping
 from pycurd.values import ValuesToWrite
+from slim.base.route import Route
 
 from slim.base.view.base_view import BaseView
 from slim.exception import InvalidParams, InvalidPostData
@@ -30,10 +32,11 @@ class _CrudViewUtils(BaseView):
         return 1
 
     def _get_list_page_and_size(self, page, client_size) -> Tuple[int, int]:
-        page = page.strip()
+        if isinstance(page, str):
+            page = page.strip()
+            if not page.isdigit():
+                raise InvalidParams("`page` is not a number")
 
-        if not page.isdigit():
-            raise InvalidParams("`page` is not a number")
         page = int(page)
 
         if self.LIST_ACCEPT_SIZE_FROM_CLIENT and client_size:
@@ -60,14 +63,14 @@ class _CrudViewUtils(BaseView):
 
     async def _get_query_data(self):
         post = await self.post_data()
-        if '$query' in post:
+        if post and '$query' in post:
             return post.get('$query')
         return self.params
 
 
 class CrudView(_CrudViewUtils):
     crud: BaseCrud = None
-    table: Type[RecordMapping] = None
+    model: Type[RecordMapping] = None
 
     LIST_PAGE_SIZE = 20  # list 单次取出的默认大小，若为-1取出所有
     LIST_PAGE_SIZE_CLIENT_LIMIT = None  # None 为与LIST_PAGE_SIZE相同，-1 为无限
@@ -76,42 +79,53 @@ class CrudView(_CrudViewUtils):
     is_base_class = True  # skip cls_init check
 
     def __init_subclass__(cls, **kwargs):
-        if not cls.is_base_class:
+        if getattr(cls, 'is_base_class', False):
             assert cls.crud is not None
-            assert cls.table is not None
+            assert cls.model is not None
+
+    @property
+    def current_role(self) -> Optional[RoleDefine]:
+        if self.crud.permission:
+            return self.crud.permission.get(self.current_request_role)
+
+    async def get_perm_info(self):
+        role = self.current_role
+        if not role:
+            raise PermissionError()
+        return PermInfo(True, self.current_user, self.current_role)
 
     async def get(self):
-        qi = QueryInfo.from_json(self.table, await self._get_query_data())
+        qi = QueryInfo.from_json(self.model, await self._get_query_data())
         qi.limit = 1
-        lst = await self.crud.get_list_with_foreign_keys(qi, self.crud.permission)
+        lst = await self.crud.get_list_with_foreign_keys(qi, await self.get_perm_info())
         if lst:
             return lst[0].to_dict()
 
     async def list(self):
-        page, size = self._get_list_page_and_size(self.params.get('page'), self.params.get('size'))
-        qi = QueryInfo.from_json(self.table, await self._get_query_data())
+        page, size = self._get_list_page_and_size(self.params.get('page', 1), self.params.get('size', -1))
+        qi = QueryInfo.from_json(self.model, await self._get_query_data())
         qi.offset = size * (page - 1)
         qi.limit = size
-        lst = await self.crud.get_list_with_foreign_keys(qi, self.crud.permission)
+        lst = await self.crud.get_list_with_foreign_keys(qi, await self.get_perm_info())
         return [x.to_dict() for x in lst]
 
     async def delete(self):
-        qi = QueryInfo.from_json(self.table, await self._get_query_data())
-        qi.limit = 1
-        lst = await self.crud.delete_with_perm(qi, perm=self.crud.permission)
+        qi = QueryInfo.from_json(self.model, await self._get_query_data())
+        qi.limit = self._bulk_num()
+        lst = await self.crud.delete_with_perm(qi, perm=await self.get_perm_info())
         return lst
 
     async def update(self):
-        qi = QueryInfo.from_json(self.table, await self._get_query_data())
+        qi = QueryInfo.from_json(self.model, await self._get_query_data())
         qi.limit = self._bulk_num()
-        values = ValuesToWrite(self.table, await self.post_data())
-        lst = await self.crud.update_with_perm(qi, values, await self.is_returning(), perm=self.crud.permission)
+        values = ValuesToWrite(self.model, await self.post_data())
+        lst = await self.crud.update_with_perm(qi, values, await self.is_returning(), perm=await self.get_perm_info())
         return lst
 
     async def insert(self):
-        values = [ValuesToWrite(self.table, await self.post_data(), check_insert=True)]
+        values = [ValuesToWrite(self.model, await self.post_data(), check_insert=True)]
         rtn = await self.is_returning()
-        lst = await self.crud.insert_many_with_perm(self.table, values, rtn, perm=self.crud.permission)
+        lst = await self.crud.insert_many_with_perm(self.model, values, rtn, perm=await self.get_perm_info())
         return lst
 
     async def bulk_insert(self):
@@ -121,8 +135,20 @@ class CrudView(_CrudViewUtils):
 
         values_lst = []
         for i in post['items']:
-            values_lst.append(ValuesToWrite(self.table, i, check_insert=True))
+            values_lst.append(ValuesToWrite(self.model, i, check_insert=True))
 
         rtn = await self.is_returning()
-        lst = await self.crud.insert_many_with_perm(self.table, values_lst, rtn, perm=self.crud.permission)
+        lst = await self.crud.insert_many_with_perm(self.model, values_lst, rtn, perm=await self.get_perm_info())
         return lst
+
+    @classmethod
+    def _on_bind(cls, route: Route):
+        super()._on_bind(route)
+
+        # register interface
+        route.get(summary='获取单项')(cls.get)
+        route.get(summary='获取列表', url='list')(cls.list) # /:page/:size?
+        route.post(summary='更新')(cls.update)
+        route.post(summary='新建')(cls.insert)
+        route.post(summary='批量新建')(cls.bulk_insert)
+        route.post(summary='删除')(cls.delete)

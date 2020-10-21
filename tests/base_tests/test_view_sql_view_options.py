@@ -1,7 +1,7 @@
 from peewee import SqliteDatabase, Model, BigIntegerField, TextField
 
 from slim import Application, ALL_PERMISSION
-from slim.ext.sqlview.view_options import SQLViewOptions
+from slim.ext.crud_view.view_options import SQLViewOptions
 from slim.view import PeeweeView
 
 app = Application(cookies_secret=b'123456', permission=ALL_PERMISSION)

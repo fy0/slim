@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 from .request import ASGIRequest
 from .response import Response, JSONResponse
 from ..types.asgi import Scope, Receive, Send
-from ..types.route_meta_info import RouteStaticsInfo
+from ..types.route_meta_info import RouteStaticsInfo, RouteViewInfo
 from slim.utils import async_call
 
 logger = logging.getLogger(__name__)
@@ -36,6 +36,10 @@ async def handle_request(app: 'Application', scope: Scope, receive: Receive, sen
                     app.prepare()
                     for func in app.on_startup:
                         await async_call(func)
+
+                    for i in app.route._views:
+                        i: RouteViewInfo
+                        await i.view_cls.on_init()
 
                     app.running = True
 

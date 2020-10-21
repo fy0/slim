@@ -10,17 +10,18 @@ from unittest import mock
 from multidict import MultiDict, istr
 from peewee import SqliteDatabase
 
-from slim import Application, ALL_PERMISSION
+from slim import Application
+from slim.base.web import Response, JSONResponse
 from slim.base.web.request import ASGIRequest
 from slim.base.view.err_catch_context import ErrorCatchContext
 from slim.base.types.route_meta_info import RouteInterfaceInfo
 from slim.base.user import BaseUser
-from slim.view import BaseView, AbstractSQLView, PeeweeView
+from slim.view import BaseView
 from slim.exception import SlimException
 from slim.utils import sentinel
 
 
-def app_create(permission=ALL_PERMISSION, log_level=logging.WARN, **kwargs) -> Application:
+def app_create(permission=None, log_level=logging.WARN, **kwargs) -> Application:
     """
     Get application instance
     :param permission:
@@ -28,7 +29,7 @@ def app_create(permission=ALL_PERMISSION, log_level=logging.WARN, **kwargs) -> A
     :param kwargs:
     :return:
     """
-    app = Application(cookies_secret=b'123456', permission=permission, log_level=log_level, **kwargs)
+    app = Application(cookies_secret=b'123456', log_level=log_level, **kwargs)
     return app
 
 
@@ -101,7 +102,7 @@ def make_mocked_request(method, path: str, *, headers: Dict[str, str] = None, bo
 
 async def make_mocked_view(app, view_cls, method, url, params=None, post=sentinel, *, headers=None, user=None,
                            content_type='application/json', body: Optional[bytes] = None)\
-        -> Union[BaseView, AbstractSQLView, PeeweeView]:
+        -> Union[BaseView]:
     headers = headers or {}
     req = make_mocked_request(method, url, headers=headers, body=body)
 
@@ -205,9 +206,15 @@ async def invoke_interface(app: Application, func: FunctionType, params=None, po
         if not view.is_finished:
             # call the request handler
             if asyncio.iscoroutinefunction(handler):
-                await handler()
+                view_ret = await handler()
             else:
-                handler()
+                view_ret = handler()
+
+            if not view.response:
+                if isinstance(view_ret, Response):
+                    view.response = view_ret
+                else:
+                    view.response = JSONResponse(200, view_ret)
 
             return view
 

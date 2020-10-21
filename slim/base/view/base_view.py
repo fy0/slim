@@ -4,7 +4,7 @@ import time
 from io import BytesIO
 from typing import Set, Union, Optional, Dict, Mapping, Any
 from urllib.parse import parse_qs
-from multidict import MultiDict
+from multidict import MultiDict, istr
 from multipart import multipart
 
 from ..app import Application
@@ -78,11 +78,27 @@ class BaseView(HTTPMixin, metaclass=MetaClassForInit):
     def is_finished(self):
         return self.response is not None
 
+    @property
+    def current_role(self) -> Optional[Any]:
+        return None
+
+    @property
+    def current_request_role(self) -> Optional[str]:
+        """
+        Current role requesting by client.
+        :return:
+        """
+        return self.headers.get(istr('Role'), None)
+
     async def _prepare(self):
         await super()._prepare()
         # session_cls = self.app.options.session_cls
         # self.session = await session_cls.get_session(self)
         await async_call(self.prepare)
+
+    @classmethod
+    async def on_init(cls):
+        pass
 
     async def prepare(self):
         pass
@@ -98,7 +114,7 @@ class BaseView(HTTPMixin, metaclass=MetaClassForInit):
                 if self.response.written > 200:
                     logger.debug('finish: json (%d bytes)' % self.response.written)
                 else:
-                    logger.debug('finish: json, %s' % json_ex_dumps(self.ret_val))
+                    logger.debug('finish: json, %s' % json_ex_dumps(self.response.data))
             elif isinstance(self.response, FileResponse):
                 logger.debug('finish: file (%d bytes)' % self.response.written)
             else:
