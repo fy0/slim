@@ -79,7 +79,7 @@ class CrudView(_CrudViewUtils):
     is_base_class = True  # skip cls_init check
 
     def __init_subclass__(cls, **kwargs):
-        if getattr(cls, 'is_base_class', False):
+        if not getattr(cls, 'is_base_class', False):
             assert cls.crud is not None
             assert cls.model is not None
 
