@@ -39,7 +39,7 @@ c = PeeweeCrud({
     None: RoleDefine({
         Example: TablePerm({
             Example.id: {A.READ},
-            Example.test: {A.CREATE, A.READ, A.QUERY, A.WRITE}
+            Example.test: {A.CREATE, A.READ, A.QUERY, A.UPDATE}
         }, allow_delete=True)
     })
 }, {

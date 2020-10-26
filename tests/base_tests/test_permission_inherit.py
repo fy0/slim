@@ -6,15 +6,15 @@ ab1 = Ability({
         'nickname': (A.QUERY, A.READ),
         'password': (A.QUERY, A.READ),
     },
-    'tab1': {A.WRITE, A.QUERY},
-    '*': {A.WRITE}
+    'tab1': {A.UPDATE, A.QUERY},
+    '*': {A.UPDATE}
 })
 
 
 def test_default():
-    assert ab1.can_with_columns(None, A.WRITE, 'user', ['username', 'nickname', 'password', 'salt']) == {'salt'}
+    assert ab1.can_with_columns(None, A.UPDATE, 'user', ['username', 'nickname', 'password', 'salt']) == {'salt'}
 
-    assert ab1.can_with_columns(None, A.WRITE, 'tab1', {'username', 'nickname', 'password'}) == {'username', 'nickname', 'password'}
+    assert ab1.can_with_columns(None, A.UPDATE, 'tab1', {'username', 'nickname', 'password'}) == {'username', 'nickname', 'password'}
     assert ab1.can_with_columns(None, A.QUERY, 'tab1', {'username', 'nickname', 'password'}) == {'username', 'nickname', 'password'}
     assert ab1.can_with_columns(None, A.READ, 'tab1', {'username', 'nickname', 'password'}) == set()
 
@@ -26,15 +26,15 @@ ab2 = Ability({
         'password': (A.QUERY, A.READ),
     },
     'tab1': {A.READ},
-    '|': {A.WRITE}
+    '|': {A.UPDATE}
 })
 
 
 def test_overlay():
-    assert ab2.can_with_columns(None, A.WRITE, 'user', ['username', 'nickname', 'password', 'salt']) == {'username', 'nickname', 'password', 'salt'}
+    assert ab2.can_with_columns(None, A.UPDATE, 'user', ['username', 'nickname', 'password', 'salt']) == {'username', 'nickname', 'password', 'salt'}
 
     assert ab2.can_with_columns(None, A.READ, 'tab1', {'username', 'nickname'}) == {'username', 'nickname'}
-    assert ab2.can_with_columns(None, A.WRITE, 'tab1', {'username', 'nickname'}) == {'username', 'nickname'}
+    assert ab2.can_with_columns(None, A.UPDATE, 'tab1', {'username', 'nickname'}) == {'username', 'nickname'}
 
 
 ab3 = Ability({
@@ -44,12 +44,12 @@ ab3 = Ability({
         'password': (A.QUERY, A.READ),
     },
     '*': {A.QUERY},
-    '|': {A.WRITE}
+    '|': {A.UPDATE}
 })
 
 
 def test_both_default_and_overlay():
-    assert ab3.can_with_columns(None, A.WRITE, 'user', ['salt']) == {'salt'}
+    assert ab3.can_with_columns(None, A.UPDATE, 'user', ['salt']) == {'salt'}
     assert ab3.can_with_columns(None, A.QUERY, 'user', ['salt']) == {'salt'}
 
 

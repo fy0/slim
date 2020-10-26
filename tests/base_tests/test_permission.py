@@ -49,7 +49,7 @@ def rule1_func3(ability, user, action, record: DataRecord, available_columns: Se
 
 
 ab.add_common_check([A.CREATE, A.READ], 'rule_test1', func=rule1_func1)
-ab.add_record_check([A.WRITE], 'rule_test1', func=rule1_func2)
+ab.add_record_check([A.UPDATE], 'rule_test1', func=rule1_func2)
 ab.add_record_check([A.DELETE], 'rule_test1', func=rule1_func3)
 
 
@@ -79,15 +79,15 @@ def test_ability_column():
     for i in (A.QUERY, A.READ):
         assert ab.can_with_columns(None, i, 'article', ['title'])
 
-    for i in (A.WRITE, A.CREATE, A.DELETE):
+    for i in (A.UPDATE, A.CREATE, A.DELETE):
         assert not ab.can_with_columns(None, i, 'article', ['title'])
 
 
 def test_filter():
     assert ab.can_with_columns(None, A.QUERY, 'user', ['username', 'nickname', 'password', 'salt']) == {'username', 'nickname', 'password'}
     assert ab.can_with_columns(None, A.READ, 'user', ['username', 'nickname', 'password', 'salt']) == {'username', 'nickname', 'password'}
-    assert ab.can_with_columns(None, A.WRITE, 'user', ['username', 'nickname', 'password', 'salt']) == set()
-    assert ab.can_with_columns(None, A.WRITE, 'topic', ['id', 'title', 'author']) == {'id', 'title', 'author'}
+    assert ab.can_with_columns(None, A.UPDATE, 'user', ['username', 'nickname', 'password', 'salt']) == set()
+    assert ab.can_with_columns(None, A.UPDATE, 'topic', ['id', 'title', 'author']) == {'id', 'title', 'author'}
 
 
 class DictDataRecord(DataRecord):
@@ -122,21 +122,21 @@ def test_record_filter():
     a2r = ab.can_with_columns(None, A.READ, record2.table, record2.keys())
     a2c = ab.can_with_columns(None, A.CREATE, record2.table, record2.keys())
     a2d = ab.can_with_columns(None, A.DELETE, record2.table, record2.keys())
-    a2w = ab.can_with_columns(None, A.WRITE, record2.table, record2.keys())
+    a2w = ab.can_with_columns(None, A.UPDATE, record2.table, record2.keys())
     assert set(ab.can_with_record(None, A.READ, record2, available=a2r)) == {'a', 'b'}
     assert set(a2c) == {'a', 'b'}
     assert ab.can_with_record(None, A.DELETE, record2, available=a2d) == set()
-    assert ab.can_with_record(None, A.WRITE, record2, available=a2w) == set()
+    assert ab.can_with_record(None, A.UPDATE, record2, available=a2w) == set()
 
     assert set(ab.can_with_record(None, A.READ, record2)) == {'a', 'b'}
     assert ab.can_with_record(None, A.DELETE, record2) == set()
-    assert ab.can_with_record(None, A.WRITE, record2) == set()
+    assert ab.can_with_record(None, A.UPDATE, record2) == set()
 
 
 def test_permission_role_bug():
     p = Permissions(None)
     p.add(None, Ability({'user': {'key': (A.READ,)}}))
-    p.add('user', Ability({'user': {'key': (A.READ, A.WRITE)}}))
+    p.add('user', Ability({'user': {'key': (A.READ, A.UPDATE)}}))
     assert p.request_role(None, 'user') is None
 
 

@@ -5,8 +5,8 @@ user = Ability({
     'user': {
         '|': {A.CREATE},
 
-        'nickname': {A.READ, A.WRITE},
-        'state': {A.READ, A.WRITE},
+        'nickname': {A.READ, A.UPDATE},
+        'state': {A.READ, A.UPDATE},
     },
     'example': A.ALL
 }, based_on=visitor)

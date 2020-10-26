@@ -28,7 +28,7 @@ def check_is_me(ability, user, action, record: DataRecord, available_columns: li
     return True
 
 
-visitor.add_record_check((A.WRITE,), TABLE_NAME, func=check_is_me)
+visitor.add_record_check((A.UPDATE,), TABLE_NAME, func=check_is_me)
 
 # 不允许查询删除状态的信息
 add_post_visible_limit(TABLE_NAME)

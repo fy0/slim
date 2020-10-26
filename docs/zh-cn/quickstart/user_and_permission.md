@@ -195,9 +195,9 @@ DELETE: 要求全部列拥有 DELETE 权限，否则报错
 normal_user = Ability({
     'topic': {
         '|': {A.CREATE},
-        'title': {A.READ, A.WRITE},
+        'title': {A.READ, A.UPDATE},
         'board_id': {A.QUERY, A.READ},
-        'content': {A.READ, A.WRITE},
+        'content': {A.READ, A.UPDATE},
     },
 }, based_on=visitor)
 

@@ -162,10 +162,10 @@ class OpenAPIGenerator:
                 self.view_info[view_cls] = {
                     'sql_query_parameters': sql_query_parameters,
                     'sql_read_record_schema': get_schema_by_ability(A.READ),
-                    'sql_write_schema': get_schema_by_ability(A.WRITE),
+                    'sql_write_schema': get_schema_by_ability(A.UPDATE),
                     'sql_create_schema': get_schema_by_ability(A.CREATE),
 
-                    'sql_cant_write': len(available_columns[A.WRITE]) == 0,
+                    'sql_cant_write': len(available_columns[A.UPDATE]) == 0,
                     'sql_cant_create': len(available_columns[A.CREATE]) == 0,
                     'sql_cant_delete': len(available_columns[A.DELETE]) == 0,
                 }
