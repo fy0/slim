@@ -10,6 +10,7 @@ from slim.base.route import Route
 
 from slim.base.view.base_view import BaseView
 from slim.exception import InvalidParams, InvalidPostData
+from slim.utils import get_class_full_name
 
 
 class _CrudViewUtils(BaseView):
@@ -79,9 +80,10 @@ class CrudView(_CrudViewUtils):
     is_base_class = True  # skip cls_init check
 
     def __init_subclass__(cls, **kwargs):
-        if not getattr(cls, 'is_base_class', False):
+        if not cls.__dict__.get('is_base_class', False):
             assert cls.crud is not None
             assert cls.model is not None
+            assert issubclass(cls.model, RecordMapping), 'cls.model must be RecordMapping: %s' % get_class_full_name(cls)
 
     @property
     def current_role(self) -> Optional[RoleDefine]:
@@ -123,7 +125,7 @@ class CrudView(_CrudViewUtils):
         return lst
 
     async def insert(self):
-        values = [ValuesToWrite(self.model, await self.post_data(), check_insert=True)]
+        values = [ValuesToWrite(self.model, await self.post_data(), try_parse=True)]
         rtn = await self.is_returning()
         lst = await self.crud.insert_many_with_perm(self.model, values, rtn, perm=await self.get_perm_info())
         return lst
@@ -135,7 +137,7 @@ class CrudView(_CrudViewUtils):
 
         values_lst = []
         for i in post['items']:
-            values_lst.append(ValuesToWrite(self.model, i, check_insert=True))
+            values_lst.append(ValuesToWrite(self.model, i, try_parse=True))
 
         rtn = await self.is_returning()
         lst = await self.crud.insert_many_with_perm(self.model, values_lst, rtn, perm=await self.get_perm_info())
