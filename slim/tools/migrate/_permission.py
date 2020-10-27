@@ -1,6 +1,9 @@
 from dataclasses import dataclass
 from typing import Dict
 
+from peewee import TextField, IntegerField, BigIntegerField, BlobField, BooleanField, Field
+from playhouse.postgres_ext import ArrayField
+
 
 class A:
     QUERY = 'query'
@@ -142,6 +145,32 @@ def role_convert(role: Ability, name=None, based_on_name=None):
         print('})')
 
     print()
+
+
+def model_to_pydantic(model):
+    lst = [i for i in dir(model) if not callable(getattr(model, i))]
+    dict_ = {
+        TextField: 'str',
+        IntegerField: 'int',
+        BigIntegerField: 'int',
+        BlobField: 'bytes',
+        BooleanField: 'bool',
+        ArrayField: 'List'
+    }
+    code = f'class {getattr(model, "__name__")}(BaseModel):\n'
+    for i in lst:
+        if isinstance(getattr(model, i), Field):
+            type_ = dict_.get(type(getattr(model, i)), 'Any')
+            code += f'\t{getattr(getattr(model, i), "column_name")}: '
+            if getattr(getattr(model, i), "null"):
+                code += f'Optional[{type_}] = '
+            else:
+                code += f'{type_} = '
+            if isinstance(getattr(getattr(model, i), "default"), str):
+                code += '"%s"\n' % getattr(getattr(model, i), "default")
+            else:
+                code += f'{getattr(getattr(model, i), "default")}\n'
+    return code
 
 
 if __name__ == '__main__':
