@@ -10,7 +10,7 @@ from slim.base.route import Route
 
 from slim.base.view.base_view import BaseView
 from slim.exception import InvalidParams, InvalidPostData
-from slim.utils import get_class_full_name
+from slim.utils import get_class_full_name, pagination_calc
 
 
 class _CrudViewUtils(BaseView):
@@ -93,7 +93,7 @@ class CrudView(_CrudViewUtils):
     async def get_perm_info(self):
         role = self.current_role
         if not role:
-            raise PermissionError()
+            raise PermissionError("no role defined for %r" % self.current_request_role)
         return PermInfo(True, self.current_user, self.current_role)
 
     async def get(self):
@@ -108,8 +108,21 @@ class CrudView(_CrudViewUtils):
         qi = QueryInfo.from_json(self.model, await self._get_query_data())
         qi.offset = size * (page - 1)
         qi.limit = size
+
         lst = await self.crud.get_list_with_foreign_keys(qi, await self.get_perm_info())
         return [x.to_dict() for x in lst]
+
+    async def list_page(self):
+        page, size = self._get_list_page_and_size(self.params.get('page', 1), self.params.get('size', -1))
+        qi = QueryInfo.from_json(self.model, await self._get_query_data())
+        qi.offset = size * (page - 1)
+        qi.limit = size
+        all_count = 99999999999
+
+        lst = await self.crud.get_list_with_foreign_keys(qi, await self.get_perm_info())
+        pg = pagination_calc(size, all_count, page)
+        pg['items'] = [x.to_dict() for x in lst]
+        return pg
 
     async def delete(self):
         qi = QueryInfo.from_json(self.model, await self._get_query_data())
@@ -149,7 +162,8 @@ class CrudView(_CrudViewUtils):
 
         # register interface
         route.get(summary='获取单项')(cls.get)
-        route.get(summary='获取列表', url='list')(cls.list) # /:page/:size?
+        route.get(summary='获取列表', url='list')(cls.list)  # /:page/:size?
+        route.get(summary='获取列表(带分页)', url='list_page')(cls.list_page)
         route.post(summary='更新')(cls.update)
         route.post(summary='新建')(cls.insert)
         route.post(summary='批量新建')(cls.bulk_insert)

@@ -93,7 +93,8 @@ async def handle_request(app: 'Application', scope: Scope, receive: Receive, sen
 
                         # build a sqlview instance
                         view = await route_info.view_cls._build(app, request)
-                        view._route_info = call_kwargs
+                        view._call_kwargs = call_kwargs
+                        view._route_info = route_info
                         app._last_view = view
 
                         # if isinstance(view, AbstractSQLView):
@@ -121,6 +122,8 @@ async def handle_request(app: 'Application', scope: Scope, receive: Receive, sen
                                     else:
                                         view.response = JSONResponse(200, view_ret)
 
+                        view: BaseView
+                        await view._on_finish()
                         resp = view.response
 
             if not resp:
@@ -149,10 +152,6 @@ async def handle_request(app: 'Application', scope: Scope, receive: Receive, sen
             path = scope['path']
             if scope['query_string']:
                 path += '?' + scope['query_string'].decode('ascii')
-
-            if view:
-                view: BaseView
-                await view._on_finish()
 
             if handler_name:
                 logger.info("{} - {:15s} {:8s} {} -> {}, took {}ms".format(resp.status, scope['client'][0], scope['method'], path, handler_name, took))

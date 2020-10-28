@@ -8,7 +8,7 @@ from multidict import MultiDict, istr
 from multipart import multipart
 
 from ..app import Application
-from ..types.route_meta_info import RouteViewInfo
+from ..types.route_meta_info import RouteViewInfo, RouteInterfaceInfo
 from ..web.http_mixin import HTTPMixin
 from ..web.response import StreamReadFunc, Response, JSONResponse, FileResponse
 from ..web.request import ASGIRequest
@@ -31,7 +31,7 @@ class BaseView(HTTPMixin, metaclass=MetaClassForInit):
     """
     _no_route = False
 
-    _route_info: Optional['RouteViewInfo']
+    _route_info: Optional['RouteInterfaceInfo']
     _interface_disable: Set[str]
 
     @classmethod
