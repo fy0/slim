@@ -24,7 +24,7 @@ def import_path(path, depth=-1):
                         # modpath = os.path.abspath(fn)
                         # logger.debug('Auto load module: %s from %r' % (modname, modpath))
 
-                        logger.debug('Auto load module: %s' % (modname,))
+                        logger.info('Auto load module: %s' % (modname,))
                         importlib.import_module(modname)
                         loaded = True
                 elif os.path.isdir(fn):

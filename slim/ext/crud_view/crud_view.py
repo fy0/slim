@@ -133,12 +133,12 @@ class CrudView(_CrudViewUtils):
     async def update(self):
         qi = QueryInfo.from_json(self.model, await self._get_query_data())
         qi.limit = self._bulk_num()
-        values = ValuesToWrite(self.model, await self.post_data())
+        values = ValuesToWrite(await self.post_data(), self.model)
         lst = await self.crud.update_with_perm(qi, values, await self.is_returning(), perm=await self.get_perm_info())
         return lst
 
     async def insert(self):
-        values = [ValuesToWrite(self.model, await self.post_data(), try_parse=True)]
+        values = [ValuesToWrite(await self.post_data(), self.model, try_parse=True)]
         rtn = await self.is_returning()
         lst = await self.crud.insert_many_with_perm(self.model, values, rtn, perm=await self.get_perm_info())
         return lst
@@ -150,7 +150,7 @@ class CrudView(_CrudViewUtils):
 
         values_lst = []
         for i in post['items']:
-            values_lst.append(ValuesToWrite(self.model, i, try_parse=True))
+            values_lst.append(ValuesToWrite(i, self.model, try_parse=True))
 
         rtn = await self.is_returning()
         lst = await self.crud.insert_many_with_perm(self.model, values_lst, rtn, perm=await self.get_perm_info())

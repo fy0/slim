@@ -9,4 +9,4 @@ from . import ext
 from . import utils
 from . import view
 
-__version__ = '0.7.0a2'
+__version__ = '0.7.0a3'
