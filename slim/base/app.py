@@ -37,7 +37,7 @@ class Application:
         self.doc_info = doc_info
 
         if self.doc_enable:
-            doc_serve(self)
+            doc_serve(self, None)
 
         if log_level:
             log.enable(log_level)

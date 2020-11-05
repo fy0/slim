@@ -104,7 +104,7 @@ class OpenAPIGenerator:
         self._view_to_path = {}
         self._field_schema_cache = {}
 
-        self._sql_views_check()
+        # self._sql_views_check()
         self._build_paths()
         self._build_main()
 
@@ -127,8 +127,6 @@ class OpenAPIGenerator:
         return val
 
     def _sql_views_check(self):
-        from slim.ext.permission import Ability, A
-        from slim.view import AbstractSQLView
         app = self.app
 
         for vi in app.route._views:
@@ -183,7 +181,7 @@ class OpenAPIGenerator:
                 return request_body_schema
 
     def _build_paths(self):
-        from slim.view import AbstractSQLView
+        from slim.view import CrudView
         paths = {}
 
         def returning_wrap(items_schema):
@@ -201,7 +199,7 @@ class OpenAPIGenerator:
             path_item_object = {}
 
             view_cls = i.view_cls
-            is_sql_view = issubclass(view_cls, AbstractSQLView)
+            is_sql_view = issubclass(view_cls, CrudView)
             self._view_to_path.setdefault(view_cls, [])
 
             for method in i.methods:
@@ -252,9 +250,9 @@ class OpenAPIGenerator:
                     if self.role not in meta.interface_roles:
                         continue
 
-                if is_sql_view:
+                if False:
                     is_builtin = i.builtin_interface
-                    view_info = self.view_info[view_cls]
+                    # view_info = self.view_info[view_cls]
 
                     if is_builtin:
                         sql_query = i.va_query

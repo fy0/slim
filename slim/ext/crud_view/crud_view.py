@@ -97,41 +97,42 @@ class CrudView(_CrudViewUtils):
         return PermInfo(True, self.current_user, self.current_role)
 
     async def get(self):
-        qi = QueryInfo.from_json(self.model, await self._get_query_data())
+        qi = QueryInfo.from_json(self.model, await self._get_query_data(), from_http_query=True)
         qi.limit = 1
-        lst = await self.crud.get_list_with_foreign_keys(qi, await self.get_perm_info())
+        lst = await self.crud.get_list_with_foreign_keys(qi, perm=await self.get_perm_info())
         if lst:
             return lst[0].to_dict()
 
     async def list(self):
         page, size = self._get_list_page_and_size(self.params.get('page', 1), self.params.get('size', -1))
-        qi = QueryInfo.from_json(self.model, await self._get_query_data())
+        qi = QueryInfo.from_json(self.model, await self._get_query_data(), from_http_query=True)
         qi.offset = size * (page - 1)
         qi.limit = size
 
-        lst = await self.crud.get_list_with_foreign_keys(qi, await self.get_perm_info())
+        lst = await self.crud.get_list_with_foreign_keys(qi, perm=await self.get_perm_info())
         return [x.to_dict() for x in lst]
 
     async def list_page(self):
         page, size = self._get_list_page_and_size(self.params.get('page', 1), self.params.get('size', -1))
-        qi = QueryInfo.from_json(self.model, await self._get_query_data())
+        qi = QueryInfo.from_json(self.model, await self._get_query_data(), from_http_query=True)
         qi.offset = size * (page - 1)
         qi.limit = size
-        all_count = 99999999999
 
-        lst = await self.crud.get_list_with_foreign_keys(qi, await self.get_perm_info())
-        pg = pagination_calc(size, all_count, page)
+        lst = await self.crud.get_list_with_foreign_keys(qi, with_count=True, perm=await self.get_perm_info())
+        all_count = lst.rows_count
+
+        pg = pagination_calc(all_count, size, page)
         pg['items'] = [x.to_dict() for x in lst]
         return pg
 
     async def delete(self):
-        qi = QueryInfo.from_json(self.model, await self._get_query_data())
+        qi = QueryInfo.from_json(self.model, await self._get_query_data(), from_http_query=True)
         qi.limit = self._bulk_num()
         lst = await self.crud.delete_with_perm(qi, perm=await self.get_perm_info())
         return lst
 
     async def update(self):
-        qi = QueryInfo.from_json(self.model, await self._get_query_data())
+        qi = QueryInfo.from_json(self.model, await self._get_query_data(), from_http_query=True)
         qi.limit = self._bulk_num()
         values = ValuesToWrite(await self.post_data(), self.model)
         lst = await self.crud.update_with_perm(qi, values, await self.is_returning(), perm=await self.get_perm_info())

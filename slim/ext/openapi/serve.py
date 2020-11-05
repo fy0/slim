@@ -2,6 +2,7 @@ import json
 from posixpath import join as urljoin
 from typing import TYPE_CHECKING
 
+from slim.base.web import Response
 from slim.ext.openapi.main import get_openapi
 
 if TYPE_CHECKING:
@@ -9,16 +10,17 @@ if TYPE_CHECKING:
     from slim.base.view import RequestView
 
 
-def doc_serve(app: 'Application'):
+def doc_serve(app: 'Application', crud):
     spec_url = urljoin(app.mountpoint, '/openapi.json')
 
     @app.route.get(spec_url)
     async def openapi(request: 'RequestView'):
         role = request.params.get('role')
-        request.finish_json(get_openapi(app, role))
+        return get_openapi(app, role)
 
     @app.route.get('/redoc')
     async def redoc(request: 'RequestView'):
+        """
         role = request.params.get('role')
 
         def get_role_spec_url(role):
@@ -50,8 +52,10 @@ def doc_serve(app: 'Application'):
         %s
     </select>
 </div>''' % options
+        """
 
-        request.finish_raw(data='''
+        change_role_html = ''
+        return Response(data='''
 <!DOCTYPE html>
 <html>
   <head>
@@ -77,4 +81,4 @@ def doc_serve(app: 'Application'):
     %s
   </body>
 </html>
-    ''' % (my_spec_url, change_role_html), content_type='text/html')
+    ''' % (spec_url, change_role_html), content_type='text/html')
