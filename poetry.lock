@@ -161,7 +161,7 @@ description = "A common crud framework for web."
 name = "pycurd"
 optional = false
 python-versions = ">=3.6.9"
-version = "0.1.6"
+version = "0.1.10"
 
 [package.dependencies]
 PyPika = ">=0.42.1"
@@ -338,7 +338,7 @@ docs = ["sphinx", "jaraco.packaging (>=3.2)", "rst.linker (>=1.9)"]
 testing = ["pytest (>=3.5,<3.7.3 || >3.7.3)", "pytest-checkdocs (>=1.2.3)", "pytest-flake8", "pytest-cov", "jaraco.test (>=3.2.0)", "jaraco.itertools", "func-timeout", "pytest-black (>=0.3.7)", "pytest-mypy"]
 
 [metadata]
-content-hash = "ec52ae4e40a737196186e5e635a5fa092fed29844bb9efc15e3956a87919be7e"
+content-hash = "eee38a7bff33f682478ae59bd9d3070ccb980c4ca0f81c5b915bdc225044a84e"
 lock-version = "1.0"
 python-versions = ">=3.6.9"
 
@@ -493,8 +493,8 @@ py = [
     {file = "py-1.9.0.tar.gz", hash = "sha256:9ca6883ce56b4e8da7e79ac18787889fa5206c79dcc67fb065376cd2fe03f342"},
 ]
 pycurd = [
-    {file = "pycurd-0.1.6-py3-none-any.whl", hash = "sha256:dedfd1fd32d827fa1ad518308f4ede824f1ba4c62b099fe8818cbbe77cdae003"},
-    {file = "pycurd-0.1.6.tar.gz", hash = "sha256:4f8743863e8645f2cee00afc96efc0adae754dfba1603592230df944836ebdb5"},
+    {file = "pycurd-0.1.10-py3-none-any.whl", hash = "sha256:85b9e67524942b9221645523aefb9a7b343043ea50a49bb6efc9fdad3f5e95d9"},
+    {file = "pycurd-0.1.10.tar.gz", hash = "sha256:b64943c24fc67e6c7a04e8f13e05aa4710937b62978522a3d46d71f091704228"},
 ]
 pydantic = [
     {file = "pydantic-1.6.1-cp36-cp36m-macosx_10_9_x86_64.whl", hash = "sha256:418b84654b60e44c0cdd5384294b0e4bc1ebf42d6e873819424f3b78b8690614"},
