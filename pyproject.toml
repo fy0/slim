@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "slim"
-version = "0.7.0a4"
+version = "0.7.0a5"
 description = "A Simple ASGI Web framework"
 authors = ["fy <fy0748@gmail.com>"]
 license = "Zlib"
@@ -57,7 +57,7 @@ click = ">=7.0,<8.0"
 aiofiles = ">=0.4.0,<0.6"
 python-multipart = "^0.0.5"
 msgpack = "^1.0.0"
-pycurd = "0.1.10"
+pycurd = ">=0.1.13"
 
 [tool.poetry.dev-dependencies]
 pytest = ">=5.2"
