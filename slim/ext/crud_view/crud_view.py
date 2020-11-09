@@ -1,7 +1,8 @@
-from typing import Tuple, Type, Optional
+from typing import Tuple, Type, Optional, Any, Union
 
 from multidict import istr
 from pycurd.crud.base_crud import BaseCrud, PermInfo
+from pycurd.crud.query_result_row import QueryResultRow
 from pycurd.permission import RoleDefine
 from pycurd.query import QueryInfo
 from pycurd.types import RecordMapping
@@ -138,11 +139,11 @@ class CrudView(_CrudViewUtils):
         lst = await self.crud.update_with_perm(qi, values, await self.is_returning(), perm=await self.get_perm_info())
         return lst
 
-    async def insert(self):
+    async def insert(self) -> Optional[Union[QueryResultRow, Any]]:
         values = [ValuesToWrite(await self.post_data(), self.model, try_parse=True)]
         rtn = await self.is_returning()
         lst = await self.crud.insert_many_with_perm(self.model, values, rtn, perm=await self.get_perm_info())
-        return lst
+        return lst[0] if lst else None
 
     async def bulk_insert(self):
         post = await self.post_data()

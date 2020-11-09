@@ -147,7 +147,7 @@ class BaseView(HTTPMixin, metaclass=MetaClassForInit):
             body_buf.seek(0)
             return body_buf
 
-        if self.content_type in ('application/json', '', None):
+        if (isinstance(self.content_type, str) and self.content_type.startswith('application/json')) or self.content_type in ('application/json', '', None):
             try:
                 body_buffer = await read_body(self.request.receive)
                 body = body_buffer.read()
