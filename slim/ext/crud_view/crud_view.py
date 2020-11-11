@@ -63,11 +63,14 @@ class _CrudViewUtils(BaseView):
     async def is_returning(self) -> bool:
         return istr('returning') in self.headers
 
-    async def _get_query_data(self):
+    async def _get_query_info(self):
         post = await self.post_data()
+
         if post and '$query' in post:
-            return post.get('$query')
-        return self.params
+            data = post.get('$query')
+            return QueryInfo.from_json(self.model, data, from_http_query=False)
+
+        return QueryInfo.from_json(self.model, self.params, from_http_query=True)
 
 
 class CrudView(_CrudViewUtils):
