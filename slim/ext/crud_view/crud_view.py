@@ -1,12 +1,12 @@
 from typing import Tuple, Type, Optional, Any, Union
 
 from multidict import istr
-from pycurd.crud.base_crud import BaseCrud, PermInfo
-from pycurd.crud.query_result_row import QueryResultRow
-from pycurd.permission import RoleDefine
-from pycurd.query import QueryInfo
-from pycurd.types import RecordMapping
-from pycurd.values import ValuesToWrite
+from pycrud.crud.base_crud import BaseCrud, PermInfo
+from pycrud.crud.query_result_row import QueryResultRow
+from pycrud.permission import RoleDefine
+from pycrud.query import QueryInfo
+from pycrud.types import RecordMapping
+from pycrud.values import ValuesToWrite
 from slim.base.route import Route
 
 from slim.base.view.base_view import BaseView

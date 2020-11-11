@@ -1,10 +1,10 @@
 import pytest
 from peewee import TextField, Model, SqliteDatabase
 
-from pycurd.crud.ext.peewee_crud import PeeweeCrud
-from pycurd.permission import RoleDefine, TablePerm, A
-from pycurd.types import RecordMapping
-from pycurd.values import ValuesToWrite
+from pycrud.crud.ext.peewee_crud import PeeweeCrud
+from pycrud.permission import RoleDefine, TablePerm, A
+from pycrud.types import RecordMapping
+from pycrud.values import ValuesToWrite
 from slim import Application
 from slim.base.user import BaseUser, BaseUserViewMixin
 from slim.ext.crud_view.crud_view import CrudView

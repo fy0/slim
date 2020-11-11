@@ -29,7 +29,7 @@ def model_to_pydantic(model: Model):
     print('''from pydantic import Field
 from typing import Optional
 
-from pycurd.types import RecordMapping
+from pycrud.types import RecordMapping
 
 ''')
 

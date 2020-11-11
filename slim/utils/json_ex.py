@@ -1,6 +1,6 @@
 import json
 
-from pycurd.crud.query_result_row import QueryResultRow
+from pycrud.crud.query_result_row import QueryResultRow
 from .binhex import to_hex
 
 

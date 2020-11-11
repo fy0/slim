@@ -70,7 +70,7 @@ class Ability:
 
 def role_convert(role: Ability, name=None, based_on_name=None):
     import re
-    print('from pycurd.permission import RoleDefine, TablePerm, A\n\n')
+    print('from pycrud.permission import RoleDefine, TablePerm, A\n\n')
 
     def name_format(n):
         def pattern_callback(pat):
