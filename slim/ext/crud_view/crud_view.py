@@ -22,14 +22,16 @@ class _CrudViewUtils(BaseView):
     def _bulk_num(self):
         bulk_key = istr('bulk')
         if bulk_key in self.headers:
+            value = self.headers.get(bulk_key)
             try:
-                num = int(self.headers.get(bulk_key))
+                num = int(value)
                 if num <= 0:
                     # num invalid
                     return 1
                 return num
             except ValueError:
-                pass
+                if value in ('false', 'False', '0'):
+                    return 1
             return -1
         return 1
 
