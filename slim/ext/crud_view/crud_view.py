@@ -63,7 +63,7 @@ class _CrudViewUtils(BaseView):
     async def is_returning(self) -> bool:
         return istr('returning') in self.headers
 
-    async def _get_query_info(self):
+    async def _get_query_info(self) -> 'QueryInfo':
         post = await self.post_data()
 
         if post and '$query' in post:
@@ -101,7 +101,7 @@ class CrudView(_CrudViewUtils):
         return PermInfo(True, self.current_user, self.current_role)
 
     async def get(self):
-        qi = QueryInfo.from_json(self.model, await self._get_query_data(), from_http_query=True)
+        qi = await self._get_query_info()
         qi.limit = 1
         lst = await self.crud.get_list_with_foreign_keys(qi, perm=await self.get_perm_info())
         if lst:
@@ -109,7 +109,7 @@ class CrudView(_CrudViewUtils):
 
     async def list(self):
         page, size = self._get_list_page_and_size(self.params.get('page', 1), self.params.get('size', -1))
-        qi = QueryInfo.from_json(self.model, await self._get_query_data(), from_http_query=True)
+        qi = await self._get_query_info()
         qi.offset = size * (page - 1)
         qi.limit = size
 
@@ -118,7 +118,7 @@ class CrudView(_CrudViewUtils):
 
     async def list_page(self):
         page, size = self._get_list_page_and_size(self.params.get('page', 1), self.params.get('size', -1))
-        qi = QueryInfo.from_json(self.model, await self._get_query_data(), from_http_query=True)
+        qi = await self._get_query_info()
         qi.offset = size * (page - 1)
         qi.limit = size
 
@@ -130,13 +130,13 @@ class CrudView(_CrudViewUtils):
         return pg
 
     async def delete(self):
-        qi = QueryInfo.from_json(self.model, await self._get_query_data(), from_http_query=True)
+        qi = await self._get_query_info()
         qi.limit = self._bulk_num()
         lst = await self.crud.delete_with_perm(qi, perm=await self.get_perm_info())
         return lst
 
     async def update(self):
-        qi = QueryInfo.from_json(self.model, await self._get_query_data(), from_http_query=True)
+        qi = await self._get_query_info()
         qi.limit = self._bulk_num()
         values = ValuesToWrite(await self.post_data(), self.model)
         lst = await self.crud.update_with_perm(qi, values, await self.is_returning(), perm=await self.get_perm_info())

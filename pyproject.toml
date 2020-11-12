@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "slim"
-version = "0.7.0a8"
+version = "0.7.0a9"
 description = "A Simple ASGI Web framework"
 authors = ["fy <fy0748@gmail.com>"]
 license = "Zlib"
