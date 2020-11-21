@@ -11,6 +11,7 @@ from slim.base.route import Route
 
 from slim.base.view.base_view import BaseView
 from slim.exception import InvalidParams, InvalidPostData
+from slim.ext.crud_view.inner_interface_name import BuiltinCrudInterface
 from slim.utils import get_class_full_name, pagination_calc
 
 
@@ -168,10 +169,11 @@ class CrudView(_CrudViewUtils):
         super()._on_bind(route)
 
         # register interface
-        route.get(summary='获取单项')(cls.get)
-        route.get(summary='获取列表', url='list')(cls.list)  # /:page/:size?
-        route.get(summary='获取列表(带分页)', url='list_page')(cls.list_page)
-        route.post(summary='更新')(cls.update)
-        route.post(summary='新建')(cls.insert)
-        route.post(summary='批量新建')(cls.bulk_insert)
-        route.post(summary='删除')(cls.delete)
+        I = BuiltinCrudInterface
+        route.get(summary='获取单项', _builtin_interface=I.GET)(cls.get)
+        route.get(summary='获取列表', url='list', _builtin_interface=I.LIST)(cls.list)  # /:page/:size?
+        route.get(summary='获取列表(带分页)', url='list_page', _builtin_interface=I.LIST_PAGE)(cls.list_page)
+        route.post(summary='更新', _builtin_interface=I.UPDATE)(cls.update)
+        route.post(summary='新建', _builtin_interface=I.INSERT)(cls.insert)
+        route.post(summary='批量新建', _builtin_interface=I.BULK_INSERT)(cls.bulk_insert)
+        route.post(summary='删除', _builtin_interface=I.DELETE)(cls.delete)

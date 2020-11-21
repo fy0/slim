@@ -14,13 +14,13 @@ logger = logging.getLogger(__name__)
 class Application:
     def __init__(self, *, cookies_secret: bytes = b'secret code', log_level=logging.INFO, session_cls=CookieSession,
                  mountpoint: str = '/api', doc_enable=True, doc_info=ApplicationDocInfo(),
-                 client_max_size=100 * 1024 * 1024, cors_options: Optional[CORSOptions] = None):
+                 cors_options: Optional[CORSOptions] = CORSOptions(),
+                 client_max_size=100 * 1024 * 1024,):
         """
         :param cookies_secret:
         :param log_level:
         :param session_cls:
         :param mountpoint:
-        :param doc_enable:
         :param doc_info:
         :param client_max_size: 100MB
         """
@@ -33,20 +33,17 @@ class Application:
         self.user_mixin_class = None
         self.mountpoint = mountpoint
         self.route = Route(self)
+
         self.doc_enable = doc_enable
         self.doc_info = doc_info
-
-        if self.doc_enable:
-            doc_serve(self, None)
 
         if log_level:
             log.enable(log_level)
 
-        if isinstance(cors_options, CORSOptions):
-            self.cors_options = [cors_options]
-        else:
-            self.cors_options = cors_options
+        if cors_options is not None:
+            assert isinstance(cors_options, CORSOptions), "cors_options must be instance of `CORSOptions` or `None`, for example: CORSOptions()"
 
+        self.cors_options = cors_options
         self.cookies_secret = cookies_secret
         self.session_cls = session_cls
         self.client_max_size = client_max_size
@@ -56,6 +53,9 @@ class Application:
         self._last_resp = None  # use for tests
 
     def prepare(self):
+        if self.doc_enable:
+            doc_serve(self, None)
+
         self.route._bind()
 
     async def __call__(self, scope, receive, send, *, raise_for_resp=False):

@@ -5,7 +5,7 @@ from schematics.exceptions import DataError
 
 from slim.exception import InvalidParams, InvalidPostData, InvalidHeaders
 from .err_catch_context import ErrorCatchContext
-from ...ext.crud_view.inner_interface_name import BuiltinInterface
+from ...ext.crud_view.inner_interface_name import BuiltinCrudInterface
 
 if TYPE_CHECKING:
     from slim.base.view.base_view import BaseView
@@ -31,14 +31,14 @@ async def view_validate_check(view: "BaseView", va_query: Optional[Type[Model]],
             if isinstance(view, AbstractSQLView):
                 write_values = []
 
-                if view.current_interface == BuiltinInterface.BULK_INSERT:
+                if view.current_interface == BuiltinCrudInterface.BULK_INSERT:
                     items = post_data.get('items')
                     if isinstance(items, (List, Tuple)):
                         for i in items:
                             write_values.append(do_validate(va_write_value, i, InvalidPostData))
                     else:
                         raise InvalidPostData("`items` from post data should be list")
-                elif view.current_interface in (BuiltinInterface.SET, BuiltinInterface.NEW):
+                elif view.current_interface in (BuiltinCrudInterface.SET, BuiltinCrudInterface.NEW):
                     write_values.append(do_validate(va_write_value, post_data, InvalidPostData))
 
                 view._.validated_write_values = write_values

@@ -43,7 +43,7 @@ class Route:
         self._statics_mappings_regex: Dict[str, Dict[re.Pattern, RouteStaticsInfo]] = {}
 
     def interface(self, method, url=None, *, summary=None, va_query=None, va_post=None, va_headers=None,
-                  va_resp=ResponseDataModel, deprecated=False):
+                  va_resp=ResponseDataModel, deprecated=False, _builtin_interface=None):
         """
         Register interface
         :param method:
@@ -54,6 +54,7 @@ class Route:
         :param va_headers:
         :param va_resp:
         :param deprecated:
+        :param _builtin_interface: builtin interface type, influence docs generate
         :return:
         """
 
@@ -84,6 +85,7 @@ class Route:
                 va_headers=va_headers,
                 va_resp=va_resp,
                 deprecated=deprecated,
+                builtin_interface=_builtin_interface,
 
                 names_exclude=names_exclude,
                 names_include=names_include,
@@ -272,13 +274,13 @@ class Route:
         self._statics.append(RouteStaticsInfo(['GET'], url_prefix, static_path))
 
     def get(self, url=None, *, summary=None, va_query=None, va_post=None, va_headers=None,
-            va_resp=ResponseDataModel, deprecated=False):
+            va_resp=ResponseDataModel, deprecated=False, _builtin_interface=None):
         kwargs = locals()
         del kwargs['self']
         return self.interface('GET', **kwargs)
 
     def post(self, url=None, *, summary=None, va_query=None, va_post=None, va_headers=None,
-             va_resp=ResponseDataModel, deprecated=False):
+             va_resp=ResponseDataModel, deprecated=False, _builtin_interface=None):
         kwargs = locals()
         del kwargs['self']
         return self.interface('POST', **kwargs)

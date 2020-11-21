@@ -1,8 +1,11 @@
+from enum import Enum
 
-class BuiltinInterface:
+
+class BuiltinCrudInterface(Enum):
     GET = 'get'
     LIST = 'list'
-    SET = 'set'
-    NEW = 'new'
+    LIST_PAGE = 'list_page'
+    UPDATE = 'update'
+    INSERT = 'insert'
     BULK_INSERT = 'bulk_insert'
     DELETE = 'delete'

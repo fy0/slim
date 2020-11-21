@@ -1,5 +1,6 @@
 from collections import OrderedDict
-from typing import List
+from dataclasses import dataclass, Field, field
+from typing import List, Optional
 
 from schematics import Model
 from schematics.types import IntType, StringType, BaseType
@@ -18,16 +19,15 @@ class ValidatorDoc(JsDict):
         self.schema = schema
 
 
+@dataclass
 class ApplicationDocInfo:
-    def __init__(self, title='slim application', description='', license=None, version='1.0.0',
-                 contact=None):
-        self.title = title
-        self.description = description.strip()
-        self.license = license
-        self.version = version
-        self.contact = contact
-        self.tags = OrderedDict()
-        self.x_tag_groups = OrderedDict()
+    title: str = 'slim application'
+    description: str = ''
+    license: Optional[str] = None
+    version: str = '1.0.0'
+    contact: Optional[str] = None
+    tags: OrderedDict = field(default_factory=lambda: OrderedDict())
+    x_tag_groups: OrderedDict = field(default_factory=lambda: OrderedDict())
 
     def add_tag(self, name, description, display_name=None, index=-1):
         """

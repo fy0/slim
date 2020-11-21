@@ -11,7 +11,7 @@ if typing.TYPE_CHECKING:
 
 @dataclass
 class CORSOptions:
-    host: str
+    host: str = '*'  # not implemented
     allow_credentials: bool = False
     expose_headers: Optional[Sequence] = None
     allow_headers: Sequence = ()

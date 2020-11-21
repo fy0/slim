@@ -5,7 +5,7 @@ from typing import Type, TYPE_CHECKING
 from slim.base.types.route_meta_info import RouteInterfaceInfo
 from slim.base.types.func_meta import FuncMeta
 from slim.base.user import BaseUserViewMixin
-from slim.ext.crud_view.inner_interface_name import BuiltinInterface
+from slim.ext.crud_view.inner_interface_name import BuiltinCrudInterface
 from slim.utils.schematics_ext import schematics_field_to_schema, schematics_model_to_json_schema, field_metadata_assign
 
 if TYPE_CHECKING:
@@ -125,6 +125,37 @@ class OpenAPIGenerator:
             self._field_schema_cache[field] = val
 
         return val
+
+    def _crud_view_check(self):
+        from slim.view import CrudView
+        from pycrud.crud.base_crud import BaseCrud
+        from pycrud.permission import RoleDefine
+        from pycrud.permission import A
+
+        for vi in self.app.route._views:
+            view_cls = vi.view_cls
+            is_crud_view = issubclass(view_cls, CrudView)
+
+            if is_crud_view:
+                view_cls: Type[CrudView]
+                rd: RoleDefine = view_cls.crud.permission.get(self.role)
+
+                avail_query = rd.get_perm_avail(view_cls.model, A.QUERY)
+                avail_create = rd.get_perm_avail(view_cls.model, A.CREATE)
+                avail_read = rd.get_perm_avail(view_cls.model, A.READ)
+                avail_update = rd.get_perm_avail(view_cls.model, A.UPDATE)
+                avail_delete = rd.get_perm_avail(view_cls.model, A.DELETE)
+
+                view_cls.model.schema_json()
+                self.view_info[view_cls] = {
+                    # 'sql_query_parameters':
+                    'can_create': len(avail_create) > 0,
+                    'can_read': len(avail_read) > 0,
+                    'can_update': len(avail_update) > 0,
+                    'can_delete': len(avail_delete) > 0,
+                }
+
+
 
     def _sql_views_check(self):
         app = self.app
@@ -250,6 +281,10 @@ class OpenAPIGenerator:
                     if self.role not in meta.interface_roles:
                         continue
 
+                is_builtin = i.builtin_interface
+                if is_builtin:
+                    pass
+
                 if False:
                     is_builtin = i.builtin_interface
                     # view_info = self.view_info[view_cls]
@@ -258,7 +293,7 @@ class OpenAPIGenerator:
                         sql_query = i.va_query
                         sql_post = i.va_post
 
-                        if i.builtin_interface == BuiltinInterface.SET:
+                        if i.builtin_interface == BuiltinCrudInterface.SET:
                             if view_info['sql_cant_write']:
                                 continue
                             add_bulk_header()
@@ -268,7 +303,7 @@ class OpenAPIGenerator:
                                 "properties": view_info['sql_write_schema']
                             }
 
-                        if i.builtin_interface == BuiltinInterface.NEW:
+                        if i.builtin_interface == BuiltinCrudInterface.NEW:
                             if view_info['sql_cant_create']:
                                 continue
                             add_returning_header()
@@ -277,7 +312,7 @@ class OpenAPIGenerator:
                                 "properties": view_info['sql_create_schema']
                             }
 
-                        if i.builtin_interface == BuiltinInterface.BULK_INSERT:
+                        if i.builtin_interface == BuiltinCrudInterface.BULK_INSERT:
                             if view_info['sql_cant_create']:
                                 continue
                             add_returning_header()
@@ -295,7 +330,7 @@ class OpenAPIGenerator:
                                 }
                             }
 
-                        if i.builtin_interface == BuiltinInterface.DELETE:
+                        if i.builtin_interface == BuiltinCrudInterface.DELETE:
                             if view_info['sql_cant_delete']:
                                 continue
                             add_bulk_header()
@@ -304,7 +339,7 @@ class OpenAPIGenerator:
                                 "description": "影响数据个数",
                             }
 
-                        if i.builtin_interface == BuiltinInterface.LIST:
+                        if i.builtin_interface == BuiltinCrudInterface.LIST:
                             parameters.extend([
                                 {
                                     "name": "page",
@@ -329,7 +364,7 @@ class OpenAPIGenerator:
                         if sql_query:
                             parameters.extend(view_info['sql_query_parameters'])
 
-                        if i.builtin_interface == BuiltinInterface.LIST:
+                        if i.builtin_interface == BuiltinCrudInterface.LIST:
                             page_info = deepcopy(paginate_schema)
                             page_info["properties"]["items"] = {
                                 "type": "array",
@@ -432,7 +467,9 @@ class OpenAPIGenerator:
         if doc_info.contact:
             self.openapi_file['info']['contact'] = doc_info.contact
 
+        # generate tags by view name
         tags = []
+
         for vi in self.app.route._views + [RequestView._route_info]:
             tag = {
                 'name': vi.view_cls.__name__,

@@ -135,14 +135,15 @@ async def handle_request(app: 'Application', scope: Scope, receive: Receive, sen
 
         try:
             # Configure CORS settings.
+            # TODO: host match
             if app.cors_options:
-                # TODO: host match
-                for i in app.cors_options:
-                    i: CORSOptions
-                    if resp.headers:
-                        resp.headers.update(i.pack_headers(request))
-                    else:
-                        resp.headers = i.pack_headers(request)
+                # for i in app.cors_optionsa:
+                #     i: CORSOptions
+                c: CORSOptions = app.cors_options
+                if resp.headers:
+                    resp.headers.update(c.pack_headers(request))
+                else:
+                    resp.headers = c.pack_headers(request)
 
             app._last_resp = resp
             await resp(scope, receive, send)
