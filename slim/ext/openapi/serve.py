@@ -10,8 +10,19 @@ if TYPE_CHECKING:
     from slim.base.view import RequestView
 
 
-def doc_serve(app: 'Application', crud):
+def doc_serve(app: 'Application'):
     spec_url = urljoin(app.mountpoint, '/openapi.json')
+    from slim.ext.crud_view.crud_view import CrudView
+
+    def get_roles():
+        roles = set(app.doc_info.roles or [])
+
+        for i in app.route._views:
+            if issubclass(i.view_cls, CrudView):
+                for r in i.view_cls.crud.permission.keys():
+                    roles.add(r)
+
+        return roles
 
     @app.route.get(spec_url)
     async def openapi(request: 'RequestView'):
@@ -20,28 +31,24 @@ def doc_serve(app: 'Application', crud):
 
     @app.route.get('/redoc')
     async def redoc(request: 'RequestView'):
-        """
         role = request.params.get('role')
 
         def get_role_spec_url(role):
             if role is None:
                 return spec_url
-            if role in app.permission.roles:
-                my_spec_url_tmpl = f'{spec_url}?role=%s'
-                return my_spec_url_tmpl % role
-            return spec_url
+
+            my_spec_url_tmpl = f'{spec_url}?role=%s'
+            return my_spec_url_tmpl % role
 
         def get_query_by_role(role):
             if role is None:
                 return ''
-            if role in app.permission.roles:
-                return '?role=' + role
-            return ''
+            return '?role=' + role
 
         my_spec_url = get_role_spec_url(role)
 
         options = ''
-        for i in app.permission.roles:
+        for i in get_roles():
             selected = 'selected ' if role == i else ''
             options += '<option ' + selected + 'value=%r>%s</option>' % (get_query_by_role(i), i or 'visitor')
 
@@ -52,9 +59,7 @@ def doc_serve(app: 'Application', crud):
         %s
     </select>
 </div>''' % options
-        """
 
-        change_role_html = ''
         return Response(data='''
 <!DOCTYPE html>
 <html>
@@ -81,4 +86,4 @@ def doc_serve(app: 'Application', crud):
     %s
   </body>
 </html>
-    ''' % (spec_url, change_role_html), content_type='text/html')
+    ''' % (my_spec_url, change_role_html), content_type='text/html')

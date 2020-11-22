@@ -54,7 +54,7 @@ class Application:
 
     def prepare(self):
         if self.doc_enable:
-            doc_serve(self, None)
+            doc_serve(self)
 
         self.route._bind()
 

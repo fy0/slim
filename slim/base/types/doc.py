@@ -28,6 +28,7 @@ class ApplicationDocInfo:
     contact: Optional[str] = None
     tags: OrderedDict = field(default_factory=lambda: OrderedDict())
     x_tag_groups: OrderedDict = field(default_factory=lambda: OrderedDict())
+    roles: Optional[str] = None
 
     def add_tag(self, name, description, display_name=None, index=-1):
         """

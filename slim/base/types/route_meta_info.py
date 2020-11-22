@@ -49,6 +49,9 @@ class RouteInterfaceInfo:
             return f'{self.view_cls.__name__}.{self.handler.__name__}'
         return self.handler.__name__
 
+    def __hash__(self):
+        return id(self)
+
 
 @dataclass
 class RouteStaticsInfo:
